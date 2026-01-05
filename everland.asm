@@ -155,7 +155,7 @@ saveNameBuf:
 	.fill 24, 0
 
 // Music state (runs in IRQ)
-musicEnabled: .byte 1
+musicEnabled: .byte 0
 musicTheme:   .byte 0 // 0=off,1=mythos,2=lore,3=aurora,4=scary,5=tavern,6=inn,7=temple,8=fairy,9=pirate
 musicPattern: .byte 0 // 0..2 within theme
 musicStep:    .byte 0 // 0..15
@@ -887,7 +887,6 @@ appendByteAsDec:
 	lda #0
 	sta ZP_PTR2
 	pla
-	pha
 @h:
 	cmp #100
 	bcc @tens
@@ -1514,8 +1513,6 @@ themeSparkNotesHi:
 
 init:
 	jsr loginOrCreate
-	jsr musicInit
-	jsr musicPickForLocation
 	jsr ensureQuest
 	rts
 
