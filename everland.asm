@@ -1782,7 +1782,18 @@ placeMarker:
 	ldx ZP_PTR+1
 	ldy ZP_PTR
 	jsr PLOT
+	// Reverse-video 'X' so the cell background is the current color.
+	// Light green = $99, reverse on = $12, reverse off = $92
+	lda #$12
+	jsr CHROUT
+	lda #$99
+	jsr CHROUT
 	lda #'X'
+	jsr CHROUT
+	lda #$92
+	jsr CHROUT
+	// Restore normal text color (white)
+	lda #$05
 	jsr CHROUT
 	rts
 
@@ -2316,8 +2327,23 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_unknown
+	bcc @ec_tryChart
 	jmp cmdStatus
+
+@ec_tryChart:
+
+	// CHART (PETSCII glyph finder)
+	txa
+	pha
+	lda #<kwChart
+	sta ZP_PTR2
+	lda #>kwChart
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_unknown
+	jmp cmdChart
 
 @ec_unknown:
 
@@ -2350,6 +2376,68 @@ matchKeywordAtX:
 	beq @yes
 @no:
 	clc
+	rts
+
+// --- PETSCII chart helpers ---
+
+printHexNibble:
+	and #$0F
+	cmp #10
+	bcc @phn_num
+	clc
+	adc #('A'-10)
+	jmp @phn_out
+@phn_num:
+	clc
+	adc #'0'
+@phn_out:
+	jsr CHROUT
+	rts
+
+// Prints A as two hex digits
+printHexByte:
+	pha
+	lsr
+	lsr
+	lsr
+	lsr
+	jsr printHexNibble
+	pla
+	and #$0F
+	jsr printHexNibble
+	rts
+
+// Print one 16-char row: label + 16 glyphs + spaces
+// A = row base (multiple of $10)
+chartPrintRow:
+	sta ZP_PTR
+	lda ZP_PTR
+	jsr printHexByte
+	lda #':'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+
+	ldy #0
+@cpr_loop:
+	tya
+	clc
+	adc ZP_PTR
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	iny
+	cpy #16
+	bne @cpr_loop
+	jsr newline
+	rts
+
+waitAnyKey:
+	jsr flushKeys
+@wak:
+	jsr SCNKEY
+	jsr GETIN
+	beq @wak
 	rts
 @yes:
 	sec
@@ -3207,12 +3295,72 @@ cmdStatus:
 	// Show quest detail in last message
 	lda activeQuest
 	cmp #QUEST_NONE
-	beq @status_none
+	bne @status_hasQuest
+	jmp @status_none
+
+@status_hasQuest:
 	tax
 	lda questDetailLo,x
 	sta lastMsgLo
 	lda questDetailHi,x
 	sta lastMsgHi
+	rts
+
+cmdChart:
+	jsr clearScreen
+	lda #<msgChart1
+	sta ZP_PTR
+	lda #>msgChart1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgChart2
+	sta ZP_PTR
+	lda #>msgChart2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr newline
+
+	// Common printable-ish ranges with lots of graphics (avoid most control/color codes)
+	lda #<msgChartRange1
+	sta ZP_PTR
+	lda #>msgChartRange1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #$60
+	jsr chartPrintRow
+	lda #$70
+	jsr chartPrintRow
+	jsr newline
+
+	lda #<msgChartRange2
+	sta ZP_PTR
+	lda #>msgChartRange2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #$A0
+	jsr chartPrintRow
+	lda #$B0
+	jsr chartPrintRow
+	lda #$C0
+	jsr chartPrintRow
+	lda #$D0
+	jsr chartPrintRow
+	lda #$E0
+	jsr chartPrintRow
+	lda #$F0
+	jsr chartPrintRow
+	jsr newline
+
+	lda #<msgChart3
+	sta ZP_PTR
+	lda #>msgChart3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr waitAnyKey
 	rts
 
 @status_none:
@@ -3725,6 +3873,9 @@ kwStatus:    .text "STATUS"
 kwQuest:     .text "QUEST"
 	.byte 0
 
+kwChart:     .text "CHART"
+	.byte 0
+
 // --- UI Strings / Messages ---
 strExits:  .text "EXITS: "
 	.byte 0
@@ -3777,6 +3928,17 @@ npcNameHi:
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
 msgOk:         .text ""
+	.byte 0
+
+msgChart1: .text "PETSCII CHART (FOR MAP GLYPHS)"
+	.byte 0
+msgChart2: .text "ROW LABEL IS HEX. GLYPHS FOLLOW."
+	.byte 0
+msgChartRange1: .text "RANGE $60-$7F:"
+	.byte 0
+msgChartRange2: .text "RANGE $A0-$FF:"
+	.byte 0
+msgChart3: .text "PRESS ANY KEY TO RETURN"
 	.byte 0
 msgUnknown:    .text "I DIDN'T UNDERSTAND. TRY: N E S W, INSPECT <OBJ>, TAKE <OBJ>."
 	.byte 0
