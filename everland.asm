@@ -102,10 +102,15 @@
 .const ROW_DIVIDER    = 12
 .const ROW_UI_START   = 13
 .const ROW_DESC       = 14
+.const ROW_SEASON     = 17
 .const ROW_EXITS      = 18
+.const ROW_QUEST      = 19
 .const ROW_MSG        = 20
 .const ROW_HELP       = 22
 .const ROW_PROMPT     = 24
+
+.const ROW_AUTH_MSG   = 12
+.const ROW_AUTH_PROMPT= 14
 
 // Seasons
 .const SEASON_OFF    = 0
@@ -1526,6 +1531,31 @@ init:
 // --- Rendering ---
 render:
 	jsr clearScreen
+	// During login/account creation, keep the screen minimal.
+	lda uiHideExits
+	beq render_game
+	// Auth mode: only message + prompt.
+	clc
+	ldx #ROW_AUTH_MSG
+	ldy #0
+	jsr PLOT
+	lda lastMsgLo
+	sta ZP_PTR
+	lda lastMsgHi
+	sta ZP_PTR+1
+	jsr printZ
+	clc
+	ldx #ROW_AUTH_PROMPT
+	ldy #0
+	jsr PLOT
+	lda #<strPrompt
+	sta ZP_PTR
+	lda #>strPrompt
+	sta ZP_PTR+1
+	jsr printZ
+	rts
+
+render_game:
 	jsr drawMap
 
 	// UI title line
@@ -1538,7 +1568,7 @@ render:
 	jsr printZ
 	jsr newline
 
-	// Description (wrapped by hand as short lines)
+	// Description (hand-wrapped; limited to description area)
 	jsr setCursorDesc
 	ldx currentLoc
 	lda locDescLo,x
@@ -1546,9 +1576,11 @@ render:
 	lda locDescHi,x
 	sta ZP_PTR+1
 	jsr printZ
-	jsr newline
+
+	// Season + week/score/quest are printed at fixed rows so wrapping above can’t collide.
+	jsr setCursorSeason
 	jsr renderSeasonLine
-	jsr newline
+	jsr setCursorQuest
 	jsr renderQuestLine
 
 	// Exits (hidden during login/account creation)
@@ -1573,11 +1605,17 @@ render:
 	sta ZP_PTR+1
 	jsr printZ
 
-	// Help
+	// Help (two fixed-width lines)
 	jsr setCursorHelp
-	lda #<strHelp
+	lda #<strHelp1
 	sta ZP_PTR
-	lda #>strHelp
+	lda #>strHelp1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<strHelp2
+	sta ZP_PTR
+	lda #>strHelp2
 	sta ZP_PTR+1
 	jsr printZ
 
@@ -1652,9 +1690,23 @@ setCursorDesc:
 	jsr PLOT
 	rts
 
+setCursorSeason:
+	clc
+	ldx #ROW_SEASON
+	ldy #0
+	jsr PLOT
+	rts
+
 setCursorExits:
 	clc
 	ldx #ROW_EXITS
+	ldy #0
+	jsr PLOT
+	rts
+
+setCursorQuest:
+	clc
+	ldx #ROW_QUEST
 	ldy #0
 	jsr PLOT
 	rts
@@ -3286,31 +3338,57 @@ locNameLo:
 locNameHi:
 	.byte >locName0,>locName1,>locName2,>locName3,>locName4,>locName5,>locName6,>locName7,>locName8,>locName9,>locName10,>locName11,>locName12
 
-locDesc0: .text "A SMALL PLATFORM AND A WHISTLING SIGN. A LANTERN HANGS HERE."
+locDesc0: .text "A SMALL PLATFORM AND A WHISTLING SIGN."
+	.byte $0D
+	.text "A LANTERN HANGS HERE."
 	.byte 0
-locDesc1: .text "MERCHANTS TRADE TALES AND TRINKETS. A COIN GLINTS NEAR A STALL."
+locDesc1: .text "MERCHANTS TRADE TALES AND TRINKETS."
+	.byte $0D
+	.text "A COIN GLINTS NEAR A STALL."
 	.byte 0
-locDesc2: .text "IRON BANNERS AND WOODEN PALISADES. A RUSTED KEY RESTS BY A POST."
+locDesc2: .text "IRON BANNERS AND WOODEN PALISADES."
+	.byte $0D
+	.text "A RUSTED KEY RESTS BY A POST."
 	.byte 0
-locDesc3: .text "STONE FIGURES WATCH SILENTLY. FOOTSTEPS ECHO IN A RING."
+locDesc3: .text "STONE FIGURES WATCH SILENTLY."
+	.byte $0D
+	.text "FOOTSTEPS ECHO IN A RING."
 	.byte 0
-locDesc4: .text "THE HEART OF THE PARK. PATHS RADIATE LIKE SLICES OF A PIE."
+locDesc4: .text "THE HEART OF THE PARK."
+	.byte $0D
+	.text "PATHS RADIATE LIKE PIE SLICES."
 	.byte 0
-locDesc5: .text "GEARS, BELLS, AND BRASS SIGNS. A WORKSHOP HUMS QUIETLY."
+locDesc5: .text "GEARS, BELLS, AND BRASS SIGNS."
+	.byte $0D
+	.text "A WORKSHOP HUMS QUIETLY."
 	.byte 0
-locDesc6: .text "DARK TREES AND PAPER CHARMS. THE AIR SMELLS OF HERBS."
+locDesc6: .text "DARK TREES AND PAPER CHARMS."
+	.byte $0D
+	.text "THE AIR SMELLS OF HERBS."
 	.byte 0
-locDesc7: .text "GLASSY PETALS, LANTERN DEW, AND QUIET LAUGHTER IN THE HEDGES."
+locDesc7: .text "GLASSY PETALS AND LANTERN DEW."
+	.byte $0D
+	.text "QUIET LAUGHTER IN THE HEDGES."
 	.byte 0
-locDesc8: .text "LAUGHTER, MUSIC, AND FOAMING MUGS. A MUG SITS UNCLAIMED."
+locDesc8: .text "LAUGHTER, MUSIC, AND FOAMING MUGS."
+	.byte $0D
+	.text "A MUG SITS UNCLAIMED."
 	.byte 0
-locDesc9:  .text "A GRAVEYARD OF CROOKED STONES AND TATTERED RIBBONS. A MAUSOLEUM LOOMS."
+locDesc9:  .text "CROOKED STONES AND TATTERED RIBBONS."
+	.byte $0D
+	.text "A MAUSOLEUM LOOMS IN THE FOG."
 	.byte 0
-locDesc10: .text "BENEATH THE MAUSOLEUM, COLD STEPS DESCEND. EVERY SOUND RETURNS TWICE."
+locDesc10: .text "COLD STEPS DESCEND BENEATH THE TOMB."
+	.byte $0D
+	.text "EVERY SOUND RETURNS TWICE."
 	.byte 0
-locDesc11: .text "WARM LAMPLIGHT, POLISHED WOOD, AND SOFT FOOTSTEPS. ROOMS HUM WITH REST."
+locDesc11: .text "WARM LAMPLIGHT AND POLISHED WOOD."
+	.byte $0D
+	.text "ROOMS HUM WITH REST."
 	.byte 0
-locDesc12: .text "BROKEN COLUMNS AND OLD BANNERS. THE STONE STILL FEELS READY FOR WAR."
+locDesc12: .text "BROKEN COLUMNS AND OLD BANNERS."
+	.byte $0D
+	.text "THE STONE FEELS READY FOR WAR."
 	.byte 0
 
 locDescLo:
@@ -3494,7 +3572,9 @@ kwQuest:     .text "QUEST"
 // --- UI Strings / Messages ---
 strExits:  .text "EXITS: "
 	.byte 0
-strHelp:   .text "MOVE N/E/S/W  C CHARS  T TALK  I INV  WAIT  STATUS  SAVE/LOAD  INSPECT/TAKE/DROP/GIVE"
+strHelp1:  .text "N/E/S/W MOVE  I INV  C CHARS  T TALK"
+	.byte 0
+strHelp2:  .text "WAIT STATUS SAVE LOAD INSPECT TAKE DROP"
 	.byte 0
 strPrompt: .text "> "
 	.byte 0
@@ -3616,13 +3696,13 @@ msgExclaim:     .text "!"
 	.byte 0
 
 // Season / weather lines
-seasonOff:    .text "OFF SEASON: COOL WIND, GREY SKIES. 45F."
+seasonOff:    .text "OFF SEASON 45F: GREY SKIES"
 	.byte 0
-seasonMythos: .text "MYTHOS SEASON: BRIGHT AIR, SPARKLING CHARM. 72F."
+seasonMythos: .text "MYTHOS 72F: SPARKLING AIR"
 	.byte 0
-seasonLore:   .text "LORE SEASON: CRISP LEAVES, PUMPKINS GLOW. 55F."
+seasonLore:   .text "LORE 55F: CRISP LEAVES"
 	.byte 0
-seasonAurora: .text "AURORA SEASON: COLD LIGHTS, FESTIVE LANTERNS. 30F."
+seasonAurora: .text "AURORA 30F: FESTIVE LIGHTS"
 	.byte 0
 
 seasonLineLo:
