@@ -177,6 +177,7 @@ musicSparkTick:.byte 0
 musicSparkLen: .byte 4
 irqOldLo: .byte 0
 irqOldHi: .byte 0
+musicInstalled: .byte 0
 
 // Dynamic message buffer (used for characters/inventory listings)
 msgBufLen: .byte 0
@@ -1028,13 +1029,10 @@ advanceWeek:
 
 // --- Music engine (SID, raster IRQ) ---
 musicInit:
+	// Install our IRQ hook only once; we chain to the original KERNAL IRQ.
+	lda musicInstalled
+	bne @mi_installed
 	sei
-	// Disable CIA interrupts; we run a VIC raster IRQ only.
-	lda #$7F
-	sta $DC0D
-	sta $DD0D
-	lda $DC0D
-	lda $DD0D
 	// Save old IRQ vector
 	lda IRQ_VEC_LO
 	sta irqOldLo
@@ -1045,6 +1043,11 @@ musicInit:
 	sta IRQ_VEC_LO
 	lda #>musicIrq
 	sta IRQ_VEC_HI
+	lda #1
+	sta musicInstalled
+	cli
+
+@mi_installed:
 	// Enable raster IRQ
 	lda VIC_CTRL1
 	and #%01111111
@@ -1080,7 +1083,6 @@ musicInit:
 	sta SID_V1_CTRL
 	sta SID_V2_CTRL
 	sta SID_V3_CTRL
-	cli
 	rts
 
 // Pick music theme based on season and scary locations.
@@ -1189,7 +1191,7 @@ musicIrq:
 	pla
 	tax
 	pla
-	rti
+	jmp (irqOldLo)
 
 musicTickRoutine:
 	// Lead voice update
@@ -1525,6 +1527,10 @@ init:
 	jsr loginOrCreate
 	lda #0
 	sta uiHideExits
+	lda #1
+	sta musicEnabled
+	jsr musicInit
+	jsr musicPickForLocation
 	jsr ensureQuest
 	rts
 
