@@ -175,6 +175,9 @@ musicBassLen: .byte 16
 musicSparkStep:.byte 0
 musicSparkTick:.byte 0
 musicSparkLen: .byte 4
+leadWave: .byte $10   // TRI by default (waveform bits only; gate bit added dynamically)
+bassWave: .byte $10   // TRI
+sparkWave:.byte $40   // PULSE
 irqOldLo: .byte 0
 irqOldHi: .byte 0
 musicInstalled: .byte 0
@@ -1123,8 +1126,52 @@ musicPickForLocation:
 	jsr getSeason
 	sta musicTheme
 @pick:
+	jsr musicApplyThemeSettings
+	jsr musicAllNotesOff
 	jsr musicPickRandomPattern
 	jsr musicRestart
+	rts
+
+musicApplyThemeSettings:
+	ldx musicTheme
+	lda themeLeadLen,x
+	sta musicStepLen
+	lda themeBassLen,x
+	sta musicBassLen
+	lda themeSparkLen,x
+	sta musicSparkLen
+	lda themeLeadWave,x
+	sta leadWave
+	lda themeBassWave,x
+	sta bassWave
+	lda themeSparkWave,x
+	sta sparkWave
+	// Per-theme envelopes (SR only; AD set once in init)
+	lda themeV1SR,x
+	sta SID_V1_SR
+	lda themeV2SR,x
+	sta SID_V2_SR
+	lda themeV3SR,x
+	sta SID_V3_SR
+	rts
+
+musicAllNotesOff:
+	// Gate off + clear frequencies so theme switches don't overlap.
+	lda leadWave
+	sta SID_V1_CTRL
+	lda #0
+	sta SID_V1_FREQLO
+	sta SID_V1_FREQHI
+	lda bassWave
+	sta SID_V2_CTRL
+	lda #0
+	sta SID_V2_FREQLO
+	sta SID_V2_FREQHI
+	lda sparkWave
+	sta SID_V3_CTRL
+	lda #0
+	sta SID_V3_FREQLO
+	sta SID_V3_FREQHI
 	rts
 
 musicPickRandomPattern:
@@ -1245,12 +1292,13 @@ musicAdvanceLead:
 	sta SID_V1_FREQLO
 	lda noteFreqHi,y
 	sta SID_V1_FREQHI
-	lda #%00010001 // TRI + GATE
+	lda leadWave
+	ora #$01
 	sta SID_V1_CTRL
 	jmp @mal_next
 
 @mal_rest:
-	lda #%00010000 // TRI, gate off
+	lda leadWave
 	sta SID_V1_CTRL
 
 @mal_next:
@@ -1262,6 +1310,14 @@ musicAdvanceLead:
 	sta musicStep
 	// At end of pattern, pick another from same theme
 	jsr musicPickRandomPattern
+	// Keep bass/sparkle aligned with the new pattern.
+	lda #0
+	sta musicBassStep
+	sta musicSparkStep
+	lda musicBassLen
+	sta musicBassTick
+	lda musicSparkLen
+	sta musicSparkTick
 
 @mal_rts:
 	rts
@@ -1289,12 +1345,13 @@ musicAdvanceBass:
 	sta SID_V2_FREQLO
 	lda noteFreqHi,y
 	sta SID_V2_FREQHI
-	lda #%00010001
+	lda bassWave
+	ora #$01
 	sta SID_V2_CTRL
 	jmp @mab_next
 
 @mab_rest:
-	lda #%00010000
+	lda bassWave
 	sta SID_V2_CTRL
 
 @mab_next:
@@ -1317,7 +1374,7 @@ musicAdvanceSparkle:
 	beq @mas_do
 	cmp #8
 	beq @mas_do
-	lda #%01000000 // PULSE, gate off
+	lda sparkWave
 	sta SID_V3_CTRL
 	rts
 
@@ -1344,12 +1401,13 @@ musicAdvanceSparkle:
 	sta SID_V3_FREQLO
 	lda noteFreqHi,y
 	sta SID_V3_FREQHI
-	lda #%01000001 // PULSE + GATE
+	lda sparkWave
+	ora #$01
 	sta SID_V3_CTRL
 	jmp @mas_next
 
 @mas_rest:
-	lda #%01000000
+	lda sparkWave
 	sta SID_V3_CTRL
 
 @mas_next:
@@ -1383,20 +1441,20 @@ noteFreqHi:
 
 // --- Music patterns (16 steps each; 0=rest; note index 1..12) ---
 // MYTHOS (soft, major)
-myLead0: .byte 1,0,3,0,5,0,8,0,5,0,3,0,2,0,1,0
-myLead1: .byte 3,0,5,0,6,0,8,0,6,0,5,0,3,0,2,0
-myLead2: .byte 5,0,6,0,8,0,10,0,8,0,6,0,5,0,3,0
-myBass0: .byte 1,0,1,0,5,0,5,0,6,0,6,0,5,0,1,0
-myBass1: .byte 1,0,3,0,5,0,5,0,6,0,5,0,3,0,2,0
-myBass2: .byte 5,0,5,0,6,0,6,0,8,0,8,0,6,0,5,0
+myLead0: .byte 1,3,5,8, 5,3,2,3, 5,8,10,8, 6,5,3,1
+myLead1: .byte 3,5,6,8, 10,8,6,5, 3,5,8,10, 8,6,5,3
+myLead2: .byte 5,6,8,10, 11,10,8,6, 5,3,2,3, 5,6,8,10
+myBass0: .byte 1,0,5,0, 6,0,5,0, 3,0,2,0, 1,0,5,0
+myBass1: .byte 1,0,6,0, 5,0,3,0, 2,0,3,0, 5,0,1,0
+myBass2: .byte 5,0,6,0, 8,0,6,0, 5,0,3,0, 2,0,1,0
 
 // LORE (minor-ish, slower feel)
-loLead0: .byte 6,0,5,0,3,0,2,0,3,0,5,0,6,0,5,0
-loLead1: .byte 5,0,3,0,2,0,1,0,2,0,3,0,5,0,3,0
-loLead2: .byte 6,0,8,0,7,0,6,0,5,0,3,0,2,0,1,0
-loBass0: .byte 6,0,6,0,5,0,5,0,3,0,3,0,2,0,2,0
-loBass1: .byte 5,0,5,0,3,0,3,0,2,0,2,0,1,0,1,0
-loBass2: .byte 6,0,6,0,7,0,7,0,5,0,5,0,3,0,3,0
+loLead0: .byte 6,5,3,2, 3,5,6,5, 3,2,1,2, 3,5,6,0
+loLead1: .byte 5,3,2,1, 2,3,5,6, 5,3,2,0, 2,3,5,0
+loLead2: .byte 6,8,7,6, 5,3,2,1, 2,3,5,6, 5,3,2,1
+loBass0: .byte 6,0,5,0, 3,0,2,0, 1,0,2,0, 3,0,5,0
+loBass1: .byte 5,0,3,0, 2,0,1,0, 2,0,3,0, 2,0,1,0
+loBass2: .byte 6,0,7,0, 5,0,3,0, 2,0,1,0, 2,0,3,0
 
 // AURORA (sparkly, higher notes)
 auLead0: .byte 8,0,10,0,11,0,12,0,11,0,10,0,9,0,8,0
@@ -1419,32 +1477,32 @@ ofBass1: .byte 3,0,0,0,2,0,0,0,1,0,0,0,2,0,0,0
 ofBass2: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0
 
 // SCARY (dissonant steps, sparse)
-scLead0: .byte 6,0,7,0,6,0,5,0,6,0,3,0,2,0,1,0
-scLead1: .byte 7,0,6,0,7,0,8,0,7,0,6,0,5,0,3,0
-scLead2: .byte 6,0,0,0,7,0,0,0,6,0,5,0,3,0,2,0
-scBass0: .byte 1,0,0,0,2,0,0,0,1,0,0,0,5,0,0,0
-scBass1: .byte 2,0,0,0,1,0,0,0,3,0,0,0,2,0,0,0
-scBass2: .byte 1,0,0,0,1,0,0,0,2,0,0,0,1,0,0,0
+scLead0: .byte 7,0,4,0, 7,0,4,0, 6,0,3,0, 6,0,2,0
+scLead1: .byte 4,0,7,0, 4,0,7,0, 3,0,6,0, 2,0,6,0
+scLead2: .byte 7,0,0,0, 4,0,0,0, 6,0,3,0, 2,0,0,0
+scBass0: .byte 1,0,0,0, 1,0,0,0, 2,0,0,0, 1,0,0,0
+scBass1: .byte 2,0,0,0, 1,0,0,0, 3,0,0,0, 2,0,0,0
+scBass2: .byte 1,0,0,0, 5,0,0,0, 2,0,0,0, 1,0,0,0
 
 // TAVERN (indoor, cozy)
-tvLead0: .byte 5,0,6,0,5,0,3,0,2,0,3,0,5,0,6,0
-tvLead1: .byte 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0
-tvLead2: .byte 3,0,5,0,6,0,5,0,3,0,2,0,1,0,2,0
-tvBass0: .byte 1,0,1,0,3,0,3,0,5,0,5,0,6,0,6,0
-tvBass1: .byte 3,0,3,0,5,0,5,0,6,0,6,0,5,0,3,0
-tvBass2: .byte 5,0,5,0,6,0,6,0,8,0,8,0,6,0,5,0
+tvLead0: .byte 5,6,5,3, 2,3,5,6, 8,6,5,3, 2,3,5,0
+tvLead1: .byte 6,8,6,5, 3,5,6,8, 10,8,6,5, 3,5,6,0
+tvLead2: .byte 3,5,6,5, 3,2,1,2, 3,5,6,8, 6,5,3,0
+tvBass0: .byte 1,0,3,0, 5,0,6,0, 5,0,3,0, 2,0,1,0
+tvBass1: .byte 3,0,5,0, 6,0,8,0, 6,0,5,0, 3,0,2,0
+tvBass2: .byte 5,0,6,0, 8,0,10,0, 8,0,6,0, 5,0,3,0
 
 tvSpk0:  .byte 8,0,0,0,10,0,0,0,11,0,0,0,10,0,0,0
 tvSpk1:  .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
 tvSpk2:  .byte 11,0,0,0,10,0,0,0,9,0,0,0,10,0,0,0
 
 // INN (warm, restful)
-inLead0: .byte 3,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0
-inLead1: .byte 5,0,6,0,8,0,6,0,5,0,3,0,2,0,3,0
-inLead2: .byte 6,0,5,0,3,0,2,0,3,0,5,0,6,0,8,0
-inBass0: .byte 1,0,1,0,3,0,3,0,5,0,5,0,3,0,3,0
-inBass1: .byte 3,0,3,0,5,0,5,0,6,0,6,0,5,0,3,0
-inBass2: .byte 5,0,5,0,3,0,3,0,2,0,2,0,1,0,1,0
+inLead0: .byte 3,0,5,6, 5,0,3,2, 3,0,5,6, 8,0,6,5
+inLead1: .byte 5,0,6,8, 6,0,5,3, 2,0,3,5, 6,0,5,3
+inLead2: .byte 6,0,5,3, 2,0,3,5, 6,0,8,6, 5,0,3,2
+inBass0: .byte 1,0,3,0, 5,0,3,0, 2,0,3,0, 1,0,0,0
+inBass1: .byte 3,0,5,0, 6,0,5,0, 3,0,2,0, 1,0,0,0
+inBass2: .byte 5,0,3,0, 2,0,1,0, 2,0,3,0, 5,0,0,0
 
 // TEMPLE (martial)
 tpLead0: .byte 1,1,0,3,3,0,5,5,0,6,6,0,5,5,0,3
@@ -1455,24 +1513,24 @@ tpBass1: .byte 3,0,3,0,5,0,5,0,6,0,6,0,5,0,3,0
 tpBass2: .byte 5,0,5,0,6,0,6,0,8,0,8,0,6,0,5,0
 
 // FAIRY (light, sparkly)
-faLead0: .byte 8,0,10,0,12,0,11,0,10,0,9,0,8,0,10,0
-faLead1: .byte 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0
-faLead2: .byte 8,0,9,0,10,0,11,0,12,0,11,0,10,0,9,0
-faBass0: .byte 1,0,5,0,1,0,6,0,1,0,5,0,3,0,2,0
-faBass1: .byte 3,0,6,0,3,0,5,0,2,0,5,0,1,0,0,0
-faBass2: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
+faLead0: .byte 8,10,12,11, 10,9,8,9, 10,11,12,11, 10,9,8,0
+faLead1: .byte 10,11,12,0, 11,10,9,8, 9,10,11,12, 11,10,9,0
+faLead2: .byte 8,9,10,11, 12,11,10,9, 8,9,10,11, 10,9,8,0
+faBass0: .byte 1,0,5,0, 6,0,5,0, 3,0,2,0, 1,0,0,0
+faBass1: .byte 3,0,6,0, 5,0,3,0, 2,0,1,0, 2,0,0,0
+faBass2: .byte 1,0,6,0, 5,0,3,0, 2,0,3,0, 5,0,0,0
 
 faSpk0:  .byte 12,0,0,0,11,0,0,0,12,0,0,0,10,0,0,0
 faSpk1:  .byte 11,0,0,0,12,0,0,0,11,0,0,0,10,0,0,0
 faSpk2:  .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
 
 // PIRATE (jaunty)
-piLead0: .byte 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0
-piLead1: .byte 6,0,6,0,8,0,6,0,5,0,3,0,5,0,6,0
-piLead2: .byte 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0
-piBass0: .byte 1,0,0,0,5,0,0,0,1,0,0,0,6,0,0,0
-piBass1: .byte 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0
-piBass2: .byte 5,0,0,0,8,0,0,0,5,0,0,0,6,0,0,0
+piLead0: .byte 5,5,6,5, 3,2,3,5, 6,6,8,6, 5,3,5,0
+piLead1: .byte 6,6,8,6, 5,3,5,6, 8,8,10,8, 6,5,3,0
+piLead2: .byte 8,8,6,5, 3,2,1,2, 3,5,6,8, 6,5,3,0
+piBass0: .byte 1,0,5,0, 1,0,6,0, 5,0,3,0, 2,0,1,0
+piBass1: .byte 3,0,6,0, 3,0,5,0, 6,0,5,0, 3,0,2,0
+piBass2: .byte 5,0,8,0, 5,0,6,0, 8,0,6,0, 5,0,3,0
 
 // Theme pointer tables: each theme entry points to 3 patterns
 myLeadPtr: .word myLead0,myLead1,myLead2
@@ -1521,17 +1579,46 @@ themeSparkNotesLo:
 themeSparkNotesHi:
 	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>noSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr
 
+// Theme settings (tempo + timbre). 10 entries, indexed by musicTheme.
+// Smaller = faster (ticks per step). Values tuned for atmosphere.
+themeLeadLen:  .byte 9, 8,10, 7,12, 8, 9, 8, 7, 8
+themeBassLen:  .byte 18,16,20,14,24,16,18,16,14,16
+themeSparkLen: .byte 6, 4, 6, 4, 8, 4, 6, 6, 4, 6
+
+// Waveform bits only (gate bit added dynamically): TRI=$10 SAW=$20 PULSE=$40 NOISE=$80
+themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40
+themeBassWave: .byte $10,$10,$10,$10,$10,$10,$10,$10,$10,$10
+themeSparkWave:.byte $40,$40,$40,$40,$80,$40,$40,$40,$40,$40
+
+// Release-heavy for scary; otherwise smooth.
+themeV1SR: .byte $A6,$A8,$B7,$A8,$46,$A8,$A8,$88,$78,$A8
+themeV2SR: .byte $A6,$A8,$A8,$A8,$46,$A8,$A8,$A8,$78,$A8
+themeV3SR: .byte $68,$78,$78,$78,$28,$78,$68,$68,$78,$68
+
 init:
+	// Start music early so the login screen has its own theme.
+	lda #1
+	sta musicEnabled
+	jsr musicInit
+	jsr musicStartLoginTheme
+
 	lda #1
 	sta uiHideExits
 	jsr loginOrCreate
 	lda #0
 	sta uiHideExits
-	lda #1
-	sta musicEnabled
-	jsr musicInit
 	jsr musicPickForLocation
 	jsr ensureQuest
+	rts
+
+musicStartLoginTheme:
+	// Happy welcome theme (fairy).
+	lda #8
+	sta musicTheme
+	jsr musicApplyThemeSettings
+	jsr musicAllNotesOff
+	jsr musicPickRandomPattern
+	jsr musicRestart
 	rts
 
 // --- Rendering ---
@@ -1540,7 +1627,25 @@ render:
 	// During login/account creation, keep the screen minimal.
 	lda uiHideExits
 	beq render_game
-	// Auth mode: only message + prompt.
+	// Auth mode: welcome + message + prompt.
+	clc
+	ldx #2
+	ldy #0
+	jsr PLOT
+	lda #<msgWelcomeLine1
+	sta ZP_PTR
+	lda #>msgWelcomeLine1
+	sta ZP_PTR+1
+	jsr printZ
+	clc
+	ldx #3
+	ldy #0
+	jsr PLOT
+	lda #<msgWelcomeLine2
+	sta ZP_PTR
+	lda #>msgWelcomeLine2
+	sta ZP_PTR+1
+	jsr printZ
 	clc
 	ldx #ROW_AUTH_MSG
 	ldy #0
@@ -1761,6 +1866,7 @@ printZ:
 readLine:
 	lda #0
 	sta inputLen
+	jsr flushKeys
 
 @poll:
 	jsr SCNKEY
@@ -1768,7 +1874,7 @@ readLine:
 	beq @poll
 
 	cmp #$0D // RETURN
-	beq @finish
+	beq @maybeFinish
 	cmp #$14 // DEL/BACKSPACE
 	beq @back
 
@@ -1782,6 +1888,14 @@ readLine:
 	inx
 	stx inputLen
 	jsr CHROUT
+	jmp @poll
+
+@maybeFinish:
+	// In auth mode, ignore empty RETURNs (prevents buffered RETURN from skipping prompts).
+	ldx inputLen
+	bne @finish
+	lda uiHideExits
+	beq @finish
 	jmp @poll
 
 @back:
@@ -1799,6 +1913,14 @@ readLine:
 	lda #0
 	sta inputBuf,x
 	jsr newline
+	rts
+
+// Drain any pending buffered keys (helps avoid stray RETURN requiring double-enter)
+flushKeys:
+@fk:
+	jsr SCNKEY
+	jsr GETIN
+	bne @fk
 	rts
 
 // --- Command execution ---
@@ -1852,8 +1974,16 @@ executeCommand:
 	jmp cmdTalk
 @ec_chkI:
 	cmp #'I'
-	bne @ec_afterQuick
+	bne @ec_chkM
 	jmp cmdInventory
+
+@ec_chkM:
+	cmp #'M'
+	beq @ec_m_ok
+	cmp #'m'
+	bne @ec_afterQuick
+@ec_m_ok:
+	jmp cmdMusicToggle
 
 @ec_afterQuick:
 
@@ -3053,6 +3183,26 @@ cmdWait:
 	jsr ensureQuest
 	rts
 
+cmdMusicToggle:
+	lda musicEnabled
+	eor #$01
+	sta musicEnabled
+	beq @mto_off
+	jsr musicPickForLocation
+	lda #<msgMusicOn
+	sta lastMsgLo
+	lda #>msgMusicOn
+	sta lastMsgHi
+	rts
+
+@mto_off:
+	jsr musicAllNotesOff
+	lda #<msgMusicOff
+	sta lastMsgLo
+	lda #>msgMusicOff
+	sta lastMsgHi
+	rts
+
 cmdStatus:
 	// Show quest detail in last message
 	lda activeQuest
@@ -3580,7 +3730,7 @@ strExits:  .text "EXITS: "
 	.byte 0
 strHelp1:  .text "N/E/S/W MOVE  I INV  C CHARS  T TALK"
 	.byte 0
-strHelp2:  .text "WAIT STATUS SAVE LOAD INSPECT TAKE DROP"
+strHelp2:  .text "WAIT STATUS SAVE LOAD INSPECT M MUSIC"
 	.byte 0
 strPrompt: .text "> "
 	.byte 0
@@ -3688,6 +3838,10 @@ msgSaved:       .text "SAVED."
 	.byte 0
 msgLoaded:      .text "LOADED."
 	.byte 0
+msgMusicOn:     .text "MUSIC ON."
+	.byte 0
+msgMusicOff:    .text "MUSIC OFF."
+	.byte 0
 msgLoadFail:    .text "LOAD FAILED."
 	.byte 0
 msgWeekAdvanced:.text "A WEEK PASSES. NEW STORIES STIR."
@@ -3695,6 +3849,10 @@ msgWeekAdvanced:.text "A WEEK PASSES. NEW STORIES STIR."
 msgQuestDone:   .text "QUEST COMPLETE!"
 	.byte 0
 msgNoQuest:     .text "NO ACTIVE QUEST."
+	.byte 0
+msgWelcomeLine1: .text "WELCOME TO EVERLAND PARK."
+	.byte 0
+msgWelcomeLine2: .text "AN IMMERSIVE MULTIPLAYER ROLEPLAY ADVENTURE."
 	.byte 0
 msgWelcomeBack: .text "WELCOME BACK, "
 	.byte 0
