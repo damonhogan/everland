@@ -126,6 +126,9 @@ prevLoc:    .byte LOC_PLAZA
 lastMsgLo:  .byte <msgWelcome
 lastMsgHi:  .byte >msgWelcome
 
+// UI state
+uiHideExits: .byte 0
+
 // Player profile (fixed-length text, 0 padded)
 usernameLen: .byte 0
 username:
@@ -262,7 +265,7 @@ loginOrCreate:
 	jsr parseWeekFromInput
 
 	// Defaults
-	lda #LOC_PLAZA
+	lda #LOC_TRAIN
 	sta currentLoc
 	lda #0
 	sta scoreLo
@@ -1512,7 +1515,11 @@ themeSparkNotesHi:
 	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>noSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr
 
 init:
+	lda #1
+	sta uiHideExits
 	jsr loginOrCreate
+	lda #0
+	sta uiHideExits
 	jsr ensureQuest
 	rts
 
@@ -1544,7 +1551,9 @@ render:
 	jsr newline
 	jsr renderQuestLine
 
-	// Exits
+	// Exits (hidden during login/account creation)
+	lda uiHideExits
+	bne @render_skipExits
 	ldx #0
 	jsr setCursorExits
 	lda #<strExits
@@ -1553,6 +1562,8 @@ render:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr printExits
+
+@render_skipExits:
 
 	// Last message
 	jsr setCursorMsg
@@ -1617,10 +1628,10 @@ placeMarker:
 	lda locMarkY,x
 	sta ZP_PTR+1
 
-	// Set cursor X=col, Y=row
+	// Set cursor (PLOT): X=row, Y=col
 	clc
-	ldx ZP_PTR
-	ldy ZP_PTR+1
+	ldx ZP_PTR+1
+	ldy ZP_PTR
 	jsr PLOT
 	lda #'X'
 	jsr CHROUT
@@ -1629,43 +1640,43 @@ placeMarker:
 // Cursor helpers
 setCursorUi:
 	clc
-	ldx #0
-	ldy #ROW_UI_START
+	ldx #ROW_UI_START
+	ldy #0
 	jsr PLOT
 	rts
 
 setCursorDesc:
 	clc
-	ldx #0
-	ldy #ROW_DESC
+	ldx #ROW_DESC
+	ldy #0
 	jsr PLOT
 	rts
 
 setCursorExits:
 	clc
-	ldx #0
-	ldy #ROW_EXITS
+	ldx #ROW_EXITS
+	ldy #0
 	jsr PLOT
 	rts
 
 setCursorMsg:
 	clc
-	ldx #0
-	ldy #ROW_MSG
+	ldx #ROW_MSG
+	ldy #0
 	jsr PLOT
 	rts
 
 setCursorHelp:
 	clc
-	ldx #0
-	ldy #ROW_HELP
+	ldx #ROW_HELP
+	ldy #0
 	jsr PLOT
 	rts
 
 setCursorPrompt:
 	clc
-	ldx #0
-	ldy #ROW_PROMPT
+	ldx #ROW_PROMPT
+	ldy #0
 	jsr PLOT
 	rts
 
