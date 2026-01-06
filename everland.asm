@@ -141,6 +141,10 @@ username:
 displayLen: .byte 0
 displayName:
 	.fill 16, 0
+// Player class (e.g. KNIGHT, PALADIN, MAGE) - stored as fixed 12-byte, 0-padded
+classLen: .byte 0
+className:
+	.fill 12, 0
 pinLo: .byte 0
 pinHi: .byte 0
 
@@ -153,6 +157,8 @@ scoreLo: .byte 0
 scoreHi: .byte 0
 activeQuest: .byte QUEST_NONE
 questStatus: .byte 0 // 0=none/inactive, 1=active, 2=completed
+// Player level (single byte)
+currentLevel: .byte 0
 
 // Save filename buffers
 saveBaseLen: .byte 0
@@ -246,6 +252,15 @@ loginOrCreate:
 	jsr readLine
 	jsr copyInputToDisplay
 
+	// Prompt CLASS (e.g. KNIGHT, PALADIN, MAGE)
+	lda #<msgAskClass
+	sta lastMsgLo
+	lda #>msgAskClass
+	sta lastMsgHi
+	jsr render
+	jsr readLine
+	jsr copyInputToClass
+
 	// Prompt PIN
 	lda #<msgAskPin
 	sta lastMsgLo
@@ -336,12 +351,15 @@ loadedScoreHi: .byte 0
 loadedMonth: .byte 4
 loadedWeek: .byte 14
 loadedLoc: .byte LOC_PLAZA
+loadedLevel: .byte 0
 loadedObjLoc:
 	.fill OBJ_COUNT, 0
 loadedActiveQuest: .byte QUEST_NONE
 loadedQuestStatus: .byte 0
 loadedDisplay:
 	.fill 16, 0
+loadedClass:
+	.fill 12, 0
 
 commitLoadedState:
 	lda loadedPinLo
@@ -352,6 +370,8 @@ commitLoadedState:
 	sta scoreLo
 	lda loadedScoreHi
 	sta scoreHi
+	lda loadedLevel
+	sta currentLevel
 	lda loadedMonth
 	sta month
 	lda loadedWeek
@@ -377,6 +397,14 @@ commitLoadedState:
 	inx
 	cpx #16
 	bne @c2
+	// Copy loaded class into live className (12 bytes)
+	ldx #0
+@c3:
+	lda loadedClass,x
+	sta className,x
+	inx
+	cpx #12
+	bne @c3
 	rts
 
 // Copy inputBuf to username (max 12)
@@ -407,6 +435,35 @@ copyInputToUsername:
 
 @cu_pdone:
 	rts
+
+	// Copy inputBuf to className (max 12)
+	copyInputToClass:
+		ldx #0
+		stx classLen
+
+	@cc_loop:
+		lda inputBuf,x
+		beq @cc_done
+		cpx #12
+		bcs @cc_done
+		sta className,x
+		inx
+		stx classLen
+		jmp @cc_loop
+
+	@cc_done:
+		// Pad remaining with 0
+		lda #0
+
+	@cc_pad:
+		cpx #12
+		beq @cc_pdone
+		sta className,x
+		inx
+		jmp @cc_pad
+
+	@cc_pdone:
+		rts
 
 copyInputToDisplay:
 	ldx #0
@@ -640,13 +697,19 @@ tryLoadGame:
 	// Read header
 	jsr CHRIN
 	cmp #'E'
-	bne @fail2
+	beq @tl_c1
+	jmp @fail2
+@tl_c1:
 	jsr CHRIN
 	cmp #'V'
-	bne @fail2
+	beq @tl_c2
+	jmp @fail2
+@tl_c2:
 	jsr CHRIN
 	cmp #'1'
-	bne @fail2
+	beq @tl_c3
+	jmp @fail2
+@tl_c3:
 	// Read username (skip, we already have it)
 	ldx #0
 @ru:
@@ -662,6 +725,14 @@ tryLoadGame:
 	inx
 	cpx #16
 	bne @rd
+	// Read class (12 bytes)
+	ldx #0
+@rcl:
+	jsr CHRIN
+	sta loadedClass,x
+	inx
+	cpx #12
+	bne @rcl
 	// pin
 	jsr CHRIN
 	sta loadedPinLo
@@ -672,6 +743,9 @@ tryLoadGame:
 	sta loadedScoreLo
 	jsr CHRIN
 	sta loadedScoreHi
+	// level
+	jsr CHRIN
+	sta loadedLevel
 	// month/week/loc
 	jsr CHRIN
 	sta loadedMonth
@@ -720,7 +794,9 @@ saveGame:
 	jsr SETLFS
 	jsr OPEN
 	jsr READST
-	bne @sg_done
+	beq @sg_write
+
+@sg_write:
 	lda #LFN
 	jsr CHKOUT
 	// Header
@@ -746,6 +822,14 @@ saveGame:
 	inx
 	cpx #16
 	bne @wd
+	// className (12 bytes)
+	ldx #0
+@wc:
+	lda className,x
+	jsr CHROUT
+	inx
+	cpx #12
+	bne @wc
 	// pin
 	lda pinLo
 	jsr CHROUT
@@ -755,6 +839,9 @@ saveGame:
 	lda scoreLo
 	jsr CHROUT
 	lda scoreHi
+	jsr CHROUT
+	// level
+	lda currentLevel
 	jsr CHROUT
 	// month/week/loc
 	lda month
@@ -991,8 +1078,16 @@ questComplete:
 	sta questStatus
 	inc scoreLo
 	lda scoreLo
-	bne @qc_msg
+	bne @qc_level_check
 	inc scoreHi
+
+@qc_level_check:
+	// Update level if score increased above currentLevel
+	lda scoreLo
+	cmp currentLevel
+	beq @qc_msg
+	bcc @qc_msg
+	sta currentLevel
 
 @qc_msg:
 	lda #<msgQuestDone
@@ -2961,6 +3056,7 @@ cmdTakeFromX:
 	sta lastMsgLo
 	lda #>msgTook
 	sta lastMsgHi
+    jsr saveGame
 	rts
 
 @tfx_notHere:
@@ -3041,6 +3137,7 @@ cmdDropFromX:
 	sta lastMsgLo
 	lda #>msgDropped
 	sta lastMsgHi
+	jsr saveGame
 	rts
 
 @dfx_notHave:
@@ -3150,6 +3247,7 @@ cmdGive:
 	sta lastMsgLo
 	lda #>msgGave
 	sta lastMsgHi
+    jsr saveGame
 @ret:
 	rts
 
@@ -3175,6 +3273,7 @@ cmdGive:
 	sta lastMsgLo
 	lda #>msgGave
 	sta lastMsgHi
+    jsr saveGame
 @ret2:
 	rts
 
@@ -3983,6 +4082,8 @@ msgGate:       .text "THE GATE IS RINGED WITH IRON CHARMS. A SMALL KEYHOLE WAITS
 msgAskUser:     .text "USERNAME?"
 	.byte 0
 msgAskDisplay:  .text "DISPLAY NAME?"
+	.byte 0
+msgAskClass:    .text "CLASS (KNIGHT, PALADIN, MAGE, BARD, HEALER, CLERIC):"
 	.byte 0
 msgAskPin:      .text "SET PIN (NUMBERS)"
 	.byte 0
