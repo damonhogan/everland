@@ -145,6 +145,8 @@ displayName:
 classLen: .byte 0
 className:
 	.fill 12, 0
+playerClassIdx: .byte 0
+playerCurHp: .byte 0
 pinLo: .byte 0
 pinHi: .byte 0
 
@@ -192,6 +194,14 @@ musicInstalled: .byte 0
 msgBufLen: .byte 0
 msgBuf:
 	.fill 96, 0
+
+// Temporary selection state for menus
+selCount: .byte 0
+selChoice: .byte 0
+tmpNpcIdx: .byte 0
+tmpHp: .byte 0
+tmpPer: .byte 0
+tmpCnt: .byte 0
 
 // Input buffer (PETSCII)
 inputLen: .byte 0
@@ -260,6 +270,20 @@ loginOrCreate:
 	jsr render
 	jsr readLine
 	jsr copyInputToClass
+	jsr mapPlayerClass
+	// initialize player HP to max if empty
+	jsr computePlayerMaxHp
+	lda tmpHp
+	beq @lc_skip_init
+	lda playerCurHp
+	beq @lc_set_hp
+	jmp @lc_skip_init
+
+@lc_set_hp:
+	lda tmpHp
+	sta playerCurHp
+
+@lc_skip_init:
 
 	// Prompt PIN
 	lda #<msgAskPin
@@ -360,6 +384,8 @@ loadedDisplay:
 	.fill 16, 0
 loadedClass:
 	.fill 12, 0
+loadedCurHp: .byte 0
+loadedClassIdx: .byte 0
 
 commitLoadedState:
 	lda loadedPinLo
@@ -405,6 +431,11 @@ commitLoadedState:
 	inx
 	cpx #12
 	bne @c3
+	// restore player class idx and HP from loaded values
+	lda loadedClassIdx
+	sta playerClassIdx
+	lda loadedCurHp
+	sta playerCurHp
 	rts
 
 // Copy inputBuf to username (max 12)
@@ -441,29 +472,79 @@ copyInputToUsername:
 		ldx #0
 		stx classLen
 
-	@cc_loop:
+	@copyClass_loop:
 		lda inputBuf,x
-		beq @cc_done
+		beq @copyClass_done
 		cpx #12
-		bcs @cc_done
+		bcs @copyClass_done
 		sta className,x
 		inx
 		stx classLen
-		jmp @cc_loop
+		jmp @copyClass_loop
 
-	@cc_done:
+	@copyClass_done:
 		// Pad remaining with 0
 		lda #0
 
-	@cc_pad:
+	@copyClass_pad:
 		cpx #12
-		beq @cc_pdone
+		beq @copyClass_pdone
 		sta className,x
 		inx
-		jmp @cc_pad
+		jmp @copyClass_pad
 
-	@cc_pdone:
+	@copyClass_pdone:
 		rts
+
+// Map player's textual className to playable class index by first letter
+mapPlayerClass:
+	lda className
+	beq @mpc_default
+	// convert lowercase to uppercase if needed
+	cmp #'a'
+	bcc @mpc_check
+	cmp #'z'+1
+	bcs @mpc_check
+	sec
+	sbc #32
+
+@mpc_check:
+	cmp #'M'
+	beq @mpc_m
+	cmp #'K'
+	beq @mpc_k
+	cmp #'H'
+	beq @mpc_h
+	cmp #'B'
+	beq @mpc_b
+	cmp #'W'
+	beq @mpc_w
+
+@mpc_default:
+	lda #0
+	sta playerClassIdx
+	rts
+
+@mpc_m:
+	lda #0
+	sta playerClassIdx
+	rts
+@mpc_k:
+	lda #1
+	sta playerClassIdx
+	rts
+@mpc_h:
+	lda #2
+	sta playerClassIdx
+	rts
+@mpc_b:
+	lda #3
+	sta playerClassIdx
+	rts
+@mpc_w:
+	lda #4
+	sta playerClassIdx
+	rts
 
 copyInputToDisplay:
 	ldx #0
@@ -746,6 +827,12 @@ tryLoadGame:
 	// level
 	jsr CHRIN
 	sta loadedLevel
+	// player current HP
+	jsr CHRIN
+	sta loadedCurHp
+	// player class index
+	jsr CHRIN
+	sta loadedClassIdx
 	// month/week/loc
 	jsr CHRIN
 	sta loadedMonth
@@ -842,6 +929,12 @@ saveGame:
 	jsr CHROUT
 	// level
 	lda currentLevel
+	jsr CHROUT
+	// player current HP
+	lda playerCurHp
+	jsr CHROUT
+	// player class index
+	lda playerClassIdx
 	jsr CHROUT
 	// month/week/loc
 	lda month
@@ -2072,8 +2165,12 @@ executeCommand:
 	jmp cmdWest
 @ec_chkC:
 	cmp #'C'
+	beq @ec_doC
+	cmp #'c'
 	bne @ec_chkT
-	jmp cmdCharacters
+	jmp cmdCharactersMenu
+@ec_doC:
+	jmp cmdCharactersMenu
 @ec_chkT:
 	cmp #'T'
 	bne @ec_chkI
@@ -2306,7 +2403,7 @@ executeCommand:
 	tax
 	jsr matchKeywordAtX
 	bcc @ec_tryInventory
-	jmp cmdCharacters
+	jmp cmdCharactersMenu
 
 @ec_tryInventory:
 
@@ -2856,60 +2953,660 @@ doMove:
 	sta lastMsgHi
 	rts
 
-cmdCharacters:
-	jsr buildCharactersMessage
+cmdCharactersMenu:
+	jsr clearScreen
+	// Title
+	lda #<strCharacters
+	sta ZP_PTR
+	lda #>strCharacters
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// Option 0: player
+	lda #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda displayLen
+	beq @cc_print_user
+	lda #<displayName
+	sta ZP_PTR
+	lda #>displayName
+	sta ZP_PTR+1
+	jsr printZ
+	jmp @cc_afterPlayer
+
+@cc_print_user:
+	lda #<username
+	sta ZP_PTR
+	lda #>username
+	sta ZP_PTR+1
+	jsr printZ
+
+@cc_afterPlayer:
+	jsr newline
+
+	// List NPCs present at this location
+	ldx currentLoc
+	lda npcMaskByLoc,x
+	sta ZP_PTR2
+	lda #0
+	sta selCount
+	ldx #0
+@cc_npc_loop:
+	lda ZP_PTR2
+	and npcBit,x
+	beq @cc_npc_next
+	// increment display count
+	inc selCount
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	// print npc name
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+@cc_npc_next:
+	inx
+	cpx #NPC_COUNT
+	bne @cc_npc_loop
+
+	// Prompt and read choice
+	jsr setCursorPrompt
+	jsr readLine
+	// parse first char
+	lda inputBuf
+	beq @cc_done
+	cmp #'0'
+	beq @cc_show_player_call
+	sec
+	sbc #'0'
+	sta selChoice
+	// find corresponding npc index
+	ldx #0
+	ldy #0
+@cc_find_loop:
+	lda ZP_PTR2
+	and npcBit,x
+	beq @cc_find_next
+	// increment y (count)
+	iny
+	tya
+	cmp selChoice
+	beq @cc_selected
+
+@cc_find_next:
+	inx
+	cpx #NPC_COUNT
+	bne @cc_find_loop
+	jmp @cc_done
+
+@cc_show_player_call:
+    jsr cmdSheet
+    jmp @cc_done
+
+@cc_selected:
+	// if NPC present, open conversation menu
+	jsr conversationMenu
+	rts
+
+@cc_done:
+	rts
+
+showNpcSheet:
+	// Expects X = npc index
+	jsr clearScreen
+	lda #<strSheetTitle
+	sta ZP_PTR
+	lda #>strSheetTitle
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr newline
+
+	// NAME:
+	lda #<strName
+	sta ZP_PTR
+	lda #>strName
+	sta ZP_PTR+1
+	jsr printZ
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// CLASS:
+	lda #<strClass
+	sta ZP_PTR
+	lda #>strClass
+	sta ZP_PTR+1
+	jsr printZ
+	// lookup class name from npcClassIdx
+	lda npcClassIdx,x
+	tax
+	lda classNameLo,x
+	sta ZP_PTR
+	lda classNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// LEVEL:
+	lda #<strLevel
+	sta ZP_PTR
+	lda #>strLevel
+	sta ZP_PTR+1
+	jsr printZ
+	lda npcLevel,x
+	jsr appendByteAsDec
 	lda #<msgBuf
-	sta lastMsgLo
+	sta ZP_PTR
 	lda #>msgBuf
-	sta lastMsgHi
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// SCORE:
+	lda #<strScore
+	sta ZP_PTR
+	lda #>strScore
+	sta ZP_PTR+1
+	jsr printZ
+	lda npcScoreLo,x
+	jsr appendByteAsDec
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// HP: compute max HP for NPC then show current/max
+	txa
+	sta tmpNpcIdx
+	// load class idx for this npc
+	lda npcClassIdx,x
+	tax
+	// load base hp into tmpHp
+	lda classBaseHp,x
+	sta tmpHp
+	// load per-level value into tmpPer
+	lda classHpPerLevel,x
+	sta tmpPer
+	// load level from npcLevel for this npc
+	lda tmpNpcIdx
+	tay
+	lda npcLevel,y
+	sta tmpCnt
+@npc_hp_loop:
+	lda tmpCnt
+	beq @npc_hp_done
+	lda tmpHp
+	clc
+	adc tmpPer
+	sta tmpHp
+	dec tmpCnt
+	jmp @npc_hp_loop
+
+@npc_hp_done:
+	// ensure current HP is set (indexed by npc)
+	lda tmpNpcIdx
+	tax
+	lda npcCurHp,x
+	beq @npc_set_cur
+	// print HP: cur/max
+	lda npcCurHp,x
+	jsr appendByteAsDec
+	lda #<'/'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda tmpHp
+	jsr appendByteAsDec
+	jmp @npc_after_hp
+
+@npc_set_cur:
+	lda tmpHp
+	sta npcCurHp,x
+	// print HP: cur/max
+	lda npcCurHp,x
+	jsr appendByteAsDec
+	lda #<'/'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda tmpHp
+	jsr appendByteAsDec
+
+@npc_after_hp:
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// wait for user to dismiss
+	jsr setCursorPrompt
+	jsr readLine
+	rts
+
+cmdSheet:
+	// Full-screen quick character sheet
+	jsr clearScreen
+	// Title
+	lda #<strSheetTitle
+	sta ZP_PTR
+	lda #>strSheetTitle
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr newline
+
+	// NAME:
+	lda #<strName
+	sta ZP_PTR
+	lda #>strName
+	sta ZP_PTR+1
+	jsr printZ
+	lda #<username
+	sta ZP_PTR
+	lda #>username
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// DISPLAY:
+	lda #<strDisplay
+	sta ZP_PTR
+	lda #>strDisplay
+	sta ZP_PTR+1
+	jsr printZ
+	lda #<displayName
+	sta ZP_PTR
+	lda #>displayName
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// CLASS:
+	lda #<strClass
+	sta ZP_PTR
+	lda #>strClass
+	sta ZP_PTR+1
+	jsr printZ
+	lda #<className
+	sta ZP_PTR
+	lda #>className
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// HP: show player current/max
+	jsr computePlayerMaxHp
+	// ensure playerCurHp is initialized
+	lda playerCurHp
+	bne @ps_hp_have
+	lda tmpHp
+	sta playerCurHp
+@ps_hp_have:
+	// print label
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr printZ
+	lda playerCurHp
+	jsr appendByteAsDec
+	lda #<'/'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda tmpHp
+	jsr appendByteAsDec
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// LEVEL (use msgBuf builder to append decimal)
+	jsr clearMsgBuf
+	lda #<strLevel
+	sta ZP_PTR
+	lda #>strLevel
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda currentLevel
+	jsr appendByteAsDec
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// SCORE
+	jsr clearMsgBuf
+	lda #<strScore
+	sta ZP_PTR
+	lda #>strScore
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda scoreLo
+	jsr appendByteAsDec
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// wait for user to dismiss
+	jsr setCursorPrompt
+	jsr readLine
 	rts
 
 cmdTalk:
-	// Support: TALK, TALK TO BARTENDER, T KNIGHT
-	ldx #0
-@t0:
-	lda inputBuf,x
-	beq @default
-	cmp #' '
-	beq @afterVerb
-	inx
-	bne @t0
-@afterVerb:
-	jsr parseNpcNoun
-	bcc @default
-	tax
-	ldy currentLoc
-	lda npcMaskByLoc,y
-	and npcBit,x
-	beq @talk_notHere
-	lda npcTalkLo,x
-	sta lastMsgLo
-	lda npcTalkHi,x
-	sta lastMsgHi
-	rts
+	// Nested talk menu: list NPCs and pick one to talk to
+	jsr clearScreen
+	lda #<strCharacters
+	sta ZP_PTR
+	lda #>strCharacters
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
-@talk_notHere:
-	lda #<msgNpcNotHere
-	sta lastMsgLo
-	lda #>msgNpcNotHere
-	sta lastMsgHi
-	rts
-@default:
 	ldx currentLoc
 	lda npcMaskByLoc,x
-	beq @talk_none
-	// Default talk for the location
-	lda npcTalkLoByLoc,x
-	sta lastMsgLo
-	lda npcTalkHiByLoc,x
-	sta lastMsgHi
+	sta ZP_PTR2
+	lda #0
+	sta selCount
+	ldx #0
+@tt_npc_loop:
+	lda ZP_PTR2
+	and npcBit,x
+	beq @tt_npc_next
+	inc selCount
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+@tt_npc_next:
+	inx
+	cpx #NPC_COUNT
+	bne @tt_npc_loop
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @tt_done
+	sec
+	sbc #'0'
+	sta selChoice
+	ldx #0
+	ldy #0
+@tt_find_loop:
+	lda ZP_PTR2
+	and npcBit,x
+	beq @tt_find_next
+	iny
+	tya
+	cmp selChoice
+	beq @tt_selected
+
+@tt_find_next:
+	inx
+	cpx #NPC_COUNT
+	bne @tt_find_loop
+	jmp @tt_done
+
+@tt_selected:
+	// if NPC present, open conversation menu
+	jsr conversationMenu
 	rts
 
+@tt_done:
+	// nothing selected
+	rts
 @talk_none:
 	lda #<msgNoOne
 	sta lastMsgLo
 	lda #>msgNoOne
 	sta lastMsgHi
+	rts
+
+// Conversation menu for an NPC. Expects X = npc index
+conversationMenu:
+	jsr clearScreen
+	// Print NPC name as header
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+@conv_loop:
+	// 0. Speak
+	lda #'0'  
+	jsr CHROUT
+	lda #'.'  
+	jsr CHROUT
+	lda #' '  
+	jsr CHROUT
+	lda npcTalkLo,x
+	sta ZP_PTR
+	lda npcTalkHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// 1. Ask weather
+	lda #'1'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<msgAskWeather
+	sta ZP_PTR
+	lda #>msgAskWeather
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// 2. Comment on temp
+	lda #'2'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<msgTempResponse
+	sta ZP_PTR
+	lda #>msgTempResponse
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// 3. Any quests?
+	lda #'3'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<msgQuestOfferGeneric
+	sta ZP_PTR
+	lda #>msgQuestOfferGeneric
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// 4. Quest info
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<msgNoQuestNpc
+	sta ZP_PTR
+	lda #>msgNoQuestNpc
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// 5. End
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<msgEndConversation
+	sta ZP_PTR
+	lda #>msgEndConversation
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq conv_exit_short
+	sec
+	sbc #'0'
+	tay
+	tya
+	cmp #5
+	beq conv_choice5
+	cmp #0
+	beq conv_choice0
+	cmp #1
+	beq conv_choice1
+	cmp #2
+	beq conv_choice2
+	cmp #3
+	beq conv_choice3
+	cmp #4
+	beq conv_choice4
+	jmp @conv_loop
+
+conv_exit_short:
+	jmp conversationMenu_exit
+
+conv_choice0:
+	jmp @conv_do_speak
+
+conv_choice1:
+	jmp @conv_do_weather
+
+conv_choice2:
+	jmp @conv_do_temp
+
+conv_choice3:
+	jmp @conv_do_quest
+
+conv_choice4:
+	jmp @conv_do_qinfo
+
+conv_choice5:
+	jmp conversationMenu_exit
+
+@conv_do_speak:
+	lda npcTalkLo,x
+	sta lastMsgLo
+	lda npcTalkHi,x
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+@conv_do_weather:
+	lda #<msgAskWeather
+	sta lastMsgLo
+	lda #>msgAskWeather
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+@conv_do_temp:
+	lda #<msgTempResponse
+	sta lastMsgLo
+	lda #>msgTempResponse
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+@conv_do_quest:
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @conv_noquest
+	// set quest active and status
+	sta activeQuest
+	lda #1
+	sta questStatus
+	lda #<msgQuestOfferGeneric
+	sta lastMsgLo
+	lda #>msgQuestOfferGeneric
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+@conv_noquest:
+	lda #<msgNoQuestNpc
+	sta lastMsgLo
+	lda #>msgNoQuestNpc
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+@conv_do_qinfo:
+	lda activeQuest
+	cmp #QUEST_NONE
+	beq @conv_noactive
+	tax
+	lda questDetailLo,x
+	sta lastMsgLo
+	lda questDetailHi,x
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+@conv_noactive:
+	lda #<msgNoQuest
+	sta lastMsgLo
+	lda #>msgNoQuest
+	sta lastMsgHi
+	jsr render
+	jmp @conv_loop
+
+conversationMenu_exit:
 	rts
 
 cmdInspect:
@@ -3501,11 +4198,27 @@ cmdChart:
 	rts
 
 cmdInventory:
+	jsr clearScreen
+	// Title
+	lda #<strInventory
+	sta ZP_PTR
+	lda #>strInventory
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// Build and print inventory full-screen
 	jsr buildInventoryMessage
 	lda #<msgBuf
-	sta lastMsgLo
+	sta ZP_PTR
 	lda #>msgBuf
-	sta lastMsgHi
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	// Wait for any key (press Enter) to continue
+	jsr setCursorPrompt
+	jsr readLine
 	rts
 
 // --- Dynamic message builders ---
@@ -3854,6 +4567,105 @@ npcTalkLo:
 npcTalkHi:
 	.byte >talkConductor,>talkBartender,>talkKnight,>talkWitch,>talkFairy,>talkPixie
 
+// Which quest (if any) each NPC can offer
+npcOffersQuest:
+	.byte QUEST_NONE, QUEST_COIN_BARTENDER, QUEST_KEY_KNIGHT, QUEST_LANTERN_WITCH, QUEST_NONE, QUEST_NONE
+
+// Conversation strings
+msgAskWeather: .text "THE SKY LOOKS LIKE IT'LL HOLD FOR NOW."
+	.byte 0
+msgTempResponse: .text "YOU SENSE THE AIR: IT FEELS A LITTLE CHILLY."
+	.byte 0
+msgQuestOfferGeneric: .text "I MIGHT HAVE SOMETHING FOR YOU."
+	.byte 0
+msgNoQuestNpc: .text "I HAVE NOTHING FOR YOU, FRIEND."
+	.byte 0
+msgEndConversation: .text "YOU END THE CONVERSATION."
+	.byte 0
+
+
+// NPC class names (for sheets)
+className0: .text "CONDUCTOR"
+	.byte 0
+className1: .text "BARTENDER"
+	.byte 0
+className2: .text "KNIGHT"
+	.byte 0
+className3: .text "WITCH"
+	.byte 0
+className4: .text "FAIRY"
+	.byte 0
+className5: .text "PIXIE"
+	.byte 0
+
+classNameLo:
+	.byte <className0,<className1,<className2,<className3,<className4,<className5
+classNameHi:
+	.byte >className0,>className1,>className2,>className3,>className4,>className5
+
+// Simple class stat tables (base HP and HP per level)
+classBaseHp:
+	.byte 20, 16, 24, 12, 10, 8
+classHpPerLevel:
+	.byte 5, 3, 6, 4, 2, 2
+
+// NPC static attributes per NPC index
+npcClassIdx:
+	.byte 0,1,2,3,4,5
+npcLevel:
+	.byte 1,1,2,3,1,1
+npcScoreLo:
+	.byte 0,0,0,0,0,0
+npcScoreHi:
+	.byte 0,0,0,0,0,0
+// NPC current HP (persisted across saves)
+npcCurHp:
+	.byte 0,0,0,0,0,0
+
+// Playable classes (for player)
+playClass0: .text "MAGE"
+	.byte 0
+playClass1: .text "KNIGHT"
+	.byte 0
+playClass2: .text "HEALER"
+	.byte 0
+playClass3: .text "BARD"
+	.byte 0
+playClass4: .text "WIZARD"
+	.byte 0
+playClassLo:
+	.byte <playClass0,<playClass1,<playClass2,<playClass3,<playClass4
+playClassHi:
+	.byte >playClass0,>playClass1,>playClass2,>playClass3,>playClass4
+playClassBaseHp:
+	.byte 12, 24, 14, 10, 10
+playClassHpPerLevel:
+	.byte 4, 6, 5, 2, 3
+
+// computePlayerMaxHp: returns max HP in tmpHp
+computePlayerMaxHp:
+	// load base for player's class idx
+	lda playerClassIdx
+	tay
+	lda playClassBaseHp,y
+	sta tmpHp
+	lda playClassHpPerLevel,y
+	sta tmpPer
+	// load level
+	lda currentLevel
+	sta tmpCnt
+@pc_hp_loop:
+	lda tmpCnt
+	beq @pc_hp_done
+	lda tmpHp
+	clc
+	adc tmpPer
+	sta tmpHp
+	dec tmpCnt
+	jmp @pc_hp_loop
+@pc_hp_done:
+	rts
+
 // --- Data: Objects ---
 objName0: .text "LANTERN"
 	.byte 0
@@ -3989,6 +4801,16 @@ strWeek:  .text "WEEK "
 	.byte 0
 strScore: .text "  SCORE "
 	.byte 0
+strSheetTitle: .text "CHARACTER SHEET"
+	.byte 0
+strName:  .text "NAME: "
+	.byte 0
+strDisplay: .text "DISPLAY: "
+	.byte 0
+strClass: .text "CLASS: "
+	.byte 0
+strLevel: .text "LEVEL "
+	.byte 0
 strQuest: .text "  QUEST "
 	.byte 0
 
@@ -4001,6 +4823,8 @@ strNone:       .text "(NONE)"
 strEmpty:      .text "(EMPTY)"
 	.byte 0
 strSpace:      .text " "
+	.byte 0
+strNoData: .text "(no data)"
 	.byte 0
 
 npcBit:
