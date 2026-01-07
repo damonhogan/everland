@@ -637,13 +637,13 @@ pinMul10:
 parseMonthFromInput:
 	jsr parseSmallNumber
 	cmp #1
-	bcc @pm_def
+	bcc parseMonth_default
 	cmp #13
-	bcs @pm_def
+	bcs parseMonth_default
 	sta month
 	rts
 
-@pm_def:
+parseMonth_default:
 	lda #4
 	sta month
 	rts
@@ -651,13 +651,13 @@ parseMonthFromInput:
 parseWeekFromInput:
 	jsr parseSmallNumber
 	cmp #1
-	bcc @pw_def
+	bcc parseWeek_default
 	cmp #53
-	bcs @pw_def
+	bcs parseWeek_default
 	sta week
 	rts
 
-@pw_def:
+parseWeek_default:
 	lda #14
 	sta week
 	rts
@@ -668,13 +668,13 @@ parseSmallNumber:
 	sta ZP_PTR
 	ldx #0
 
-@ps_loop:
+parseSmall_loop:
 	lda inputBuf,x
-	beq @ps_done
+	beq parseSmall_done
 	cmp #'0'
-	bcc @ps_next
+	bcc parseSmall_next
 	cmp #'9'+1
-	bcs @ps_next
+	bcs parseSmall_next
 	sec
 	sbc #'0'
 	sta ZP_PTR2
@@ -689,12 +689,12 @@ parseSmallNumber:
 	adc ZP_PTR2
 	sta ZP_PTR
 
-@ps_next:
+parseSmall_next:
 	inx
 	cpx #48
-	bne @ps_loop
+	bne parseSmall_loop
 
-@ps_done:
+parseSmall_done:
 	lda ZP_PTR
 	rts
 
@@ -709,18 +709,18 @@ buildSaveNameBase:
 	inx
 	ldy #0
 
-@bsb_loop:
+buildSaveBase_loop:
 	cpy usernameLen
-	beq @bsb_done
+	beq buildSaveBase_done
 	lda username,y
-	beq @bsb_done
+	beq buildSaveBase_done
 	sta saveBaseBuf,x
 	inx
 	iny
 	cpx #16
-	bcc @bsb_loop
+	bcc buildSaveBase_loop
 
-@bsb_done:
+buildSaveBase_done:
 	stx saveBaseLen
 	rts
 
@@ -729,14 +729,14 @@ buildSaveNameWithMode:
 	pha
 	// Copy base into saveNameBuf
 	ldx #0
-@cbase:
+	copyBase_loop:
 	cpx saveBaseLen
-	beq @suffix
+	beq saveName_suffix
 	lda saveBaseBuf,x
 	sta saveNameBuf,x
 	inx
-	jmp @cbase
-@suffix:
+	jmp copyBase_loop
+saveName_suffix:
 	// Append suffix
 	lda #','
 	sta saveNameBuf,x
@@ -767,51 +767,52 @@ tryLoadGame:
 	jsr SETLFS
 	jsr OPEN
 	jsr READST
-	beq @tl_ok
-	jmp @tl_fail
+	beq tryLoad_ok
+	jmp tryLoad_fail
 
-@tl_ok:
+
+tryLoad_ok:
 	lda #LFN
 	jsr CHKIN
 	// Read header
 	jsr CHRIN
 	cmp #'E'
-	beq @tl_c1
-	jmp @fail2
-@tl_c1:
+	beq tryLoad_c1
+	jmp read_fail_cleanup
+tryLoad_c1:
 	jsr CHRIN
 	cmp #'V'
-	beq @tl_c2
-	jmp @fail2
-@tl_c2:
+	beq tryLoad_c2
+	jmp read_fail_cleanup
+tryLoad_c2:
 	jsr CHRIN
 	cmp #'1'
-	beq @tl_c3
-	jmp @fail2
-@tl_c3:
+	beq tryLoad_c3
+	jmp read_fail_cleanup
+tryLoad_c3:
 	// Read username (skip, we already have it)
 	ldx #0
-@ru:
-	jsr CHRIN
-	inx
-	cpx #12
-	bne @ru
+read_username_skip:
+jsr CHRIN
+inx
+cpx #12
+bne read_username_skip
 	// Read display
 	ldx #0
-@rd:
+read_display_loop:
 	jsr CHRIN
 	sta loadedDisplay,x
 	inx
 	cpx #16
-	bne @rd
+	bne read_display_loop
 	// Read class (12 bytes)
 	ldx #0
-@rcl:
+read_class_loop:
 	jsr CHRIN
 	sta loadedClass,x
 	inx
 	cpx #12
-	bne @rcl
+	bne read_class_loop
 	// pin
 	jsr CHRIN
 	sta loadedPinLo
@@ -840,12 +841,12 @@ tryLoadGame:
 	sta loadedLoc
 	// objLoc
 	ldx #0
-@ro:
+read_objloc_loop:
 	jsr CHRIN
 	sta loadedObjLoc,x
 	inx
 	cpx #OBJ_COUNT
-	bne @ro
+	bne read_objloc_loop
 	// quest
 	jsr CHRIN
 	sta loadedActiveQuest
@@ -884,37 +885,47 @@ saveGame:
 @sg_write:
 	lda #LFN
 	jsr CHKOUT
-	// Header
-	lda #'E'
-	jsr CHROUT
-	lda #'V'
-	jsr CHROUT
-	lda #'1'
-	jsr CHROUT
-	// username
-	ldx #0
-@wu:
-	lda username,x
-	jsr CHROUT
+	// quest
+	jsr CHRIN
+	sta loadedActiveQuest
+	jsr CHRIN
+	sta loadedQuestStatus
+	jsr CLRCHN
+	lda #LFN
+	jsr CLOSE
+	sec
+	rts
+
+
+read_fail_cleanup:
+	jsr CLRCHN
+	lda #LFN
+	jsr CLOSE
+
+tryLoad_fail:
+	clc
+	rts
 	inx
-	cpx #12
-	bne @wu
+	cpx #16
+	bne write_display_loop
 	// display
 	ldx #0
-@wd:
+
+write_display_loop:
 	lda displayName,x
 	jsr CHROUT
 	inx
 	cpx #16
-	bne @wd
+	bne write_display_loop
 	// className (12 bytes)
 	ldx #0
-@wc:
+
+	write_class_loop:
 	lda className,x
 	jsr CHROUT
 	inx
 	cpx #12
-	bne @wc
+	bne write_class_loop
 	// pin
 	lda pinLo
 	jsr CHROUT
