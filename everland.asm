@@ -248,10 +248,10 @@ loginOrCreate:
 
 	// Try load; if fails, create profile
 	jsr tryLoadGame
-	bcc @loc_create
-	jmp @loaded
+	bcc save_loc_create
+	jmp save_loaded
 
-@loc_create:
+save_loc_create:
 
 	// Prompt DISPLAY NAME
 	lda #<msgAskDisplay
@@ -274,16 +274,16 @@ loginOrCreate:
 	// initialize player HP to max if empty
 	jsr computePlayerMaxHp
 	lda tmpHp
-	beq @lc_skip_init
+	beq skip_init_flow
 	lda playerCurHp
-	beq @lc_set_hp
-	jmp @lc_skip_init
+	beq set_initial_hp
+	jmp skip_init_flow
 
-@lc_set_hp:
+set_initial_hp:
 	lda tmpHp
 	sta playerCurHp
 
-@lc_skip_init:
+skip_init_flow:
 
 	// Prompt PIN
 	lda #<msgAskPin
@@ -340,7 +340,7 @@ loginOrCreate:
 	sta lastMsgHi
 	rts
 
-@loaded:
+save_loaded:
 	// Prompt PIN to unlock
 	lda #<msgAskPinLogin
 	sta lastMsgLo
@@ -351,16 +351,16 @@ loginOrCreate:
 	jsr parsePinFromInput
 	lda pinLo
 	cmp loadedPinLo
-	bne @pin_bad
+	bne pin_bad_auth
 	lda pinHi
 	cmp loadedPinHi
-	bne @pin_bad
+	bne pin_bad_auth
 	// Pin OK, copy loaded state into live state
 	jsr commitLoadedState
 	jsr buildWelcomeBack
 	rts
 
-@pin_bad:
+pin_bad_auth:
 	lda #<msgBadPin
 	sta lastMsgLo
 	lda #>msgBadPin
@@ -472,76 +472,76 @@ copyInputToUsername_pdone:
 		ldx #0
 		stx classLen
 
-	@copyClass_loop:
+	copyClass_loop:
 		lda inputBuf,x
-		beq @copyClass_done
+		beq copyClass_done
 		cpx #12
-		bcs @copyClass_done
+		bcs copyClass_done
 		sta className,x
 		inx
 		stx classLen
-		jmp @copyClass_loop
+		jmp copyClass_loop
 
-	@copyClass_done:
+	copyClass_done:
 		// Pad remaining with 0
 		lda #0
 
-	@copyClass_pad:
+	copyClass_pad:
 		cpx #12
-		beq @copyClass_pdone
+		beq copyClass_pdone
 		sta className,x
 		inx
-		jmp @copyClass_pad
+		jmp copyClass_pad
 
-	@copyClass_pdone:
+	copyClass_pdone:
 		rts
 
 // Map player's textual className to playable class index by first letter
 mapPlayerClass:
 	lda className
-	beq @mpc_default
+	beq mpc_default
 	// convert lowercase to uppercase if needed
 	cmp #'a'
-	bcc @mpc_check
+	bcc mpc_check
 	cmp #'z'+1
-	bcs @mpc_check
+	bcs mpc_check
 	sec
 	sbc #32
 
-@mpc_check:
+	mpc_check:
 	cmp #'M'
-	beq @mpc_m
+	beq mpc_m
 	cmp #'K'
-	beq @mpc_k
+	beq mpc_k
 	cmp #'H'
-	beq @mpc_h
+	beq mpc_h
 	cmp #'B'
-	beq @mpc_b
+	beq mpc_b
 	cmp #'W'
-	beq @mpc_w
+	beq mpc_w
 
-@mpc_default:
+	mpc_default:
 	lda #0
 	sta playerClassIdx
 	rts
 
-@mpc_m:
+	mpc_m:
 	lda #0
 	sta playerClassIdx
 	rts
-@mpc_k:
+	mpc_k:
 	lda #1
 	sta playerClassIdx
 	rts
-@mpc_h:
+	mpc_h:
 	lda #2
 	sta playerClassIdx
 	rts
-@mpc_b:
+	mpc_b:
 	lda #3
 	sta playerClassIdx
 	rts
-@mpc_w:
+	mpc_w:
 	lda #4
 	sta playerClassIdx
 	rts
@@ -550,63 +550,61 @@ copyInputToDisplay:
 	ldx #0
 	stx displayLen
 
-@cd_loop:
-	lda inputBuf,x
-	beq @cd_done
-	cpx #16
-	bcs @cd_done
-	sta displayName,x
-	inx
-	stx displayLen
-	jmp @cd_loop
+	copyDisplay_loop:
+		lda inputBuf,x
+		beq copyDisplay_done
+		cpx #16
+		bcs copyDisplay_done
+		sta displayName,x
+		inx
+		stx displayLen
+		jmp copyDisplay_loop
 
-@cd_done:
-	lda #0
+	copyDisplay_done:
+		lda #0
 
-@cd_pad:
-	cpx #16
-	beq @cd_pdone
-	sta displayName,x
-	inx
-	jmp @cd_pad
+	copyDisplay_pad:
+		cpx #16
+		beq copyDisplay_pdone
+		sta displayName,x
+		inx
+		jmp copyDisplay_pad
 
-@cd_pdone:
-	rts
+	copyDisplay_pdone:
+		rts
+	parsePinFromInput:
+		lda #0
+		sta pinLo
+		sta pinHi
+		ldx #0
+	parsePin_loop:
+		lda inputBuf,x
+		beq parsePin_done
+		cmp #'0'
+		bcc parsePin_skip
+		cmp #'9'+1
+		bcs parsePin_skip
+		sec
+		sbc #'0'
+		sta ZP_PTR // digit
+		// pin = pin*10 + digit
+		jsr pinMul10
+		clc
+		lda pinLo
+		adc ZP_PTR
+		sta pinLo
+		lda pinHi
+		adc #0
+		sta pinHi
 
-// Parse 0-65535 from inputBuf into pinLo/pinHi
-parsePinFromInput:
-	lda #0
-	sta pinLo
-	sta pinHi
-	ldx #0
 
-@pp_loop:
-	lda inputBuf,x
-	beq @pp_done
-	cmp #'0'
-	bcc @pp_skip
-	cmp #'9'+1
-	bcs @pp_skip
-	sec
-	sbc #'0'
-	sta ZP_PTR // digit
-	// pin = pin*10 + digit
-	jsr pinMul10
-	clc
-	lda pinLo
-	adc ZP_PTR
-	sta pinLo
-	lda pinHi
-	adc #0
-	sta pinHi
+	parsePin_skip:
+		inx
+		cpx #48
+		bne parsePin_loop
 
-@pp_skip:
-	inx
-	cpx #48
-	bne @pp_loop
-
-@pp_done:
-	rts
+	parsePin_done:
+		rts
 
 pinMul10:
 	// (pinHi:pinLo) *= 10
@@ -991,23 +989,23 @@ getSeason:
 	// returns season in A
 	lda month
 	cmp #4
-	bcc @off
+	bcc season_off
 	cmp #9
-	bcc @mythos
+	bcc season_mythos
 	cmp #11
-	bcc @lore
+	bcc season_lore
 	cmp #13
-	bcc @aurora
-@off:
+	bcc season_aurora
+season_off:
 	lda #SEASON_OFF
 	rts
-@mythos:
+season_mythos:
 	lda #SEASON_MYTHOS
 	rts
-@lore:
+season_lore:
 	lda #SEASON_LORE
 	rts
-@aurora:
+season_aurora:
 	lda #SEASON_AURORA
 	rts
 
@@ -1079,47 +1077,47 @@ appendByteAsDec:
 	lda #0
 	sta ZP_PTR2
 	pla
-@h:
+lbl_append_hundreds:
 	cmp #100
-	bcc @tens
+	bcc lbl_append_tens
 	sec
 	sbc #100
 	inc ZP_PTR2
-	jmp @h
-@tens:
+	jmp lbl_append_hundreds
+lbl_append_tens:
 	sta ZP_PTR2+1
 	lda ZP_PTR2
-	beq @skipH
+	beq lbl_append_skipH
 	clc
 	adc #'0'
 	jsr appendCharA
-@skipH:
+lbl_append_skipH:
 	// tens
 	lda #0
 	sta ZP_PTR
 	lda ZP_PTR2+1
-@t:
+lbl_append_tens_loop:
 	cmp #10
-	bcc @ones
+	bcc lbl_append_ones
 	sec
 	sbc #10
 	inc ZP_PTR
-	jmp @t
-@ones:
+	jmp lbl_append_tens_loop
+lbl_append_ones:
 	sta ZP_PTR2+1
 	lda ZP_PTR
-	beq @maybeZero
+	beq lbl_append_maybeZero
 	clc
 	adc #'0'
 	jsr appendCharA
-	jmp @printOne
-@maybeZero:
+	jmp lbl_append_printOne
+lbl_append_maybeZero:
 	// if we printed hundreds, we need a 0 tens
 	lda ZP_PTR2
-	beq @printOne
+	beq lbl_append_printOne
 	lda #'0'
 	jsr appendCharA
-@printOne:
+lbl_append_printOne:
 	lda ZP_PTR2+1
 	clc
 	adc #'0'
@@ -1129,13 +1127,13 @@ appendByteAsDec:
 appendCharA:
 	ldx msgBufLen
 	cpx #95
-	bcs @d
+	bcs lbl_append_done
 	sta msgBuf,x
 	inx
 	stx msgBufLen
 	lda #0
 	sta msgBuf,x
-@d:
+lbl_append_done:
 	rts
 
 // --- Quest system ---
@@ -1222,7 +1220,7 @@ advanceWeek:
 musicInit:
 	// Install our IRQ hook only once; we chain to the original KERNAL IRQ.
 	lda musicInstalled
-	bne @mi_installed
+	bne music_init_installed
 	sei
 	// Save old IRQ vector
 	lda IRQ_VEC_LO
@@ -1238,7 +1236,7 @@ musicInit:
 	sta musicInstalled
 	cli
 
-@mi_installed:
+music_init_installed:
 	// Enable raster IRQ
 	lda VIC_CTRL1
 	and #%01111111
@@ -1287,11 +1285,11 @@ musicPickForLocation:
 	bne @pirate
 	lda #4
 	sta musicTheme
-	jmp @pick
+	jmp music_pick
 @pirate:
 	lda #9
 	sta musicTheme
-	jmp @pick
+	jmp music_pick
 
 	// Indoor/location overrides ("enter" music): $FF = none
 @overrides:
@@ -1301,7 +1299,7 @@ musicPickForLocation:
 	cmp #$FF
 	beq @scary
 	sta musicTheme
-	jmp @pick
+	jmp music_pick
 @scary:
 	// Determine if scary
 	ldx currentLoc
@@ -1309,11 +1307,11 @@ musicPickForLocation:
 	beq @season
 	lda #4
 	sta musicTheme
-	jmp @pick
+	jmp music_pick
 @season:
 	jsr getSeason
 	sta musicTheme
-@pick:
+music_pick:
 	jsr musicApplyThemeSettings
 	jsr musicAllNotesOff
 	jsr musicPickRandomPattern
@@ -1409,10 +1407,10 @@ musicIrq:
 	lda #%00000001
 	sta VIC_IRQFLAG
 	lda musicEnabled
-	beq @mi_done
+	beq music_irq_done
 	jsr musicTickRoutine
 
-@mi_done:
+music_irq_done:
 	pla
 	sta ZP_PTR2+1
 	pla
@@ -1431,27 +1429,27 @@ musicIrq:
 musicTickRoutine:
 	// Lead voice update
 	dec musicTick
-	bne @mt_bass
+	bne music_mt_bass
 	lda musicStepLen
 	sta musicTick
 	jsr musicAdvanceLead
 
-@mt_bass:
+music_mt_bass:
 	dec musicBassTick
-	bne @mt_spark
+	bne music_mt_spark
 	lda musicBassLen
 	sta musicBassTick
 	jsr musicAdvanceBass
 
 
-@mt_spark:
+music_mt_spark:
 	dec musicSparkTick
-	bne @mt_done
+	bne music_mt_done
 	lda musicSparkLen
 	sta musicSparkTick
 	jsr musicAdvanceSparkle
 
-@mt_done:
+music_mt_done:
 	rts
 
 musicAdvanceLead:
