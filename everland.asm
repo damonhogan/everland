@@ -203,6 +203,7 @@ tmpHp: .byte 0
 tmpPer: .byte 0
 tmpCnt: .byte 0
 tmpRand: .byte 0
+saveSlot: .byte 0
 
 // Input buffer (PETSCII)
 inputLen: .byte 0
@@ -745,6 +746,11 @@ saveName_suffix:
 	lda #'S'
 	sta saveNameBuf,x
 	inx
+	lda saveSlot
+	clc
+	adc #'0'
+	sta saveNameBuf,x
+	inx
 	lda #','
 	sta saveNameBuf,x
 	inx
@@ -1165,10 +1171,15 @@ assignQuest_set:
 	rts
 
 questComplete:
+	// Check low bits for completed flag
 	lda questStatus
+	and #$03
 	cmp #2
 	beq questComplete_done
-	lda #2
+	// preserve upper bits (stage) and set low bits = 2
+	lda questStatus
+	and #$FC
+	ora #2
 	sta questStatus
 	inc scoreLo
 	lda scoreLo
@@ -1204,6 +1215,7 @@ advanceWeek:
 advanceWeek_ok:
 	// Some quests can persist; MVP: rotate if completed, else keep
 	lda questStatus
+	and #$03
 	cmp #2
 	bne advanceWeek_done
 	lda #QUEST_NONE
@@ -4085,7 +4097,9 @@ give_ret2:
 //  ZP_PTR2+1 = npcId or $FF (use default npc for location)
 // Returns C=1 if quest completed (lastMsg set)
 questCheckGive:
+	// Check low bits for active state (bits 0-1 = status)
 	lda questStatus
+	and #$03
 	cmp #1
 	bne questCheckGive_no
 	lda activeQuest
@@ -4099,37 +4113,48 @@ questCheckGive:
 	lda npcDefaultByLoc,x
 	sta ZP_PTR2+1
 quest_haveNpc:
+	// Generic multi-stage handler using questReq tables
+	// given object in ZP_PTR2, npc in ZP_PTR2+1 (set earlier)
 	lda activeQuest
-	cmp #QUEST_COIN_BARTENDER
-	bne quest_q1
+	tay
+	// check stage0 requirement
 	lda ZP_PTR2
-	cmp #OBJ_COIN
-	bne questCheckGive_no
+	cmp questReq0Obj,y
+	bne quest_check_stage1
 	lda ZP_PTR2+1
-	cmp #NPC_BARTENDER
+	cmp questReq0Npc,y
 	bne questCheckGive_no
+	// matched stage0 — does quest have a stage1 requirement?
+	lda questReq1Obj,y
+	cmp #$FF
+	beq quest_do_complete
+	// advance to stage1: set status low bits=1 and stage=1 (store as (1 | (1<<2)))
+	lda #1
+	ora #$04
+	sta questStatus
+	// set generic next-step message
+	lda #<msgQuestStageNext
+	sta lastMsgLo
+	lda #>msgQuestStageNext
+	sta lastMsgHi
+	clc
+	rts
+
+quest_do_complete:
 	jsr questComplete
 	sec
 	rts
-quest_q1:
-	cmp #QUEST_KEY_KNIGHT
-	bne quest_q2
+
+quest_check_stage1:
+	// check stage1 requirement if present
+	lda questReq1Obj,y
+	cmp #$FF
+	beq questCheckGive_no
 	lda ZP_PTR2
-	cmp #OBJ_KEY
+	cmp questReq1Obj,y
 	bne questCheckGive_no
 	lda ZP_PTR2+1
-	cmp #NPC_KNIGHT
-	bne questCheckGive_no
-	jsr questComplete
-	sec
-	rts
-quest_q2:
-	// QUEST_LANTERN_WITCH
-	lda ZP_PTR2
-	cmp #OBJ_LANTERN
-	bne questCheckGive_no
-	lda ZP_PTR2+1
-	cmp #NPC_WITCH
+	cmp questReq1Npc,y
 	bne questCheckGive_no
 	jsr questComplete
 	sec
@@ -4141,6 +4166,21 @@ questCheckGive_no:
 	// removed duplicate qcg_no (use questCheckGive_no)
 
 cmdSave:
+	// Prompt for save slot (0-3)
+	lda #<msgSlotPrompt
+	sta ZP_PTR
+	lda #>msgSlotPrompt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr CHRIN
+	cmp #'0'
+	bcc cs_save_default
+	cmp #'4'
+	bcs cs_save_default
+	sec
+	sbc #'0'
+	sta saveSlot
+cs_save_default:
 	jsr saveGame
 	lda #<msgSaved
 	sta lastMsgLo
@@ -4149,6 +4189,21 @@ cmdSave:
 	rts
 
 cmdLoad:
+	// Prompt for load slot (0-3)
+	lda #<msgSlotPrompt
+	sta ZP_PTR
+	lda #>msgSlotPrompt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr CHRIN
+	cmp #'0'
+	bcc cl_load_default
+	cmp #'4'
+	bcs cl_load_default
+	sec
+	sbc #'0'
+	sta saveSlot
+cl_load_default:
 	jsr tryLoadGame
 	bcs load_ok
 	lda #<msgLoadFail
@@ -5029,6 +5084,9 @@ msgCreated:     .text "PROFILE CREATED AND SAVED."
 	.byte 0
 msgSaved:       .text "SAVED."
 	.byte 0
+
+msgSlotPrompt:  .text "SLOT (0-3):"
+	.byte 0
 msgLoaded:      .text "LOADED."
 	.byte 0
 msgMusicOn:     .text "MUSIC ON."
@@ -5090,4 +5148,12 @@ questDetail2: .text "QUEST: GIVE LANTERN TO THE WITCH."
 questDetailLo:
 	.byte <questDetail0,<questDetail1,<questDetail2
 questDetailHi:
+// Quest requirements per stage (obj, npc). Stage0 = initial requirement; Stage1 = follow-up or $FF if none.
+questReq0Obj: .byte OBJ_COIN, OBJ_KEY, OBJ_LANTERN
+questReq0Npc: .byte NPC_BARTENDER, NPC_KNIGHT, NPC_WITCH
+questReq1Obj: .byte OBJ_MUG, $FF, $FF
+questReq1Npc: .byte NPC_BARTENDER, $FF, $FF
+
+msgQuestStageNext: .text "STEP COMPLETE. NEXT: BRING THE MUG."
+	.byte 0
 	.byte >questDetail0,>questDetail1,>questDetail2
