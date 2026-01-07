@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>MANUAL</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#everland-manual" id="toc-everland-manual">Everland —
+Manual</a>
+<ul>
+<li><a href="#overview" id="toc-overview">Overview</a></li>
+<li><a href="#screenshots" id="toc-screenshots">Screenshots</a></li>
+<li><a href="#fully-working-features"
+id="toc-fully-working-features">Fully Working Features</a></li>
+<li><a href="#partially-working-needs-attention"
+id="toc-partially-working-needs-attention">Partially Working / Needs
+Attention</a></li>
+<li><a href="#beginner-player-manual"
+id="toc-beginner-player-manual">Beginner Player Manual</a></li>
+<li><a href="#upcoming-recommended-features"
+id="toc-upcoming-recommended-features">Upcoming / Recommended
+Features</a></li>
+<li><a href="#build-environment-notes"
+id="toc-build-environment-notes">Build &amp; Environment Notes</a></li>
+<li><a href="#credits" id="toc-credits">Credits</a></li>
+<li><a href="#contact-next-steps" id="toc-contact-next-steps">Contact /
+Next Steps</a></li>
+<li><a href="#appendix-commands-used-to-create-the-pdf"
+id="toc-appendix-commands-used-to-create-the-pdf">Appendix: Commands
+Used To Create The PDF</a></li>
+<li><a href="#pdf-location" id="toc-pdf-location">PDF Location</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="everland-manual">Everland — Manual</h1>
+<h2 id="overview">Overview</h2>
+<p>Everland is a single-file Commodore 64 text-adventure written in Kick
+Assembler. Build with KickAssembler and run in the VICE C64 emulator on
+Windows.</p>
+<h2 id="screenshots">Screenshots</h2>
+<p>The following screenshots are included from the <code>images/</code>
+folder.</p>
+<p><img src="images/screenshot1.png" alt="Screenshot 1" /> <img
+src="images/screenshot2.png" alt="Screenshot 2" /></p>
+<h2 id="fully-working-features">Fully Working Features</h2>
+<ul>
+<li>Save/Load (Disk I/O): Persistent profile save/load using a custom
+binary format.</li>
+<li>Login/Profile: Username/display and class selection at first
+login.</li>
+<li>Class &amp; Level System: Player class, level, and score; class base
+HP and HP-per-level.</li>
+<li>HP Tracking &amp; Persistence: Player and NPC current HP tracked and
+saved.</li>
+<li>Inventory Screen: Full-screen Inventory accessible with
+<code>I</code>.</li>
+<li>Characters Menu &amp; Sheets: <code>C</code> opens character menu;
+view player or NPC sheet.</li>
+<li>Talk/NPC Selection: <code>T</code> opens talk screen; select NPCs
+and begin conversations.</li>
+<li>Conversation Menu: Options implemented (speak, ask weather, comment
+temp, request quest, quest info, end).</li>
+<li>NPC Data &amp; Stats: Arrays for NPC name, class, level, score,
+current HP.</li>
+<li>PETSCII Helpers &amp; Rendering: Message buffer rendering and
+PETSCII helpers.</li>
+<li>KERNAL Routines: File handling and console I/O routines used.</li>
+<li>IRQ / Music Hook: Music IRQ handler and safe IRQ stub scaffold
+present.</li>
+</ul>
+<h2 id="partially-working-needs-attention">Partially Working / Needs
+Attention</h2>
+<ul>
+<li>Assembler Branch/Label Issues: Recent trampoline edits required
+fixes; re-verify with a full assemble.</li>
+<li>Conversation/Trampoline Robustness: Conversation menu logic works
+but needs final branch/label cleanup.</li>
+<li>SID Music Content: IRQ handler exists but SID tracks are not fully
+integrated.</li>
+<li>Quest Persistency Edge Cases: Basic quest assignment and save/load
+implemented; complex flows need expansion/testing.</li>
+<li>UI Polish: Dialog strings and message layout may need trimming.</li>
+<li>Multiplayer/Net: Not functional.</li>
+</ul>
+<h2 id="beginner-player-manual">Beginner Player Manual</h2>
+<p>Startup / Compile / Run</p>
+<ul>
+<li>Assemble with KickAssembler on Windows (example):</li>
+</ul>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>java <span class="op">-</span>cp C<span class="op">:</span>\commodore\KickAssembler\KickAss<span class="op">.</span><span class="fu">jar</span> kickass<span class="op">.</span><span class="fu">KickAssembler</span> <span class="op">-</span>odir bin <span class="op">-</span>log c<span class="op">:</span>\commodore\everland\bin\buildlog<span class="op">.</span><span class="fu">txt</span> <span class="op">-</span>showmem <span class="op">-</span>vicesymbols c<span class="op">:</span>\commodore\everland\everland<span class="op">.</span><span class="fu">asm</span></span></code></pre></div>
+<ul>
+<li>Run in VICE: open <code>bin\everland.prg</code> or drag into
+x64.</li>
+</ul>
+<p>First Run / Profiles</p>
+<ul>
+<li>On first run you’ll be prompted for a username/display and to pick a
+player class. The chosen class affects HP and is saved.</li>
+</ul>
+<p>Core Controls</p>
+<ul>
+<li>Movement: N, S, E, W (note: <code>S</code> is South only).</li>
+<li><code>C</code>: Characters menu — view player or NPC sheets.</li>
+<li><code>I</code>: Inventory (full screen).</li>
+<li><code>T</code>: Talk — select NPC and start conversation.</li>
+<li>Conversation: Type menu number and press Enter; choose “End” to
+exit.</li>
+</ul>
+<p>Gameplay Loop</p>
+<ul>
+<li>Explore map, talk to NPCs (<code>T</code>), check
+<code>C</code>haracter sheet and <code>I</code>nventory, accept quests,
+gain score/levels. Progress and HP changes are auto-saved on key
+events.</li>
+</ul>
+<p>Saving &amp; Loading</p>
+<ul>
+<li>Saves use KERNAL file routines; the game auto-loads profile on
+startup and auto-saves on key changes.</li>
+</ul>
+<p>Troubleshooting</p>
+<ul>
+<li>If KickAssembler reports branch/label errors, re-run and paste the
+build log; I can patch <code>everland.asm</code> to fix
+trampolines.</li>
+<li>If VICE hangs, try restarting the emulator or ensure the IRQ safe
+stub is enabled in code.</li>
+</ul>
+<h2 id="upcoming-recommended-features">Upcoming / Recommended
+Features</h2>
+<ul>
+<li>Full SID soundtrack and sound effects.</li>
+<li>Expanded quest system and quest log UI.</li>
+<li>Turn-based combat, skills, and status effects.</li>
+<li>Improved inventory with equip/unequip and item stacking.</li>
+<li>Enhanced PETSCII map, mini-map, and animations.</li>
+<li>Multiple save slots and in-game save manager.</li>
+<li>Joystick/controller support.</li>
+<li>Reorganize code to avoid long-branch patterns and improve assembler
+stability.</li>
+</ul>
+<h2 id="build-environment-notes">Build &amp; Environment Notes</h2>
+<ul>
+<li>Assembler: Kick Assembler (v5.25 in logs).</li>
+<li>Editor: Visual Studio Code.</li>
+<li>Emulator: VICE C64 Emulator on Windows.</li>
+<li>Source: <code>everland.asm</code> in the project root. Build output
+in <code>bin/</code>.</li>
+</ul>
+<h2 id="credits">Credits</h2>
+<ul>
+<li>Producer: Damon Hogan</li>
+<li>Inspired by: Perry Fraptic (RetroRecipies YouTube)</li>
+<li>Hardware inspiration: Commodore 64 Ultimate, commodore.net</li>
+<li>Tooling: Kick Assembler, Visual Studio Code, VICE</li>
+</ul>
+<h2 id="contact-next-steps">Contact / Next Steps</h2>
+<ul>
+<li>To include screenshots: upload them into <code>images/</code> then
+re-run the PDF conversion instructions below.</li>
+<li>If you’d like, I can patch remaining assembler errors — paste the
+latest build log.</li>
+</ul>
+<h2 id="appendix-commands-used-to-create-the-pdf">Appendix: Commands
+Used To Create The PDF</h2>
+<p>The PDF for this manual was produced using <code>pandoc</code> to
+convert Markdown to PDF. Below are the exact commands you can run
+locally to reproduce the same searchable PDF.</p>
+<ol type="1">
+<li>Convert Markdown directly to PDF via LaTeX (recommended if you have
+a TeX engine installed):</li>
+</ol>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>pandoc MANUAL<span class="op">.</span><span class="fu">md</span> <span class="op">-</span>o MANUAL<span class="op">.</span><span class="fu">pdf</span> <span class="op">--</span>pdf-engine<span class="op">=</span>xelatex <span class="op">--</span>toc</span></code></pre></div>
+<ol start="2" type="1">
+<li>Alternative: Generate HTML then convert to PDF with
+<code>wkhtmltopdf</code> (if you prefer HTML rendering):</li>
+</ol>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert Markdown -&gt; HTML</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>pandoc MANUAL<span class="op">.</span><span class="fu">md</span> <span class="op">-</span>o MANUAL<span class="op">.</span><span class="fu">html</span> <span class="op">--</span>standalone <span class="op">--</span>toc</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert HTML -&gt; searchable PDF with wkhtmltopdf</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>wkhtmltopdf MANUAL<span class="op">.</span><span class="fu">html</span> MANUAL<span class="op">.</span><span class="fu">pdf</span></span></code></pre></div>
+<ol start="3" type="1">
+<li>If you need only HTML output (searchable in browsers):</li>
+</ol>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>pandoc MANUAL<span class="op">.</span><span class="fu">md</span> <span class="op">-</span>o MANUAL<span class="op">.</span><span class="fu">html</span> <span class="op">--</span>standalone <span class="op">--</span>toc</span></code></pre></div>
+<p>Notes: - <code>--toc</code> generates a table of contents. - If
+images are large, consider resizing before embedding to reduce PDF
+size.</p>
+<h2 id="pdf-location">PDF Location</h2>
+<p>If I successfully generate <code>MANUAL.pdf</code> in the repository
+root, it will be placed at <code>c:/commodore/everland/MANUAL.pdf</code>
+and offered for download here.</p>
+</body>
+</html>
