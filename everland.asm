@@ -202,6 +202,7 @@ tmpNpcIdx: .byte 0
 tmpHp: .byte 0
 tmpPer: .byte 0
 tmpCnt: .byte 0
+tmpRand: .byte 0
 
 // Input buffer (PETSCII)
 inputLen: .byte 0
@@ -849,12 +850,12 @@ read_objloc_loop:
 	sec
 	rts
 
-@fail2:
+read_obj_fail_cleanup:
 	jsr CLRCHN
 	lda #LFN
 	jsr CLOSE
 
-@tl_fail:
+read_obj_fail_return:
 	clc
 	rts
 
@@ -1196,21 +1197,21 @@ advanceWeek:
 	inc week
 	lda week
 	cmp #53
-	bcc @aw_ok
+	bcc advanceWeek_ok
 	lda #1
 	sta week
 
-@aw_ok:
+advanceWeek_ok:
 	// Some quests can persist; MVP: rotate if completed, else keep
 	lda questStatus
 	cmp #2
-	bne @keep
+	bne advanceWeek_done
 	lda #QUEST_NONE
 	sta activeQuest
 	lda #0
 	sta questStatus
 	jsr ensureQuest
-@keep:
+advanceWeek_done:
 	lda #<msgWeekAdvanced
 	sta lastMsgLo
 	lda #>msgWeekAdvanced
@@ -1335,9 +1336,36 @@ musicApplyThemeSettings:
 	sta bassWave
 	lda themeSparkWave,x
 	sta sparkWave
+
+	// Per-location lead waveform override (if set)
+	lda currentLoc
+	tay
+	lda locLeadWaveOverride,y
+	cmp #$FF
+	beq music_apply_no_lead_override
+	sta leadWave
+music_apply_no_lead_override:
 	// Per-theme envelopes (SR only; AD set once in init)
 	lda themeV1SR,x
 	sta SID_V1_SR
+
+	// Per-location AD override (lead voice)
+	lda currentLoc
+	tay
+	lda locV1ADOverride,y
+	cmp #$FF
+	beq music_apply_no_v1ad_override
+	sta SID_V1_AD
+music_apply_no_v1ad_override:
+
+	// Per-location SR override (lead voice)
+	lda currentLoc
+	tay
+	lda locV1SROverride,y
+	cmp #$FF
+	beq music_apply_no_v1sr_override
+	sta SID_V1_SR
+music_apply_no_v1sr_override:
 	lda themeV2SR,x
 	sta SID_V2_SR
 	lda themeV3SR,x
@@ -1364,15 +1392,27 @@ musicAllNotesOff:
 	rts
 
 musicPickRandomPattern:
-	// Choose 0..2
+	// Choose random pattern: normally 0..2, but allow 0..3 for Celtic (theme 10)
 	lda $D012
 	eor $DC04
 	and #$03
+	sta tmpRand
+
+	lda musicTheme
+	cmp #10
+	beq musicPick_ok_celtic
+
+	lda tmpRand
 	cmp #3
-	bne @mpr_ok
+	bne musicPick_ok
 	lda #2
 
-@mpr_ok:
+musicPick_ok:
+	sta musicPattern
+	rts
+
+musicPick_ok_celtic:
+	lda tmpRand
 	sta musicPattern
 	rts
 
@@ -1620,7 +1660,23 @@ locScary:
 // Indoor/location music override ($FF = none). Theme ids match musicTheme.
 locMusicOverride:
 	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
-	.byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,8,5,$FF,$FF,6,7
+	// Prefer Celtic (10/$0A) for entrances/park-like places: GATE, PLAZA, GROVE
+	.byte $FF,$FF,$0A,$FF,$0A,$FF,$FF,$0A,5,$FF,$FF,6,7
+
+// Per-location lead waveform override ($FF = no override). Indexed like `locMusicOverride`.
+locLeadWaveOverride:
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	.byte $FF,$FF,$20,$FF,$20,$FF,$FF,$20,$FF,$FF,$FF,$FF,$FF
+
+// Per-location lead AD override ($FF = no override). Values are AD (attack/decay) nibbles.
+locV1ADOverride:
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	.byte $FF,$FF,$18,$FF,$18,$FF,$FF,$18,$FF,$FF,$FF,$FF,$FF
+
+// Per-location lead SR override ($FF = no override). Values are SR (sustain/release).
+locV1SROverride:
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	.byte $FF,$FF,$B8,$FF,$B8,$FF,$FF,$B8,$FF,$FF,$FF,$FF,$FF
 
 // Notes table (indices used in sequences):
 // 1=C4 2=D4 3=E4 4=F4 5=G4 6=A4 7=B4 8=C5 9=D5 10=E5 11=G5 12=A5
@@ -1722,6 +1778,24 @@ piBass0: .byte 1,0,5,0, 1,0,6,0, 5,0,3,0, 2,0,1,0
 piBass1: .byte 3,0,6,0, 3,0,5,0, 6,0,5,0, 3,0,2,0
 piBass2: .byte 5,0,8,0, 5,0,6,0, 8,0,6,0, 5,0,3,0
 
+// CELTIC (ambient, slow, soft — gentle triangle/saw, light ornament)
+ceLead0: .byte 9,0,11,9, 12,11,9,0, 9,0,11,9, 12,11,9,0
+ceLead1: .byte 12,11,9,11, 12,14,12,11, 9,11,12,0, 0,0,0,0
+ceLead2: .byte 14,12,11,9, 11,12,14,12, 11,9,11,12, 0,0,0,0
+ceBass0: .byte 1,0,1,0, 3,0,5,0, 3,0,1,0, 0,0,0,0
+ceBass1: .byte 3,0,3,0, 5,0,6,0, 5,0,3,0, 0,0,0,0
+ceBass2: .byte 1,0,0,0, 3,0,1,0, 3,0,0,0, 0,0,0,0
+
+// light ornament/pulse for Celtic shimmer (sparse)
+ceSpk0: .byte 0,10,0,0, 9,0,0,0, 10,0,0,0, 9,0,0,0
+ceSpk1: .byte 0,0,9,0, 0,10,0,0, 0,9,0,0, 0,0,0,0
+ceSpk2: .byte 9,0,0,10, 0,0,9,0, 0,10,0,0, 0,0,0,0
+
+// Additional Celtic variant (more ornamentation)
+ceLead3: .byte 12,11,12,14, 12,11,9,11, 12,14,12,11, 9,11,12,0
+ceBass3: .byte 3,0,5,0, 3,0,6,0, 5,0,3,0, 0,0,0,0
+ceSpk3: .byte 10,0,9,0, 10,0,9,0, 10,0,0,0, 9,0,0,0
+
 // Theme pointer tables: each theme entry points to 3 patterns
 myLeadPtr: .word myLead0,myLead1,myLead2
 loLeadPtr: .word loLead0,loLead1,loLead2
@@ -1733,6 +1807,7 @@ inLeadPtr: .word inLead0,inLead1,inLead2
 tpLeadPtr: .word tpLead0,tpLead1,tpLead2
 faLeadPtr: .word faLead0,faLead1,faLead2
 piLeadPtr: .word piLead0,piLead1,piLead2
+ceLeadPtr: .word ceLead0,ceLead1,ceLead2,ceLead3
 
 myBassPtr: .word myBass0,myBass1,myBass2
 loBassPtr: .word loBass0,loBass1,loBass2
@@ -1744,10 +1819,12 @@ inBassPtr: .word inBass0,inBass1,inBass2
 tpBassPtr: .word tpBass0,tpBass1,tpBass2
 faBassPtr: .word faBass0,faBass1,faBass2
 piBassPtr: .word piBass0,piBass1,piBass2
+ceBassPtr: .word ceBass0,ceBass1,ceBass2,ceBass3
 
 auSpkPtr:  .word auSpk0,auSpk1,auSpk2
 tvSpkPtr:  .word tvSpk0,tvSpk1,tvSpk2
 faSpkPtr:  .word faSpk0,faSpk1,faSpk2
+ceSpkPtr: .word ceSpk0,ceSpk1,ceSpk2,ceSpk3
 
 // Dummy sparkle (all rests) for themes that don't use it
 noSpk0: .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -1755,35 +1832,37 @@ noSpkPtr: .word noSpk0,noSpk0,noSpk0
 
 // Tables indexed by musicTheme (0..9) of pointers to pointer-tables above
 themeLeadNotesLo:
-	.byte <ofLeadPtr,<myLeadPtr,<loLeadPtr,<auLeadPtr,<scLeadPtr,<tvLeadPtr,<inLeadPtr,<tpLeadPtr,<faLeadPtr,<piLeadPtr
+    	.byte <ofLeadPtr,<myLeadPtr,<loLeadPtr,<auLeadPtr,<scLeadPtr,<tvLeadPtr,<inLeadPtr,<tpLeadPtr,<faLeadPtr,<piLeadPtr,<ceLeadPtr
 themeLeadNotesHi:
-	.byte >ofLeadPtr,>myLeadPtr,>loLeadPtr,>auLeadPtr,>scLeadPtr,>tvLeadPtr,>inLeadPtr,>tpLeadPtr,>faLeadPtr,>piLeadPtr
+    	.byte >ofLeadPtr,>myLeadPtr,>loLeadPtr,>auLeadPtr,>scLeadPtr,>tvLeadPtr,>inLeadPtr,>tpLeadPtr,>faLeadPtr,>piLeadPtr,>ceLeadPtr
 
 themeBassNotesLo:
-	.byte <ofBassPtr,<myBassPtr,<loBassPtr,<auBassPtr,<scBassPtr,<tvBassPtr,<inBassPtr,<tpBassPtr,<faBassPtr,<piBassPtr
+    	.byte <ofBassPtr,<myBassPtr,<loBassPtr,<auBassPtr,<scBassPtr,<tvBassPtr,<inBassPtr,<tpBassPtr,<faBassPtr,<piBassPtr,<ceBassPtr
 themeBassNotesHi:
-	.byte >ofBassPtr,>myBassPtr,>loBassPtr,>auBassPtr,>scBassPtr,>tvBassPtr,>inBassPtr,>tpBassPtr,>faBassPtr,>piBassPtr
+    	.byte >ofBassPtr,>myBassPtr,>loBassPtr,>auBassPtr,>scBassPtr,>tvBassPtr,>inBassPtr,>tpBassPtr,>faBassPtr,>piBassPtr,>ceBassPtr
 
 themeSparkNotesLo:
-	.byte <noSpkPtr,<noSpkPtr,<noSpkPtr,<auSpkPtr,<noSpkPtr,<tvSpkPtr,<noSpkPtr,<noSpkPtr,<faSpkPtr,<noSpkPtr
+    	.byte <noSpkPtr,<noSpkPtr,<noSpkPtr,<auSpkPtr,<noSpkPtr,<tvSpkPtr,<noSpkPtr,<noSpkPtr,<faSpkPtr,<noSpkPtr,<ceSpkPtr
 themeSparkNotesHi:
-	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>noSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr
+    	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>noSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr,>ceSpkPtr
 
 // Theme settings (tempo + timbre). 10 entries, indexed by musicTheme.
 // Smaller = faster (ticks per step). Values tuned for atmosphere.
-themeLeadLen:  .byte 9, 8,10, 7,12, 8, 9, 8, 7, 8
-themeBassLen:  .byte 18,16,20,14,24,16,18,16,14,16
-themeSparkLen: .byte 6, 4, 6, 4, 8, 4, 6, 6, 4, 6
+themeLeadLen:  .byte 9, 8,10, 7,12, 8, 9, 8, 7, 8, 11
+themeBassLen:  .byte 18,16,20,14,24,16,18,16,14,16,22
+themeSparkLen: .byte 6, 4, 6, 4, 8, 4, 6, 6, 4, 6, 6
 
 // Waveform bits only (gate bit added dynamically): TRI=$10 SAW=$20 PULSE=$40 NOISE=$80
-themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40
-themeBassWave: .byte $10,$10,$10,$10,$10,$10,$10,$10,$10,$10
-themeSparkWave:.byte $40,$40,$40,$40,$80,$40,$40,$40,$40,$40
+// Make Celtic lead slightly warmer (use saw for a soft, warm tone)
+themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40,$20
+themeBassWave: .byte $10,$10,$10,$10,$10,$10,$10,$10,$10,$10,$10
+themeSparkWave:.byte $40,$40,$40,$40,$80,$40,$40,$40,$40,$40,$40
 
 // Release-heavy for scary; otherwise smooth.
-themeV1SR: .byte $A6,$A8,$B7,$A8,$46,$A8,$A8,$88,$78,$A8
-themeV2SR: .byte $A6,$A8,$A8,$A8,$46,$A8,$A8,$A8,$78,$A8
-themeV3SR: .byte $68,$78,$78,$78,$28,$78,$68,$68,$78,$68
+// Slightly longer release for Celtic theme for a soft, lingering sound
+themeV1SR: .byte $A6,$A8,$B7,$A8,$46,$A8,$A8,$88,$78,$A8,$B8
+themeV2SR: .byte $A6,$A8,$A8,$A8,$46,$A8,$A8,$A8,$78,$A8,$B8
+themeV3SR: .byte $68,$78,$78,$78,$28,$78,$68,$68,$78,$68,$88
 
 init:
 	// Start music early so the login screen has its own theme.
@@ -2564,10 +2643,11 @@ cmd_tryChart:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_unknown
+	bcc cmd_unknown
 	jmp cmdChart
 
-@ec_unknown:
+
+cmd_unknown:
 
 	// Unknown
 	lda #<msgUnknown
@@ -2580,24 +2660,29 @@ cmd_done:
 
 // Match keyword pointed to by ZP_PTR2 against inputBuf at X.
 // Carry set if matches whole word (ends at space or 0).
+
 matchKeywordAtX:
 	ldy #0
-@mk:
+match_kw_loop:
 	lda (ZP_PTR2),y
-	beq @endkw
+	beq match_kw_end
 	cmp inputBuf,x
-	bne @no
+	bne match_kw_no
 	iny
 	inx
-	bne @mk
+	bne match_kw_loop
 
-@endkw:
+match_kw_end:
 	lda inputBuf,x
-	beq @yes
+	beq match_kw_yes
 	cmp #' '
-	beq @yes
-@no:
+	beq match_kw_yes
+match_kw_no:
 	clc
+	rts
+
+match_kw_yes:
+	sec
 	rts
 
 // --- PETSCII chart helpers ---
@@ -2605,14 +2690,14 @@ matchKeywordAtX:
 printHexNibble:
 	and #$0F
 	cmp #10
-	bcc @phn_num
+	bcc printHex_num
 	clc
 	adc #('A'-10)
-	jmp @phn_out
-@phn_num:
+	jmp printHex_out
+printHex_num:
 	clc
 	adc #'0'
-@phn_out:
+printHex_out:
 	jsr CHROUT
 	rts
 
@@ -2641,7 +2726,7 @@ chartPrintRow:
 	jsr CHROUT
 
 	ldy #0
-@cpr_loop:
+chart_print_row_loop:
 	tya
 	clc
 	adc ZP_PTR
@@ -2650,36 +2735,36 @@ chartPrintRow:
 	jsr CHROUT
 	iny
 	cpy #16
-	bne @cpr_loop
+	bne chart_print_row_loop
 	jsr newline
 	rts
 
 waitAnyKey:
 	jsr flushKeys
-@wak:
+wait_key_loop:
 	jsr SCNKEY
 	jsr GETIN
-	beq @wak
+	beq wait_key_loop
 	rts
-@yes:
+wait_key_yes:
 	sec
 	rts
 
 // Skip spaces starting at X; returns X at first non-space
 skipSpaces:
-@ss:
+skip_spaces_loop:
 	lda inputBuf,x
 	cmp #' '
-	bne @ssdone
+	bne skip_spaces_done
 	inx
-	bne @ss
-@ssdone:
+	bne skip_spaces_loop
+skip_spaces_done:
 	rts
 
 // Skip spaces and common filler words (TO/THE/A/AN) starting at X.
 // Returns X at start of the next meaningful token.
 skipFillers:
-@again:
+skip_fillers_loop:
 	jsr skipSpaces
 	// TO
 	txa
@@ -2691,11 +2776,11 @@ skipFillers:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @the
+	bcc skip_fillers_the
 	inx
 	inx
-	jmp @again
-@the:
+	jmp skip_fillers_loop
+skip_fillers_the:
 	// THE
 	txa
 	pha
@@ -2706,19 +2791,19 @@ skipFillers:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @a
+	bcc skip_fillers_a
 	inx
 	inx
 	inx
-	jmp @again
-@a:
+	jmp skip_fillers_loop
+skip_fillers_a:
 	// A
 	lda inputBuf,x
 	cmp #'A'
-	bne @an
+	bne skip_fillers_an
 	inx
-	jmp @again
-@an:
+	jmp skip_fillers_loop
+skip_fillers_an:
 	// AN
 	txa
 	pha
@@ -2729,12 +2814,12 @@ skipFillers:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @sf_done
+	bcc skip_fillers_done
 	inx
 	inx
-	jmp @again
+	jmp skip_fillers_loop
 
-@sf_done:
+skip_fillers_done:
 	rts
 
 // Parse object noun starting at X. Returns A=objId, carry set if found.
@@ -2750,11 +2835,11 @@ parseObjectNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @coin
+	bcc obj_tryCoin
 	lda #OBJ_LANTERN
 	sec
 	rts
-@coin:
+obj_tryCoin:
 	txa
 	pha
 	lda #<kwCoin
@@ -2764,11 +2849,11 @@ parseObjectNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @mug
+	bcc obj_tryMug
 	lda #OBJ_COIN
 	sec
 	rts
-@mug:
+obj_tryMug:
 	txa
 	pha
 	lda #<kwMug
@@ -2778,11 +2863,11 @@ parseObjectNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @key
+	bcc obj_tryKey
 	lda #OBJ_MUG
 	sec
 	rts
-@key:
+obj_tryKey:
 	txa
 	pha
 	lda #<kwKey
@@ -2792,12 +2877,12 @@ parseObjectNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @pon_fail
+	bcc obj_parse_fail
 	lda #OBJ_KEY
 	sec
 	rts
 
-@pon_fail:
+obj_parse_fail:
 	clc
 	rts
 
@@ -2814,11 +2899,11 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @bart
+	bcc npc_tryBart
 	lda #NPC_CONDUCTOR
 	sec
 	rts
-@bart:
+npc_tryBart:
 	txa
 	pha
 	lda #<kwBartender
@@ -2828,11 +2913,11 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @knight
+	bcc npc_tryKnight
 	lda #NPC_BARTENDER
 	sec
 	rts
-@knight:
+npc_tryKnight:
 	txa
 	pha
 	lda #<kwKnight
@@ -2842,11 +2927,11 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @witch
+	bcc npc_tryWitch
 	lda #NPC_KNIGHT
 	sec
 	rts
-@witch:
+npc_tryWitch:
 	txa
 	pha
 	lda #<kwWitch
@@ -2856,11 +2941,11 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @fairy
+	bcc npc_tryFairy
 	lda #NPC_WITCH
 	sec
 	rts
-@fairy:
+npc_tryFairy:
 	txa
 	pha
 	lda #<kwFairy
@@ -2870,11 +2955,11 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @pixie
+	bcc npc_tryPixie
 	lda #NPC_FAIRY
 	sec
 	rts
-@pixie:
+npc_tryPixie:
 	txa
 	pha
 	lda #<kwPixie
@@ -2884,11 +2969,11 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @nf
+	bcc npc_parse_none
 	lda #NPC_PIXIE
 	sec
 	rts
-@nf:
+npc_parse_none:
 	clc
 	rts
 
@@ -2906,12 +2991,12 @@ parseSceneryNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @pscn_sign
+	bcc scenery_trySign
 	lda #0
 	sec
 	rts
 
-@pscn_sign:
+scenery_trySign:
 	// SIGN
 	txa
 	pha
@@ -2922,12 +3007,12 @@ parseSceneryNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @pscn_gate
+	bcc scenery_tryGate
 	lda #1
 	sec
 	rts
 
-@pscn_gate:
+scenery_tryGate:
 	// GATE
 	txa
 	pha
@@ -2938,12 +3023,12 @@ parseSceneryNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @pscn_none
+	bcc scenery_none
 	lda #2
 	sec
 	rts
 
-@pscn_none:
+scenery_none:
 	clc
 	rts
 
@@ -2967,14 +3052,14 @@ cmdWest:
 
 doMove:
 	cmp #$FF
-	bne @mv_ok
+	bne move_ok
 	lda #<msgNoWay
 	sta lastMsgLo
 	lda #>msgNoWay
 	sta lastMsgHi
 	rts
 
-@mv_ok:
+move_ok:
 	sta currentLoc
 	jsr musicPickForLocation
 	lda #<msgMoved
@@ -3001,22 +3086,22 @@ cmdCharactersMenu:
 	lda #' '
 	jsr CHROUT
 	lda displayLen
-	beq @cc_print_user
+	beq cc_print_user
 	lda #<displayName
 	sta ZP_PTR
 	lda #>displayName
 	sta ZP_PTR+1
 	jsr printZ
-	jmp @cc_afterPlayer
+	jmp cc_afterPlayer
 
-@cc_print_user:
+cc_print_user:
 	lda #<username
 	sta ZP_PTR
 	lda #>username
 	sta ZP_PTR+1
 	jsr printZ
 
-@cc_afterPlayer:
+cc_afterPlayer:
 	jsr newline
 
 	// List NPCs present at this location
@@ -3026,18 +3111,7 @@ cmdCharactersMenu:
 	lda #0
 	sta selCount
 	ldx #0
-@cc_npc_loop:
-	lda ZP_PTR2
-	and npcBit,x
-	beq @cc_npc_next
-	// increment display count
-	inc selCount
-	lda selCount
-	clc
-	adc #'0'
-	jsr CHROUT
-	lda #'.'
-	jsr CHROUT
+	cc_npc_loop:
 	lda #' '
 	jsr CHROUT
 	// print npc name
@@ -3048,51 +3122,51 @@ cmdCharactersMenu:
 	jsr printZ
 	jsr newline
 
-@cc_npc_next:
+cc_npc_next:
 	inx
 	cpx #NPC_COUNT
-	bne @cc_npc_loop
+	bne cc_npc_loop
 
 	// Prompt and read choice
 	jsr setCursorPrompt
 	jsr readLine
 	// parse first char
 	lda inputBuf
-	beq @cc_done
+	beq cc_done
 	cmp #'0'
-	beq @cc_show_player_call
+	beq cc_show_player_call
 	sec
 	sbc #'0'
 	sta selChoice
 	// find corresponding npc index
 	ldx #0
 	ldy #0
-@cc_find_loop:
+cc_find_loop:
 	lda ZP_PTR2
 	and npcBit,x
-	beq @cc_find_next
+	beq cc_find_next
 	// increment y (count)
 	iny
 	tya
 	cmp selChoice
-	beq @cc_selected
+	beq cc_selected
 
-@cc_find_next:
+cc_find_next:
 	inx
 	cpx #NPC_COUNT
-	bne @cc_find_loop
-	jmp @cc_done
+	bne cc_find_loop
+	jmp cc_done
 
-@cc_show_player_call:
-    jsr cmdSheet
-    jmp @cc_done
+cc_show_player_call:
+	jsr cmdSheet
+	jmp cc_done
 
-@cc_selected:
+cc_selected:
 	// if NPC present, open conversation menu
 	jsr conversationMenu
 	rts
 
-@cc_done:
+cc_done:
 	rts
 
 showNpcSheet:
@@ -3181,22 +3255,22 @@ showNpcSheet:
 	tay
 	lda npcLevel,y
 	sta tmpCnt
-@npc_hp_loop:
+npc_hp_loop:
 	lda tmpCnt
-	beq @npc_hp_done
+	beq npc_hp_done
 	lda tmpHp
 	clc
 	adc tmpPer
 	sta tmpHp
 	dec tmpCnt
-	jmp @npc_hp_loop
+	jmp npc_hp_loop
 
-@npc_hp_done:
+npc_hp_done:
 	// ensure current HP is set (indexed by npc)
 	lda tmpNpcIdx
 	tax
 	lda npcCurHp,x
-	beq @npc_set_cur
+	beq npc_set_cur
 	// print HP: cur/max
 	lda npcCurHp,x
 	jsr appendByteAsDec
@@ -3206,9 +3280,9 @@ showNpcSheet:
 	jsr CHROUT
 	lda tmpHp
 	jsr appendByteAsDec
-	jmp @npc_after_hp
+	jmp npc_after_hp
 
-@npc_set_cur:
+npc_set_cur:
 	lda tmpHp
 	sta npcCurHp,x
 	// print HP: cur/max
@@ -3221,7 +3295,7 @@ showNpcSheet:
 	lda tmpHp
 	jsr appendByteAsDec
 
-@npc_after_hp:
+npc_after_hp:
 	lda #<msgBuf
 	sta ZP_PTR
 	lda #>msgBuf
@@ -3288,10 +3362,10 @@ cmdSheet:
 	jsr computePlayerMaxHp
 	// ensure playerCurHp is initialized
 	lda playerCurHp
-	bne @ps_hp_have
+	bne player_hp_have
 	lda tmpHp
 	sta playerCurHp
-@ps_hp_have:
+player_hp_have:
 	// print label
 	lda #<strSpace
 	sta ZP_PTR
@@ -3366,10 +3440,10 @@ cmdTalk:
 	lda #0
 	sta selCount
 	ldx #0
-@tt_npc_loop:
+talk_npc_loop:
 	lda ZP_PTR2
 	and npcBit,x
-	beq @tt_npc_next
+	beq talk_npc_next
 	inc selCount
 	lda selCount
 	clc
@@ -3386,44 +3460,45 @@ cmdTalk:
 	jsr printZ
 	jsr newline
 
-@tt_npc_next:
+talk_npc_next:
 	inx
 	cpx #NPC_COUNT
-	bne @tt_npc_loop
+	bne talk_npc_loop
 
 	jsr setCursorPrompt
 	jsr readLine
 	lda inputBuf
-	beq @tt_done
+	beq talk_done
 	sec
 	sbc #'0'
 	sta selChoice
 	ldx #0
 	ldy #0
-@tt_find_loop:
+talk_find_loop:
 	lda ZP_PTR2
 	and npcBit,x
-	beq @tt_find_next
+	beq talk_find_next
 	iny
 	tya
 	cmp selChoice
-	beq @tt_selected
+	beq talk_selected
 
-@tt_find_next:
+talk_find_next:
 	inx
 	cpx #NPC_COUNT
-	bne @tt_find_loop
-	jmp @tt_done
+	bne talk_find_loop
+	jmp talk_done
 
-@tt_selected:
+talk_selected:
 	// if NPC present, open conversation menu
 	jsr conversationMenu
 	rts
 
-@tt_done:
+talk_done:
 	// nothing selected
 	rts
-@talk_none:
+
+talk_none:
 	lda #<msgNoOne
 	sta lastMsgLo
 	lda #>msgNoOne
@@ -3552,24 +3627,24 @@ conv_exit_short:
 	jmp conversationMenu_exit
 
 conv_choice0:
-	jmp @conv_do_speak
+	jmp conv_do_speak
 
 conv_choice1:
-	jmp @conv_do_weather
+	jmp conv_do_weather
 
 conv_choice2:
-	jmp @conv_do_temp
+	jmp conv_do_temp
 
 conv_choice3:
-	jmp @conv_do_quest
+	jmp conv_do_quest
 
 conv_choice4:
-	jmp @conv_do_qinfo
+	jmp conv_do_qinfo
 
 conv_choice5:
 	jmp conversationMenu_exit
 
-@conv_do_speak:
+conv_do_speak:
 	lda npcTalkLo,x
 	sta lastMsgLo
 	lda npcTalkHi,x
@@ -3577,7 +3652,7 @@ conv_choice5:
 	jsr render
 	jmp conv_loop
 
-@conv_do_weather:
+conv_do_weather:
 	lda #<msgAskWeather
 	sta lastMsgLo
 	lda #>msgAskWeather
@@ -3585,7 +3660,7 @@ conv_choice5:
 	jsr render
 	jmp conv_loop
 
-@conv_do_temp:
+conv_do_temp:
 	lda #<msgTempResponse
 	sta lastMsgLo
 	lda #>msgTempResponse
@@ -3593,10 +3668,10 @@ conv_choice5:
 	jsr render
 	jmp conv_loop
 
-@conv_do_quest:
+conv_do_quest:
 	lda npcOffersQuest,x
 	cmp #QUEST_NONE
-	beq @conv_noquest
+	beq conv_noquest
 	// set quest active and status
 	sta activeQuest
 	lda #1
@@ -3608,7 +3683,7 @@ conv_choice5:
 	jsr render
 	jmp conv_loop
 
-@conv_noquest:
+conv_noquest:
 	lda #<msgNoQuestNpc
 	sta lastMsgLo
 	lda #>msgNoQuestNpc
@@ -3616,10 +3691,10 @@ conv_choice5:
 	jsr render
 	jmp conv_loop
 
-@conv_do_qinfo:
+conv_do_qinfo:
 	lda activeQuest
 	cmp #QUEST_NONE
-	beq @conv_noactive
+	beq conv_noactive
 	tax
 	lda questDetailLo,x
 	sta lastMsgLo
@@ -3628,7 +3703,7 @@ conv_choice5:
 	jsr render
 	jmp conv_loop
 
-@conv_noactive:
+conv_noactive:
 	lda #<msgNoQuest
 	sta lastMsgLo
 	lda #>msgNoQuest
@@ -3643,22 +3718,22 @@ cmdInspect:
 	// If noun present, inspect object; else re-describe location
 	// Find first space after verb
 	ldx #0
-@findSpace:
+find_space_loop:
 	lda inputBuf,x
-	beq @noNoun
+	beq noun_none
 	cmp #' '
-	beq @noun
+	beq noun_start
 	inx
-	bne @findSpace
+	bne find_space_loop
 
-@noun:
+noun_start:
 	jsr parseObjectNoun
-	bcs @obj
+	bcs noun_obj_found
 	jsr parseSceneryNoun
-	bcs @scn
-	jmp @noNoun
+	bcs noun_scn_found
+	jmp noun_none
 
-@obj:
+noun_obj_found:
 	tax
 	lda objInspectLo,x
 	sta lastMsgLo
@@ -3666,52 +3741,52 @@ cmdInspect:
 	sta lastMsgHi
 	rts
 
-@scn:
+noun_scn_found:
 	// sceneryId in A
 	cmp #0
-	beq @stall
+	beq insp_stall
 	cmp #1
-	beq @insp_sign
+	beq insp_sign
 	// else 2=GATE
-	jmp @insp_gate
+	jmp insp_gate
 
-@stall:
+insp_stall:
 	lda currentLoc
 	cmp #LOC_MARKET
-	bne @scnNo
+	bne scenery_not_here
 	lda #<msgStall
 	sta lastMsgLo
 	lda #>msgStall
 	sta lastMsgHi
 	rts
 
-@insp_sign:
+insp_sign:
 	lda currentLoc
 	cmp #LOC_TRAIN
-	bne @scnNo
+	bne scenery_not_here
 	lda #<msgSign
 	sta lastMsgLo
 	lda #>msgSign
 	sta lastMsgHi
 	rts
 
-@insp_gate:
+insp_gate:
 	lda currentLoc
 	cmp #LOC_GATE
-	bne @scnNo
+	bne scenery_not_here
 	lda #<msgGate
 	sta lastMsgLo
 	lda #>msgGate
 	sta lastMsgHi
 	rts
-@scnNo:
+scenery_not_here:
 	lda #<msgNotHere
 	sta lastMsgLo
 	lda #>msgNotHere
 	sta lastMsgHi
 	rts
 
-@noNoun:
+noun_none:
 	lda #<msgLook
 	sta lastMsgLo
 	lda #>msgLook
@@ -3722,14 +3797,14 @@ cmdPickUp:
 	// Handle "PICK UP <obj>"; if no UP, treat as TAKE
 	ldx #0
 	// Find first space
-@p1:
+pick_find_space:
 	lda inputBuf,x
 	beq cmdTake
 	cmp #' '
-	beq @afterPick
+	beq pick_after
 	inx
-	bne @p1
-@afterPick:
+	bne pick_find_space
+pick_after:
 	jsr skipSpaces
 	// Must be UP
 	txa
@@ -3751,19 +3826,19 @@ cmdPickUp:
 cmdTake:
 	ldx #0
 	// Find first space after verb
-@t1:
-	lda inputBuf,x
-	beq @take_need
-	cmp #' '
-	beq @take_after
-	inx
-	bne @t1
+	take_find_space:
+		lda inputBuf,x
+		beq take_need
+		cmp #' '
+		beq take_after
+		inx
+		bne take_find_space
 
-@take_after:
+	take_after:
 	jsr cmdTakeFromX
 	rts
 
-@take_need:
+	take_need:
 	lda #<msgTakeWhat
 	sta lastMsgLo
 	lda #>msgTakeWhat
@@ -3772,11 +3847,11 @@ cmdTake:
 
 cmdTakeFromX:
 	jsr parseObjectNoun
-	bcc @tfx_bad
+	bcc take_bad
 	tax
 	lda objLoc,x
 	cmp currentLoc
-	bne @tfx_notHere
+	bne take_not_here
 	lda #OBJ_INVENTORY
 	sta objLoc,x
 	lda #<msgTook
@@ -3786,14 +3861,14 @@ cmdTakeFromX:
     jsr saveGame
 	rts
 
-@tfx_notHere:
+take_not_here:
 	lda #<msgNotHere
 	sta lastMsgLo
 	lda #>msgNotHere
 	sta lastMsgHi
 	rts
 
-@tfx_bad:
+take_bad:
 	lda #<msgDontKnow
 	sta lastMsgLo
 	lda #>msgDontKnow
@@ -3803,14 +3878,14 @@ cmdTakeFromX:
 cmdSetDown:
 	// Handle "SET DOWN <obj>"; else DROP
 	ldx #0
-@s1:
+set_find_space:
 	lda inputBuf,x
 	beq cmdDrop
 	cmp #' '
-	beq @afterSet
+	beq set_after
 	inx
-	bne @s1
-@afterSet:
+	bne set_find_space
+set_after:
 	jsr skipSpaces
 	txa
 	pha
@@ -3832,19 +3907,19 @@ cmdSetDown:
 
 cmdDrop:
 	ldx #0
-@d1:
+drop_find_space:
 	lda inputBuf,x
-	beq @drop_need
+	beq drop_need
 	cmp #' '
-	beq @drop_after
+	beq drop_after
 	inx
-	bne @d1
+	bne drop_find_space
 
-@drop_after:
+drop_after:
 	jsr cmdDropFromX
 	rts
 
-@drop_need:
+drop_need:
 	lda #<msgDropWhat
 	sta lastMsgLo
 	lda #>msgDropWhat
@@ -3853,11 +3928,11 @@ cmdDrop:
 
 cmdDropFromX:
 	jsr parseObjectNoun
-	bcc @dfx_bad
+	bcc drop_bad
 	tax
 	lda objLoc,x
 	cmp #OBJ_INVENTORY
-	bne @dfx_notHave
+	bne drop_not_have
 	lda currentLoc
 	sta objLoc,x
 	lda #<msgDropped
@@ -3867,14 +3942,14 @@ cmdDropFromX:
 	jsr saveGame
 	rts
 
-@dfx_notHave:
+drop_not_have:
 	lda #<msgNotCarrying
 	sta lastMsgLo
 	lda #>msgNotCarrying
 	sta lastMsgHi
 	rts
 
-@dfx_bad:
+drop_bad:
 	lda #<msgDontKnow
 	sta lastMsgLo
 	lda #>msgDontKnow
@@ -3884,124 +3959,124 @@ cmdDropFromX:
 cmdGive:
 	// GIVE <obj> [TO <npc>]
 	ldx #0
-@g1:
+give_find_loop:
 	lda inputBuf,x
-	bne @g1_cont
-	jmp @give_need
+	bne give_find_cont
+	jmp give_need
 
-@g1_cont:
+give_find_cont:
 	cmp #' '
-	beq @give_after
+	beq give_after
 	inx
-	bne @g1
+	bne give_find_loop
 
-@give_after:
+give_after:
 	jsr parseObjectNoun
-	bcs @give_objParsed
-	jmp @give_bad
+	bcs give_obj_parsed
+	jmp give_bad
 
-@give_objParsed:
+give_obj_parsed:
 	sta ZP_PTR2 // temp objId
 	tax
 	lda objLoc,x
 	cmp #OBJ_INVENTORY
-	beq @give_haveIt
-	jmp @give_notHave
+	beq give_haveIt
+	jmp give_notHave
 
-@give_haveIt:
+give_haveIt:
 
 	// Find optional target NPC
 	// Advance X to end of object word
 	ldx #0
-@scanObj:
+give_scanObj:
 	lda inputBuf,x
-	beq @noTarget
+	beq give_noTarget
 	cmp #' '
-	beq @afterObj
+	beq give_afterObj
 	inx
-	bne @scanObj
-@afterObj:
+	bne give_scanObj
+give_afterObj:
 	// skip verb
 	// find first space after GIVE
 	ldx #0
-@skipVerb:
+give_skipVerb:
 	lda inputBuf,x
-	bne @give_sv_cont
-	jmp @noTarget
+	bne give_sv_cont
+	jmp give_noTarget
 
-@give_sv_cont:
+give_sv_cont:
 	cmp #' '
-	beq @verbDone
+	beq give_verbDone
 	inx
-	bne @skipVerb
-@verbDone:
+	bne give_skipVerb
+give_verbDone:
 	// move to noun start
 	jsr skipFillers
 	// skip noun word itself
-@skipNounWord:
+give_skipNounWord:
 	lda inputBuf,x
-	bne @give_snw_cont
-	jmp @noTarget
+	bne give_snw_cont
+	jmp give_noTarget
 
-@give_snw_cont:
+give_snw_cont:
 	cmp #' '
-	beq @afterNoun
+	beq give_afterNoun
 	inx
-	bne @skipNounWord
-@afterNoun:
+	bne give_skipNounWord
+give_afterNoun:
 	jsr parseNpcNoun
-	bcs @give_haveNpc
-	jmp @noTarget
+	bcs give_haveNpc
+	jmp give_noTarget
 
-@give_haveNpc:
+give_haveNpc:
 	sta ZP_PTR2+1 // temp npcId
 	tax
 	ldy currentLoc
 	lda npcMaskByLoc,y
 	and npcBit,x
-	bne @give_npcHere
-	jmp @npcNotHere
+	bne give_npcHere
+	jmp npc_not_here
 
-@give_npcHere:
+give_npcHere:
 	// consume item
 	ldx ZP_PTR2
 	lda #OBJ_NOWHERE
 	sta objLoc,x
 	// Quest check for targeted give
 	jsr questCheckGive
-	bcs @ret
+	bcs give_ret
 	lda #<msgGave
 	sta lastMsgLo
 	lda #>msgGave
 	sta lastMsgHi
-    jsr saveGame
-@ret:
+	jsr saveGame
+give_ret:
 	rts
 
-@noTarget:
+give_noTarget:
 	// If no explicit target, require someone here
 	ldx currentLoc
 	lda npcMaskByLoc,x
-	bne @give_nt_someone
-	jmp @noone
+	bne give_nt_someone
+	jmp no_one
 
-@give_nt_someone:
+give_nt_someone:
 	lda #$FF
 	sta ZP_PTR2+1
 	ldx ZP_PTR2
 	lda #OBJ_NOWHERE
 	sta objLoc,x
 	jsr questCheckGive
-	bcc @give_nt_afterQuest
-	jmp @ret2
+	bcc give_nt_afterQuest
+	jmp give_ret2
 
-@give_nt_afterQuest:
+give_nt_afterQuest:
 	lda #<msgGave
 	sta lastMsgLo
 	lda #>msgGave
 	sta lastMsgHi
-    jsr saveGame
-@ret2:
+	jsr saveGame
+give_ret2:
 	rts
 
 // Quest hook for GIVE.
@@ -4012,57 +4087,58 @@ cmdGive:
 questCheckGive:
 	lda questStatus
 	cmp #1
-	bne @qcg_no
+	bne questCheckGive_no
 	lda activeQuest
 	cmp #QUEST_NONE
-	beq @qcg_no
+	beq questCheckGive_no
 	// Determine npcId
 	lda ZP_PTR2+1
 	cmp #$FF
-	bne @haveNpc
+	bne quest_haveNpc
 	ldx currentLoc
 	lda npcDefaultByLoc,x
 	sta ZP_PTR2+1
-@haveNpc:
+quest_haveNpc:
 	lda activeQuest
 	cmp #QUEST_COIN_BARTENDER
-	bne @q1
+	bne quest_q1
 	lda ZP_PTR2
 	cmp #OBJ_COIN
-	bne @qcg_no
+	bne questCheckGive_no
 	lda ZP_PTR2+1
 	cmp #NPC_BARTENDER
-	bne @qcg_no
+	bne questCheckGive_no
 	jsr questComplete
 	sec
 	rts
-@q1:
+quest_q1:
 	cmp #QUEST_KEY_KNIGHT
-	bne @q2
+	bne quest_q2
 	lda ZP_PTR2
 	cmp #OBJ_KEY
-	bne @qcg_no
+	bne questCheckGive_no
 	lda ZP_PTR2+1
 	cmp #NPC_KNIGHT
-	bne @qcg_no
+	bne questCheckGive_no
 	jsr questComplete
 	sec
 	rts
-@q2:
+quest_q2:
 	// QUEST_LANTERN_WITCH
 	lda ZP_PTR2
 	cmp #OBJ_LANTERN
-	bne @qcg_no
+	bne questCheckGive_no
 	lda ZP_PTR2+1
 	cmp #NPC_WITCH
-	bne @qcg_no
+	bne questCheckGive_no
 	jsr questComplete
 	sec
 	rts
-
-@qcg_no:
+questCheckGive_no:
 	clc
 	rts
+
+	// removed duplicate qcg_no (use questCheckGive_no)
 
 cmdSave:
 	jsr saveGame
@@ -4074,14 +4150,14 @@ cmdSave:
 
 cmdLoad:
 	jsr tryLoadGame
-	bcs @load_ok
+	bcs load_ok
 	lda #<msgLoadFail
 	sta lastMsgLo
 	lda #>msgLoadFail
 	sta lastMsgHi
 	rts
 
-@load_ok:
+load_ok:
 	// No PIN prompt on in-session LOAD; assumes current user
 	jsr commitLoadedState
 	jsr ensureQuest
@@ -4101,7 +4177,7 @@ cmdMusicToggle:
 	lda musicEnabled
 	eor #$01
 	sta musicEnabled
-	beq @mto_off
+	beq music_off
 	jsr musicPickForLocation
 	lda #<msgMusicOn
 	sta lastMsgLo
@@ -4109,7 +4185,7 @@ cmdMusicToggle:
 	sta lastMsgHi
 	rts
 
-@mto_off:
+music_off:
 	jsr musicAllNotesOff
 	lda #<msgMusicOff
 	sta lastMsgLo
@@ -4121,10 +4197,10 @@ cmdStatus:
 	// Show quest detail in last message
 	lda activeQuest
 	cmp #QUEST_NONE
-	bne @status_hasQuest
-	jmp @status_none
+	bne status_hasQuest
+	jmp status_none
 
-@status_hasQuest:
+status_hasQuest:
 	tax
 	lda questDetailLo,x
 	sta lastMsgLo
@@ -4189,38 +4265,38 @@ cmdChart:
 	jsr waitAnyKey
 	rts
 
-@status_none:
+status_none:
 	lda #<msgNoQuest
 	sta lastMsgLo
 	lda #>msgNoQuest
 	sta lastMsgHi
 	rts
 
-@npcNotHere:
+npc_not_here:
 	lda #<msgNpcNotHere
 	sta lastMsgLo
 	lda #>msgNpcNotHere
 	sta lastMsgHi
 	rts
-@noone:
+no_one:
 	lda #<msgNoOne
 	sta lastMsgLo
 	lda #>msgNoOne
 	sta lastMsgHi
 	rts
-@need:
+give_what_need:
 	lda #<msgGiveWhat
 	sta lastMsgLo
 	lda #>msgGiveWhat
 	sta lastMsgHi
 	rts
-@notHave:
+not_have_msg:
 	lda #<msgNotCarrying
 	sta lastMsgLo
 	lda #>msgNotCarrying
 	sta lastMsgHi
 	rts
-@bad:
+bad_msg:
 	lda #<msgDontKnow
 	sta lastMsgLo
 	lda #>msgDontKnow
@@ -4263,17 +4339,17 @@ appendToMsgBuf:
 	ldx msgBufLen
 	ldy #0
 
-@atm_loop:
+append_msg_loop:
 	lda (ZP_PTR),y
-	beq @atm_done
+	beq append_msg_done
 	cpx #95
-	bcs @atm_done
+	bcs append_msg_done
 	sta msgBuf,x
 	inx
 	iny
-	bne @atm_loop
+	bne append_msg_loop
 
-@atm_done:
+append_msg_done:
 	stx msgBufLen
 	lda #0
 	sta msgBuf,x
@@ -4289,14 +4365,14 @@ buildCharactersMessage:
 
 	ldx currentLoc
 	lda npcMaskByLoc,x
-	beq @bcm_none
+	beq bcm_none
 	sta ZP_PTR2 // reuse low byte as mask temp
 
 	ldx #0
-@npcLoop:
+npc_loop:
 	lda ZP_PTR2
 	and npcBit,x
-	beq @next
+	beq npc_next
 	lda npcNameLo,x
 	sta ZP_PTR
 	lda npcNameHi,x
@@ -4307,13 +4383,13 @@ buildCharactersMessage:
 	lda #>strSpace
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
-@next:
+npc_next:
 	inx
 	cpx #NPC_COUNT
-	bne @npcLoop
+	bne npc_loop
 	rts
 
-@bcm_none:
+bcm_none:
 	lda #<strNone
 	sta ZP_PTR
 	lda #>strNone
@@ -4322,7 +4398,7 @@ buildCharactersMessage:
 	rts
 
 
-@give_need:
+give_need:
 buildInventoryMessage:
 	jsr clearMsgBuf
 	lda #<strInventory
@@ -4330,18 +4406,18 @@ buildInventoryMessage:
 	lda #>strInventory
 	sta ZP_PTR+1
 
-@give_notHave:
+give_notHave:
 	jsr appendToMsgBuf
 
 	lda #0
 	sta ZP_PTR2 // foundAny flag
 	ldx #0
-@objLoop:
+obj_loop:
 
-@give_bad:
+give_bad:
 	lda objLoc,x
 	cmp #OBJ_INVENTORY
-	bne @on
+	bne on_label
 	lda #1
 	sta ZP_PTR2
 	lda objNameLo,x
@@ -4354,19 +4430,19 @@ buildInventoryMessage:
 	lda #>strSpace
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
-@on:
+on_label:
 	inx
 	cpx #OBJ_COUNT
-	bne @objLoop
+	bne obj_loop
 	lda ZP_PTR2
-	bne @bom_done
+	bne bom_done
 	lda #<strEmpty
 	sta ZP_PTR
 	lda #>strEmpty
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
 
-@bom_done:
+bom_done:
 	rts
 
 // --- Exits printing ---
@@ -4374,37 +4450,37 @@ printExits:
 	ldx currentLoc
 	lda exitN,x
 	cmp #$FF
-	beq @e
+	beq exit_E
 	lda #'N'
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-@e:
+exit_E:
 	lda exitE,x
 	cmp #$FF
-	beq @s
+	beq exit_S
 	lda #'E'
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-@s:
+exit_S:
 	lda exitS,x
 	cmp #$FF
-	beq @w
+	beq exit_W
 	lda #'S'
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-@w:
+exit_W:
 	lda exitW,x
 	cmp #$FF
-	beq @pe_done
+	beq exit_done
 	lda #'W'
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
 
-@pe_done:
+exit_done:
 	rts
 
 // --- Data: Map (12 lines) ---
@@ -4682,19 +4758,19 @@ computePlayerMaxHp:
 	lda playClassHpPerLevel,y
 	sta tmpPer
 	// load level
-	lda currentLevel
-	sta tmpCnt
-@pc_hp_loop:
-	lda tmpCnt
-	beq @pc_hp_done
-	lda tmpHp
-	clc
-	adc tmpPer
-	sta tmpHp
-	dec tmpCnt
-	jmp @pc_hp_loop
-@pc_hp_done:
-	rts
+		lda currentLevel
+		sta tmpCnt
+	pc_hp_loop:
+		lda tmpCnt
+		beq pc_hp_done
+		lda tmpHp
+		clc
+		adc tmpPer
+		sta tmpHp
+		dec tmpCnt
+		jmp pc_hp_loop
+	pc_hp_done:
+		rts
 
 // --- Data: Objects ---
 objName0: .text "LANTERN"
