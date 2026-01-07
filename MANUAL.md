@@ -58,11 +58,14 @@ Core Controls
 - `C`: Characters menu — view player or NPC sheets.
 - `I`: Inventory (full screen).
 - `T`: Talk — select NPC and start conversation.
+ - `ATTACK` / `FIGHT`: Melee attack an NPC at your current location. Use `ATTACK <npc>` or `FIGHT <npc>` to target someone.
 - Conversation: Type menu number and press Enter; choose "End" to exit.
 
 Gameplay Loop
 
 - Explore map, talk to NPCs (`T`), check `C`haracter sheet and `I`nventory, accept quests, gain score/levels. Progress and HP changes are auto-saved on key events.
+ - Combat: Use `ATTACK <NPC>` to perform a simple melee attack. NPC and player HP are tracked and persisted to your profile; defeats remove NPCs from the location and update save state.
+ - Combat: Use `ATTACK <NPC>` to perform a simple melee attack. NPC and player HP are tracked and persisted to your profile; defeats remove NPCs from the location and update save state. Defeating foes now grants small XP rewards (every 10 XP increases your level) and increments your score.
 
 Saving & Loading
 

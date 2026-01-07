@@ -338,6 +338,9 @@ player class. The chosen class affects HP and is saved.</li>
 <li><code>C</code>: Characters menu — view player or NPC sheets.</li>
 <li><code>I</code>: Inventory (full screen).</li>
 <li><code>T</code>: Talk — select NPC and start conversation.</li>
+<li><code>ATTACK</code> / <code>FIGHT</code>: Melee attack an NPC at
+your current location. Use <code>ATTACK &lt;npc&gt;</code> or
+<code>FIGHT &lt;npc&gt;</code> to target someone.</li>
 <li>Conversation: Type menu number and press Enter; choose “End” to
 exit.</li>
 </ul>
@@ -347,6 +350,10 @@ exit.</li>
 <code>C</code>haracter sheet and <code>I</code>nventory, accept quests,
 gain score/levels. Progress and HP changes are auto-saved on key
 events.</li>
+<li>Combat: Use <code>ATTACK &lt;NPC&gt;</code> to perform a simple
+melee attack. NPC and player HP are tracked and persisted to your
+profile; defeats remove NPCs from the location and update save
+state.</li>
 </ul>
 <p>Saving &amp; Loading</p>
 <ul>
