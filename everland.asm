@@ -773,18 +773,9 @@ tryLoadGame:
 
 tryLoad_ok:
 	lda #LFN
-	jsr CHKIN
-	// Read header
-	jsr CHRIN
-	cmp #'E'
-	beq tryLoad_c1
-	jmp read_fail_cleanup
-tryLoad_c1:
-	jsr CHRIN
-	cmp #'V'
-	beq tryLoad_c2
-	jmp read_fail_cleanup
-tryLoad_c2:
+	jsr CLRCHN
+	lda #LFN
+	jsr CLOSE
 	jsr CHRIN
 	cmp #'1'
 	beq tryLoad_c3
@@ -879,10 +870,10 @@ saveGame:
 	ldy #SA
 	jsr SETLFS
 	jsr OPEN
-	jsr READST
-	beq @sg_write
+		jsr READST
+		beq saveGame_write
 
-@sg_write:
+	saveGame_write:
 	lda #LFN
 	jsr CHKOUT
 	// quest
@@ -953,13 +944,13 @@ write_display_loop:
 	lda currentLoc
 	jsr CHROUT
 	// objLoc
-	ldx #0
-@wo:
-	lda objLoc,x
-	jsr CHROUT
-	inx
-	cpx #OBJ_COUNT
-	bne @wo
+		ldx #0
+	write_objloc_loop:
+		lda objLoc,x
+		jsr CHROUT
+		inx
+		cpx #OBJ_COUNT
+		bne write_objloc_loop
 	// quest
 	lda activeQuest
 	jsr CHROUT
@@ -969,7 +960,7 @@ write_display_loop:
 	lda #LFN
 	jsr CLOSE
 
-@sg_done:
+saveGame_done:
 	rts
 
 buildWelcomeBack:
@@ -1054,7 +1045,7 @@ renderQuestLine:
 	jsr appendToMsgBuf
 	lda activeQuest
 	cmp #QUEST_NONE
-	beq @rql_none
+	beq renderQuest_none
 	tax
 	lda questNameLo,x
 	sta ZP_PTR
@@ -1068,7 +1059,7 @@ renderQuestLine:
 	jsr printZ
 	rts
 
-@rql_none:
+renderQuest_none:
 	lda #<strNone
 	sta ZP_PTR
 	lda #>strNone
@@ -1151,22 +1142,22 @@ lbl_append_done:
 ensureQuest:
 	lda activeQuest
 	cmp #QUEST_NONE
-	bne @eq_ok
+	bne ensureQuest_ok
 	jsr assignQuestForWeek
 
-@eq_ok:
+ensureQuest_ok:
 	rts
 
 assignQuestForWeek:
 	// Simple weekly rotation: quest = week % QUEST_COUNT
 	lda week
-@mod:
+assignQuest_mod:
 	cmp #QUEST_COUNT
-	bcc @set
+	bcc assignQuest_set
 	sec
 	sbc #QUEST_COUNT
-	jmp @mod
-@set:
+	jmp assignQuest_mod
+assignQuest_set:
 	sta activeQuest
 	lda #1
 	sta questStatus
@@ -1175,30 +1166,30 @@ assignQuestForWeek:
 questComplete:
 	lda questStatus
 	cmp #2
-	beq @qc_done
+	beq questComplete_done
 	lda #2
 	sta questStatus
 	inc scoreLo
 	lda scoreLo
-	bne @qc_level_check
+	bne questComplete_level_check
 	inc scoreHi
 
-@qc_level_check:
+questComplete_level_check:
 	// Update level if score increased above currentLevel
 	lda scoreLo
 	cmp currentLevel
-	beq @qc_msg
-	bcc @qc_msg
+	beq questComplete_msg
+	bcc questComplete_msg
 	sta currentLevel
 
-@qc_msg:
+questComplete_msg:
 	lda #<msgQuestDone
 	sta lastMsgLo
 	lda #>msgQuestDone
 	sta lastMsgHi
 	jsr saveGame
 
-@qc_done:
+questComplete_done:
 	rts
 
 advanceWeek:
@@ -1290,36 +1281,37 @@ musicPickForLocation:
 	// Special rule: CLOCKWORK ALLEY uses pirate music, except during LORE season (scary).
 	lda currentLoc
 	cmp #LOC_ALLEY
-	bne @overrides
+	bne music_overrides
 	jsr getSeason
 	cmp #SEASON_LORE
-	bne @pirate
+	bne music_pirate
 	lda #4
 	sta musicTheme
 	jmp music_pick
-@pirate:
+
+music_pirate:
 	lda #9
 	sta musicTheme
 	jmp music_pick
 
 	// Indoor/location overrides ("enter" music): $FF = none
-@overrides:
+music_overrides:
 	// Indoor/location overrides ("enter" music): $FF = none
 	ldx currentLoc
 	lda locMusicOverride,x
 	cmp #$FF
-	beq @scary
+	beq music_check_scary
 	sta musicTheme
 	jmp music_pick
-@scary:
+music_check_scary:
 	// Determine if scary
 	ldx currentLoc
 	lda locScary,x
-	beq @season
+	beq music_by_season
 	lda #4
 	sta musicTheme
 	jmp music_pick
-@season:
+music_by_season:
 	jsr getSeason
 	sta musicTheme
 music_pick:
@@ -1482,7 +1474,7 @@ musicAdvanceLead:
 
 	ldx musicStep
 	lda (ZP_PTR2),x
-	beq @mal_rest
+	beq musicLead_rest
 	tay
 	dey
 	lda noteFreqLo,y
@@ -1492,17 +1484,17 @@ musicAdvanceLead:
 	lda leadWave
 	ora #$01
 	sta SID_V1_CTRL
-	jmp @mal_next
+	jmp musicLead_next
 
-@mal_rest:
+musicLead_rest:
 	lda leadWave
 	sta SID_V1_CTRL
 
-@mal_next:
+musicLead_next:
 	inc musicStep
 	lda musicStep
 	cmp #16
-	bcc @mal_rts
+	bcc musicLead_rts
 	lda #0
 	sta musicStep
 	// At end of pattern, pick another from same theme
@@ -1516,7 +1508,7 @@ musicAdvanceLead:
 	lda musicSparkLen
 	sta musicSparkTick
 
-@mal_rts:
+musicLead_rts:
 	rts
 
 musicAdvanceBass:
@@ -1535,7 +1527,7 @@ musicAdvanceBass:
 	sta ZP_PTR2+1
 	ldx musicBassStep
 	lda (ZP_PTR2),x
-	beq @mab_rest
+	beq musicBass_rest
 	tay
 	dey
 	lda noteFreqLo,y
@@ -1545,37 +1537,37 @@ musicAdvanceBass:
 	lda bassWave
 	ora #$01
 	sta SID_V2_CTRL
-	jmp @mab_next
+	jmp musicBass_next
 
-@mab_rest:
+musicBass_rest:
 	lda bassWave
 	sta SID_V2_CTRL
 
-@mab_next:
+musicBass_next:
 	inc musicBassStep
 	lda musicBassStep
 	cmp #16
-	bcc @mab_rts
+	bcc musicBass_rts
 	lda #0
 	sta musicBassStep
 
-@mab_rts:
+musicBass_rts:
 	rts
 
 musicAdvanceSparkle:
 	// Only active for Aurora (3) and Tavern (5); otherwise gate off.
 	lda musicTheme
 	cmp #3
-	beq @mas_do
+	beq musicSpark_do
 	cmp #5
-	beq @mas_do
+	beq musicSpark_do
 	cmp #8
-	beq @mas_do
+	beq musicSpark_do
 	lda sparkWave
 	sta SID_V3_CTRL
 	rts
 
-@mas_do:
+musicSpark_do:
 	ldx musicTheme
 	lda themeSparkNotesLo,x
 	sta ZP_PTR
@@ -1591,7 +1583,7 @@ musicAdvanceSparkle:
 	sta ZP_PTR2+1
 	ldx musicSparkStep
 	lda (ZP_PTR2),x
-	beq @mas_rest
+	beq musicSpark_rest
 	tay
 	dey
 	lda noteFreqLo,y
@@ -1601,21 +1593,22 @@ musicAdvanceSparkle:
 	lda sparkWave
 	ora #$01
 	sta SID_V3_CTRL
-	jmp @mas_next
+	jmp musicSpark_next
 
-@mas_rest:
+musicSpark_rest:
 	lda sparkWave
 	sta SID_V3_CTRL
 
-@mas_next:
+musicSpark_next:
 	inc musicSparkStep
 	lda musicSparkStep
 	cmp #16
-	bcc @mas_rts
+	bcc musicSpark_rts
 	lda #0
 	sta musicSparkStep
 
-@mas_rts:
+
+musicSpark_rts:
 	rts
 
 // Scary locations (spooky music)
@@ -1893,7 +1886,7 @@ render_game:
 
 	// Exits (hidden during login/account creation)
 	lda uiHideExits
-	bne @render_skipExits
+	bne render_skip_exits
 	ldx #0
 	jsr setCursorExits
 	lda #<strExits
@@ -1903,7 +1896,7 @@ render_game:
 	jsr printZ
 	jsr printExits
 
-@render_skipExits:
+render_skip_exits:
 
 	// Last message
 	jsr setCursorMsg
@@ -1944,8 +1937,8 @@ clearScreen:
 
 drawMap:
 	// Print static 12-line map
-	ldx #0
-@lineLoop:
+    ldx #0
+map_line_loop:
 	lda mapLineLo,x
 	sta ZP_PTR
 	lda mapLineHi,x
@@ -1954,7 +1947,7 @@ drawMap:
 	jsr newline
 	inx
 	cpx #12
-	bne @lineLoop
+	bne map_line_loop
 
 	// Divider line
 	lda #<strDivider
@@ -2060,14 +2053,14 @@ printZ:
 	// Print 0-terminated string at (ZP_PTR)
 	ldy #0
 
-@pz_loop:
+printZ_loop:
 	lda (ZP_PTR),y
-	beq @pz_done
+	beq printZ_done
 	jsr CHROUT
 	iny
-	bne @pz_loop
+	bne printZ_loop
 
-@pz_done:
+printZ_done:
 	rts
 
 // --- Input ---
@@ -2076,46 +2069,46 @@ readLine:
 	sta inputLen
 	jsr flushKeys
 
-@poll:
+input_poll:
 	jsr SCNKEY
 	jsr GETIN
-	beq @poll
+	beq input_poll
 
 	cmp #$0D // RETURN
-	beq @maybeFinish
+	beq input_maybeFinish
 	cmp #$14 // DEL/BACKSPACE
-	beq @back
+	beq input_back
 
 	// Limit length
 	ldx inputLen
 	cpx #47
-	bcs @poll
+	bcs input_poll
 
 	// Store and echo
 	sta inputBuf,x
 	inx
 	stx inputLen
 	jsr CHROUT
-	jmp @poll
+	jmp input_poll
 
-@maybeFinish:
+input_maybeFinish:
 	// In auth mode, ignore empty RETURNs (prevents buffered RETURN from skipping prompts).
 	ldx inputLen
-	bne @finish
+	bne input_finish
 	lda uiHideExits
-	beq @finish
-	jmp @poll
+	beq input_finish
+	jmp input_poll
 
-@back:
+input_back:
 	ldx inputLen
-	beq @poll
+	beq input_poll
 	dex
 	stx inputLen
 	lda #$14
 	jsr CHROUT
-	jmp @poll
+	jmp input_poll
 
-@finish:
+input_finish:
 	// Null-terminate
 	ldx inputLen
 	lda #0
@@ -2125,10 +2118,10 @@ readLine:
 
 // Drain any pending buffered keys (helps avoid stray RETURN requiring double-enter)
 flushKeys:
-@fk:
+flushKeys_loop:
 	jsr SCNKEY
 	jsr GETIN
-	bne @fk
+	bne flushKeys_loop
 	rts
 
 // --- Command execution ---
@@ -2141,63 +2134,73 @@ executeCommand:
 
 	// Skip leading spaces
 	ldx #0
-@skip:
+skip_leading_spaces:
 	lda inputBuf,x
 	cmp #' '
-	bne @ec_start
+	bne cmd_start
 	inx
 	cpx inputLen
-	bcc @skip
+	bcc skip_leading_spaces
 	rts
 
-@ec_start:
+
+cmd_start:
 	// Single-letter quick commands
 	lda inputBuf,x
-	bne @ec_start2
-	jmp @ec_done
+	bne cmd_start2
+	jmp cmd_done
 
-@ec_start2:
+
+cmd_start2:
 	cmp #'N'
-	bne @ec_chkS
+	bne cmd_chkS
 	jmp cmdNorth
-@ec_chkS:
+
+cmd_chkS:
 	cmp #'S'
-	bne @ec_chkE
+	bne cmd_chkE
 	jmp cmdSouth
-@ec_chkE:
+
+cmd_chkE:
 	cmp #'E'
-	bne @ec_chkW
+	bne cmd_chkW
 	jmp cmdEast
-@ec_chkW:
+
+cmd_chkW:
 	cmp #'W'
-	bne @ec_chkC
+	bne cmd_chkC
 	jmp cmdWest
-@ec_chkC:
+
+cmd_chkC:
 	cmp #'C'
-	beq @ec_doC
+	beq cmd_doC
 	cmp #'c'
-	bne @ec_chkT
+	bne cmd_chkT
 	jmp cmdCharactersMenu
-@ec_doC:
+
+cmd_doC:
 	jmp cmdCharactersMenu
-@ec_chkT:
+
+cmd_chkT:
 	cmp #'T'
-	bne @ec_chkI
+	bne cmd_chkI
 	jmp cmdTalk
-@ec_chkI:
+
+cmd_chkI:
 	cmp #'I'
-	bne @ec_chkM
+	bne cmd_chkM
 	jmp cmdInventory
 
-@ec_chkM:
+cmd_chkM:
 	cmp #'M'
-	beq @ec_m_ok
+	beq cmd_m_ok
 	cmp #'m'
-	bne @ec_afterQuick
-@ec_m_ok:
+	bne cmd_afterQuick
+
+cmd_m_ok:
 	jmp cmdMusicToggle
 
-@ec_afterQuick:
+cmd_afterQuick:
 
 	// Word commands (INSPECT/LOOK/EXAMINE)
 	txa
@@ -2209,10 +2212,10 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryLook
+	bcc cmd_tryLook
 	jmp cmdInspect
 
-@ec_tryLook:
+cmd_tryLook:
 
 	txa
 	pha
@@ -2223,10 +2226,10 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryExamine
+	bcc cmd_tryExamine
 	jmp cmdInspect
 
-@ec_tryExamine:
+cmd_tryExamine:
 
 	txa
 	pha
@@ -2237,10 +2240,10 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryTake
+	bcc cmd_tryTake
 	jmp cmdInspect
 
-@ec_tryTake:
+cmd_tryTake:
 
 	// TAKE/GET/PICK UP
 	txa
@@ -2252,10 +2255,10 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryGet
+	bcc cmd_tryGet
 	jmp cmdTake
 
-@ec_tryGet:
+cmd_tryGet:
 
 	txa
 	pha
@@ -2266,10 +2269,10 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryPick
+	bcc cmd_tryPick
 	jmp cmdTake
 
-@ec_tryPick:
+cmd_tryPick:
 
 	txa
 	pha
@@ -2280,10 +2283,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryDrop
+	bcc cmd_tryDrop
 	jmp cmdPickUp
 
-@ec_tryDrop:
+
+cmd_tryDrop:
 
 	// DROP/SET DOWN
 	txa
@@ -2295,10 +2299,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_trySet
+	bcc cmd_trySet
 	jmp cmdDrop
 
-@ec_trySet:
+
+cmd_trySet:
 
 	txa
 	pha
@@ -2309,10 +2314,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryGive
+	bcc cmd_tryGive
 	jmp cmdSetDown
 
-@ec_tryGive:
+
+cmd_tryGive:
 
 	// GIVE
 	txa
@@ -2324,10 +2330,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryDirNorth
+	bcc cmd_tryDirNorth
 	jmp cmdGive
 
-@ec_tryDirNorth:
+
+cmd_tryDirNorth:
 
 	// Direction words (NORTH/SOUTH/EAST/WEST)
 	txa
@@ -2339,10 +2346,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryDirSouth
+	bcc cmd_tryDirSouth
 	jmp cmdNorth
 
-@ec_tryDirSouth:
+
+cmd_tryDirSouth:
 
 	txa
 	pha
@@ -2353,10 +2361,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryDirEast
+	bcc cmd_tryDirEast
 	jmp cmdSouth
 
-@ec_tryDirEast:
+
+cmd_tryDirEast:
 
 	txa
 	pha
@@ -2367,10 +2376,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryDirWest
+	bcc cmd_tryDirWest
 	jmp cmdEast
 
-@ec_tryDirWest:
+
+cmd_tryDirWest:
 
 	txa
 	pha
@@ -2381,10 +2391,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryTalk
+	bcc cmd_tryTalk
 	jmp cmdWest
 
-@ec_tryTalk:
+
+cmd_tryTalk:
 
 	// TALK word
 	txa
@@ -2396,10 +2407,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryCharacters
+	bcc cmd_tryCharacters
 	jmp cmdTalk
 
-@ec_tryCharacters:
+
+cmd_tryCharacters:
 
 	// CHARACTERS word
 	txa
@@ -2411,10 +2423,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryInventory
+	bcc cmd_tryInventory
 	jmp cmdCharactersMenu
 
-@ec_tryInventory:
+
+cmd_tryInventory:
 
 	// INVENTORY word
 	txa
@@ -2426,10 +2439,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_trySave
+	bcc cmd_trySave
 	jmp cmdInventory
 
-@ec_trySave:
+
+cmd_trySave:
 
 	// SAVE
 	txa
@@ -2441,10 +2455,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryLoad
+	bcc cmd_tryLoad
 	jmp cmdSave
 
-@ec_tryLoad:
+
+cmd_tryLoad:
 
 	// LOAD
 	txa
@@ -2456,10 +2471,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryWait
+	bcc cmd_tryWait
 	jmp cmdLoad
 
-@ec_tryWait:
+
+cmd_tryWait:
 
 	// WAIT / REST / NEXT
 	txa
@@ -2471,10 +2487,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryRest
+	bcc cmd_tryRest
 	jmp cmdWait
 
-@ec_tryRest:
+
+cmd_tryRest:
 
 	txa
 	pha
@@ -2485,10 +2502,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryNext
+	bcc cmd_tryNext
 	jmp cmdWait
 
-@ec_tryNext:
+
+cmd_tryNext:
 
 	txa
 	pha
@@ -2499,10 +2517,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryStatus
+	bcc cmd_tryStatus
 	jmp cmdWait
 
-@ec_tryStatus:
+
+cmd_tryStatus:
 
 	// STATUS / QUEST
 	txa
@@ -2514,10 +2533,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryQuest
+	bcc cmd_tryQuest
 	jmp cmdStatus
 
-@ec_tryQuest:
+
+cmd_tryQuest:
 
 	txa
 	pha
@@ -2528,10 +2548,11 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryChart
+	bcc cmd_tryChart
 	jmp cmdStatus
 
-@ec_tryChart:
+
+cmd_tryChart:
 
 	// CHART (PETSCII glyph finder)
 	txa
@@ -2554,7 +2575,7 @@ executeCommand:
 	lda #>msgUnknown
 	sta lastMsgHi
 
-@ec_done:
+cmd_done:
 	rts
 
 // Match keyword pointed to by ZP_PTR2 against inputBuf at X.
