@@ -149,19 +149,20 @@ playerClassIdx: .byte 0
 playerCurHp: .byte 0
 pinLo: .byte 0
 pinHi: .byte 0
-playerXp: .byte 0
-// Quest / progression state
-scoreLo: .byte 0
-scoreHi: .byte 0
-activeQuest: .byte QUEST_NONE
-questStatus: .byte 0
-// Player level (single byte)
-currentLevel: .byte 0
 
 // Calendar / progression
 month: .byte 4  // 1-12 (default APR)
 week:  .byte 14 // 1-52-ish (default mid-APR)
 
+// Quest state
+scoreLo: .byte 0
+scoreHi: .byte 0
+activeQuest: .byte QUEST_NONE
+questStatus: .byte 0 // 0=none/inactive, 1=active, 2=completed
+// Player level (single byte)
+currentLevel: .byte 0
+
+// Save filename buffers
 saveBaseLen: .byte 0
 saveBaseBuf:
 	.fill 16, 0
@@ -385,7 +386,6 @@ loadedClass:
 	.fill 12, 0
 loadedCurHp: .byte 0
 loadedClassIdx: .byte 0
-loadedXp: .byte 0
 
 commitLoadedState:
 	lda loadedPinLo
@@ -436,8 +436,6 @@ commit_c3:
 	sta playerClassIdx
 	lda loadedCurHp
 	sta playerCurHp
-	lda loadedXp
-	sta playerXp
 	rts
 
 // Copy inputBuf to username (max 12)
@@ -835,9 +833,6 @@ tryLoadGame:
 	// player class index
 	jsr CHRIN
 	sta loadedClassIdx
-	// player XP
-	jsr CHRIN
-	sta loadedXp
 	// month/week/loc
 	jsr CHRIN
 	sta loadedMonth
@@ -940,9 +935,6 @@ saveGame:
 	jsr CHROUT
 	// player class index
 	lda playerClassIdx
-	jsr CHROUT
-	// player XP
-	lda playerXp
 	jsr CHROUT
 	// month/week/loc
 	lda month
@@ -1620,10 +1612,10 @@ musicAdvanceSparkle:
 // Scary locations (spooky music)
 locScary:
 	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// Extra (non-map) locations reuse nearby marker positions.
 	.byte 0,0,0,1,0,0,1,0,0,1,1,0,0
 
 // Indoor/location music override ($FF = none). Theme ids match musicTheme.
-// Tavern/Inn/Temple override outdoor seasonal music.
 locMusicOverride:
 	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	.byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,8,5,$FF,$FF,6,7
@@ -2179,11 +2171,6 @@ executeCommand:
 	jmp cmdCharactersMenu
 @ec_doC:
 	jmp cmdCharactersMenu
-@ec_chkQ:
-    cmp #'Q'
-    beq cmdQuestLog
-    cmp #'q'
-    beq cmdQuestLog
 @ec_chkT:
 	cmp #'T'
 	bne @ec_chkI
@@ -2328,38 +2315,10 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryDirNorth
+	bcc @ec_tryDirNorth
 	jmp cmdGive
 
-ec_tryAttack:
-
-	// ATTACK / FIGHT (non-local labels for clarity)
-	txa
-	pha
-	lda #<kwAttack
-	sta ZP_PTR2
-	lda #>kwAttack
-	sta ZP_PTR2+1
-	pla
-	tax
-	jsr matchKeywordAtX
-	bcc ec_tryFight
-	jmp cmdAttack
-
-ec_tryFight:
-	txa
-	pha
-	lda #<kwFight
-	sta ZP_PTR2
-	lda #>kwFight
-	sta ZP_PTR2+1
-	pla
-	tax
-	jsr matchKeywordAtX
-	bcc ec_tryDirNorth
-	jmp cmdAttack
-
-ec_tryDirNorth:
+@ec_tryDirNorth:
 
 	// Direction words (NORTH/SOUTH/EAST/WEST)
 	txa
@@ -2371,10 +2330,10 @@ ec_tryDirNorth:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryDirSouth
+	bcc @ec_tryDirSouth
 	jmp cmdNorth
 
-ec_tryDirSouth:
+@ec_tryDirSouth:
 
 	txa
 	pha
@@ -2385,10 +2344,10 @@ ec_tryDirSouth:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryDirEast
+	bcc @ec_tryDirEast
 	jmp cmdSouth
 
-ec_tryDirEast:
+@ec_tryDirEast:
 
 	txa
 	pha
@@ -2399,10 +2358,10 @@ ec_tryDirEast:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryDirWest
+	bcc @ec_tryDirWest
 	jmp cmdEast
 
-ec_tryDirWest:
+@ec_tryDirWest:
 
 	txa
 	pha
@@ -2413,10 +2372,10 @@ ec_tryDirWest:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryTalk
+	bcc @ec_tryTalk
 	jmp cmdWest
 
-ec_tryTalk:
+@ec_tryTalk:
 
 	// TALK word
 	txa
@@ -2428,10 +2387,10 @@ ec_tryTalk:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryCharacters
+	bcc @ec_tryCharacters
 	jmp cmdTalk
 
-ec_tryCharacters:
+@ec_tryCharacters:
 
 	// CHARACTERS word
 	txa
@@ -2443,10 +2402,10 @@ ec_tryCharacters:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryInventory
+	bcc @ec_tryInventory
 	jmp cmdCharactersMenu
 
-ec_tryInventory:
+@ec_tryInventory:
 
 	// INVENTORY word
 	txa
@@ -2458,10 +2417,10 @@ ec_tryInventory:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_trySave
+	bcc @ec_trySave
 	jmp cmdInventory
 
-ec_trySave:
+@ec_trySave:
 
 	// SAVE
 	txa
@@ -2473,10 +2432,10 @@ ec_trySave:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryLoad
+	bcc @ec_tryLoad
 	jmp cmdSave
 
-ec_tryLoad:
+@ec_tryLoad:
 
 	// LOAD
 	txa
@@ -2488,10 +2447,10 @@ ec_tryLoad:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryWait
+	bcc @ec_tryWait
 	jmp cmdLoad
 
-ec_tryWait:
+@ec_tryWait:
 
 	// WAIT / REST / NEXT
 	txa
@@ -2503,10 +2462,10 @@ ec_tryWait:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryRest
+	bcc @ec_tryRest
 	jmp cmdWait
 
-ec_tryRest:
+@ec_tryRest:
 
 	txa
 	pha
@@ -2517,10 +2476,10 @@ ec_tryRest:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryNext
+	bcc @ec_tryNext
 	jmp cmdWait
 
-ec_tryNext:
+@ec_tryNext:
 
 	txa
 	pha
@@ -2531,10 +2490,10 @@ ec_tryNext:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryStatus
+	bcc @ec_tryStatus
 	jmp cmdWait
 
-ec_tryStatus:
+@ec_tryStatus:
 
 	// STATUS / QUEST
 	txa
@@ -2546,10 +2505,10 @@ ec_tryStatus:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryQuest
+	bcc @ec_tryQuest
 	jmp cmdStatus
 
-ec_tryQuest:
+@ec_tryQuest:
 
 	txa
 	pha
@@ -2560,10 +2519,10 @@ ec_tryQuest:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_tryChart
+	bcc @ec_tryChart
 	jmp cmdStatus
 
-ec_tryChart:
+@ec_tryChart:
 
 	// CHART (PETSCII glyph finder)
 	txa
@@ -2575,10 +2534,10 @@ ec_tryChart:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc ec_unknown
+	bcc @ec_unknown
 	jmp cmdChart
 
-ec_unknown:
+@ec_unknown:
 
 	// Unknown
 	lda #<msgUnknown
@@ -2586,7 +2545,7 @@ ec_unknown:
 	lda #>msgUnknown
 	sta lastMsgHi
 
-ec_done:
+@ec_done:
 	rts
 
 // Match keyword pointed to by ZP_PTR2 against inputBuf at X.
@@ -3563,24 +3522,24 @@ conv_exit_short:
 	jmp conversationMenu_exit
 
 conv_choice0:
-	jmp conv_do_speak
+	jmp @conv_do_speak
 
 conv_choice1:
-	jmp conv_do_weather
+	jmp @conv_do_weather
 
 conv_choice2:
-	jmp conv_do_temp
+	jmp @conv_do_temp
 
 conv_choice3:
-	jmp conv_do_quest
+	jmp @conv_do_quest
 
 conv_choice4:
-	jmp conv_do_qinfo
+	jmp @conv_do_qinfo
 
 conv_choice5:
 	jmp conversationMenu_exit
 
-conv_do_speak:
+@conv_do_speak:
 	lda npcTalkLo,x
 	sta lastMsgLo
 	lda npcTalkHi,x
@@ -3588,7 +3547,7 @@ conv_do_speak:
 	jsr render
 	jmp conv_loop
 
-conv_do_weather:
+@conv_do_weather:
 	lda #<msgAskWeather
 	sta lastMsgLo
 	lda #>msgAskWeather
@@ -3596,7 +3555,7 @@ conv_do_weather:
 	jsr render
 	jmp conv_loop
 
-conv_do_temp:
+@conv_do_temp:
 	lda #<msgTempResponse
 	sta lastMsgLo
 	lda #>msgTempResponse
@@ -3604,7 +3563,7 @@ conv_do_temp:
 	jsr render
 	jmp conv_loop
 
-conv_do_quest:
+@conv_do_quest:
 	lda npcOffersQuest,x
 	cmp #QUEST_NONE
 	beq @conv_noquest
@@ -3619,7 +3578,7 @@ conv_do_quest:
 	jsr render
 	jmp conv_loop
 
-conv_noquest:
+@conv_noquest:
 	lda #<msgNoQuestNpc
 	sta lastMsgLo
 	lda #>msgNoQuestNpc
@@ -3627,7 +3586,7 @@ conv_noquest:
 	jsr render
 	jmp conv_loop
 
-conv_do_qinfo:
+@conv_do_qinfo:
 	lda activeQuest
 	cmp #QUEST_NONE
 	beq @conv_noactive
@@ -3639,7 +3598,7 @@ conv_do_qinfo:
 	jsr render
 	jmp conv_loop
 
-conv_noactive:
+@conv_noactive:
 	lda #<msgNoQuest
 	sta lastMsgLo
 	lda #>msgNoQuest
@@ -3926,13 +3885,11 @@ cmdGive:
 	ldx #0
 @scanObj:
 	lda inputBuf,x
-	beq @scan_noTarget_jmp
+	beq @noTarget
 	cmp #' '
 	beq @afterObj
 	inx
 	bne @scanObj
-@scan_noTarget_jmp:
-	jmp @noTarget
 @afterObj:
 	// skip verb
 	// find first space after GIVE
@@ -3989,170 +3946,6 @@ cmdGive:
 	sta lastMsgHi
     jsr saveGame
 @ret:
-	rts
-
-cmdAttack:
-	// Simple combat scaffold: ATTACK <NPC>
-	jsr skipFillers
-	jsr parseNpcNoun
-	bcc @atk_none_tramp
-
-	@atk_none_tramp:
-		jmp @atk_none
-	sta tmpNpcIdx        // save npc id (A)
-	// ensure NPC is present at current location
-	ldx currentLoc
-	lda npcMaskByLoc,x
-	sta ZP_PTR2
-	lda tmpNpcIdx
-	tax                 // X = npcId
-	lda ZP_PTR2
-	and npcBit,x
-	beq @npc_not_here_tramp
-
-	@npc_not_here_tramp:
-		jmp @npc_not_here
-
-	// compute player damage = 1 + ((playerClassIdx + currentLevel) & 3)
-	lda playerClassIdx
-	clc
-	adc currentLevel
-	and #$03
-	clc
-	adc #1
-	sta ZP_PTR
-
-	// compute npc damage = 1 + ((npcClassIdx + npcLevel) & 3)
-	lda npcClassIdx,x
-	clc
-	adc npcLevel,x
-	and #$03
-	clc
-	adc #1
-	sta ZP_PTR+1
-
-	// apply damage to NPC
-	lda npcCurHp,x
-	sec
-	sbc ZP_PTR
-	sta npcCurHp,x
-	// message: if npc died
-	lda npcCurHp,x
-	beq @npc_die
-
-	// apply damage to player
-	lda playerCurHp
-	sec
-	sbc ZP_PTR+1
-	sta playerCurHp
-	// if player died
-	lda playerCurHp
-	beq @player_die
-
-	// Report simple hit message
-	lda #<msgYouHit
-	sta lastMsgLo
-	lda #>msgYouHit
-	sta lastMsgHi
-	jsr saveGame
-	rts
-
-@npc_die:
-	// reward/clear NPC (remove from location mask)
-	// Clear bit in npcMaskByLoc for this npc at current location
-	lda tmpNpcIdx
-	tax
-	ldy currentLoc
-	lda npcMaskByLoc,y
-	eor npcBit,x
-	sta npcMaskByLoc,y
-	// award XP (flat 5) and increase score
-	lda playerXp
-	clc
-	adc #5
-	sta playerXp
-	jsr checkLevelUp
-
-	// attempt to give a coin to player if not already in inventory
-	lda objLoc+OBJ_COIN
-	cmp #OBJ_INVENTORY
-	beq @coin_skip
-	lda #OBJ_INVENTORY
-	sta objLoc+OBJ_COIN
-	lda #<msgXpGain
-	sta lastMsgLo
-	lda #>msgXpGain
-	sta lastMsgHi
-
-@coin_skip:
-	lda scoreLo
-	clc
-	adc #1
-	sta scoreLo
-	bcs @inc_score_hi
-	jmp @score_done
-
-@inc_score_hi:
-	inc scoreHi
-
-@score_done:
-	// Play a small sparkle on SID channel 3
-	lda #<2000
-	sta SID_V3_FREQLO
-	lda #>2000
-	sta SID_V3_FREQHI
-	lda sparkWave
-	ora #$01
-	sta SID_V3_CTRL
-
-	lda #<msgNpcDie
-	sta lastMsgLo
-	lda #>msgNpcDie
-	sta lastMsgHi
-	jsr saveGame
-	rts
-
-@player_die:
-	lda #<msgYouDied
-	sta lastMsgLo
-	lda #>msgYouDied
-	sta lastMsgHi
-	jsr saveGame
-	rts
-
-checkLevelUp:
-	lda playerXp
-	cmp #10
-	bmi @cl_done
-@cl_loop:
-	sec
-	sbc #10
-	sta playerXp
-	inc currentLevel
-	jsr computePlayerMaxHp
-	lda tmpHp
-	sta playerCurHp
-	lda playerXp
-	cmp #10
-	bcs @cl_loop
-@cl_done:
-	rts
-
-// Combat: compute NPC retaliation with small crit chance based on npc level
-// (this is used implicitly in current attack flow via npc damage table)
-
-@npc_not_here:
-	lda #<msgNpcNotHere
-	sta lastMsgLo
-	lda #>msgNpcNotHere
-	sta lastMsgHi
-	rts
-
-@atk_none:
-	lda #<msgNoOne
-	sta lastMsgLo
-	lda #>msgNoOne
-	sta lastMsgHi
 	rts
 
 @noTarget:
@@ -4849,14 +4642,6 @@ playClassBaseHp:
 playClassHpPerLevel:
 	.byte 4, 6, 5, 2, 3
 
-// Per-class critical chance (0-15 scale used against a 0..15 random roll)
-playClassCritChance:
-	.byte 2,1,3,4,2
-// MAGE,KNIGHT,HEALER,BARD,WIZARD
-// Per-class critical bonus (added damage)
-playClassCritBonus:
-	.byte 1,2,1,1,1
-
 // computePlayerMaxHp: returns max HP in tmpHp
 computePlayerMaxHp:
 	// load base for player's class idx
@@ -4946,10 +4731,6 @@ kwTalk:       .text "TALK"
 kwCharacters: .text "CHARACTERS"
 	.byte 0
 kwInventory:  .text "INVENTORY"
-	.byte 0
-kwAttack:     .text "ATTACK"
-	.byte 0
-kwFight:      .text "FIGHT"
 	.byte 0
 
 kwTo:         .text "TO"
@@ -5115,15 +4896,6 @@ msgNoChars:    .text "NO CHARACTERS ARE HERE."
 msgGave:       .text "GIVEN."
 	.byte 0
 
-msgYouHit:     .text "YOU STRIKE THE FOE." 
-	.byte 0
-msgNpcDie:     .text "THEY COLLAPSE AND FALL." 
-	.byte 0
-msgYouDied:    .text "YOU FALL UNCONSCIOUS. GAME OVER." 
-	.byte 0
-msgXpGain:     .text "YOU GAIN EXPERIENCE." 
-	.byte 0
-
 msgStall:      .text "A BUSY MARKET STALL: BELLS, RIBBONS, AND A NOTE: 'TRADE IN STORIES'."
 	.byte 0
 msgSign:       .text "THE SIGN READS: 'EVERLAND ARRIVALS'. SOMEONE SCRATCHED 'ASK THE CONDUCTOR' BELOW."
@@ -5213,4 +4985,3 @@ questDetailLo:
 	.byte <questDetail0,<questDetail1,<questDetail2
 questDetailHi:
 	.byte >questDetail0,>questDetail1,>questDetail2
-
