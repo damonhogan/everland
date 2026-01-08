@@ -183,7 +183,7 @@ musicBassLen: .byte 16
 musicSparkStep:.byte 0
 musicSparkTick:.byte 0
 musicSparkLen: .byte 4
-leadWave: .byte $10   // TRI by default (waveform bits only// gate bit added dynamically)
+leadWave: .byte $10   // TRI by default (waveform bits only; gate bit added dynamically)
 bassWave: .byte $10   // TRI
 sparkWave:.byte $40   // PULSE
 irqOldLo: .byte 0
@@ -246,7 +246,7 @@ loginOrCreate:
 	jsr copyInputToUsername
 	jsr buildSaveNameBase
 
-	// Try load// if fails, create profile
+	// Try load; if fails, create profile
 	jsr tryLoadGame
 	bcc @loc_create
 	jmp @loaded
@@ -1201,7 +1201,7 @@ advanceWeek:
 	sta week
 
 @aw_ok:
-	// Some quests can persist// MVP: rotate if completed, else keep
+	// Some quests can persist; MVP: rotate if completed, else keep
 	lda questStatus
 	cmp #2
 	bne @keep
@@ -1220,7 +1220,7 @@ advanceWeek:
 
 // --- Music engine (SID, raster IRQ) ---
 musicInit:
-	// Install our IRQ hook only once// we chain to the original KERNAL IRQ.
+	// Install our IRQ hook only once; we chain to the original KERNAL IRQ.
 	lda musicInstalled
 	bne @mi_installed
 	sei
@@ -1334,7 +1334,7 @@ musicApplyThemeSettings:
 	sta bassWave
 	lda themeSparkWave,x
 	sta sparkWave
-	// Per-theme envelopes (SR only// AD set once in init)
+	// Per-theme envelopes (SR only; AD set once in init)
 	lda themeV1SR,x
 	sta SID_V1_SR
 	lda themeV2SR,x
@@ -1554,7 +1554,7 @@ musicAdvanceBass:
 	rts
 
 musicAdvanceSparkle:
-	// Only active for Aurora (3) and Tavern (5)// otherwise gate off.
+	// Only active for Aurora (3) and Tavern (5); otherwise gate off.
 	lda musicTheme
 	cmp #3
 	beq @mas_do
@@ -1627,7 +1627,7 @@ noteFreqLo:
 noteFreqHi:
 	.byte $11,$13,$15,$17,$1A,$1D,$20,$22,$27,$2B,$34,$3A
 
-// --- Music patterns (16 steps each// 0=rest// note index 1..12) ---
+// --- Music patterns (16 steps each; 0=rest; note index 1..12) ---
 // MYTHOS (soft, major)
 myLead0: .byte 1,3,5,8, 5,3,2,3, 5,8,10,8, 6,5,3,1
 myLead1: .byte 3,5,6,8, 10,8,6,5, 3,5,8,10, 8,6,5,3
@@ -1778,7 +1778,7 @@ themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40
 themeBassWave: .byte $10,$10,$10,$10,$10,$10,$10,$10,$10,$10
 themeSparkWave:.byte $40,$40,$40,$40,$80,$40,$40,$40,$40,$40
 
-// Release-heavy for scary// otherwise smooth.
+// Release-heavy for scary; otherwise smooth.
 themeV1SR: .byte $A6,$A8,$B7,$A8,$46,$A8,$A8,$88,$78,$A8
 themeV2SR: .byte $A6,$A8,$A8,$A8,$46,$A8,$A8,$A8,$78,$A8
 themeV3SR: .byte $68,$78,$78,$78,$28,$78,$68,$68,$78,$68
@@ -1867,7 +1867,7 @@ render_game:
 	jsr printZ
 	jsr newline
 
-	// Description (hand-wrapped// limited to description area)
+	// Description (hand-wrapped; limited to description area)
 	jsr setCursorDesc
 	ldx currentLoc
 	lda locDescLo,x
@@ -2049,7 +2049,7 @@ newline:
 
 printZ:
 	// Print 0-terminated string at (ZP_PTR)
-	ldy #0
+	dy #0
 
 @pz_loop:
 	lda (ZP_PTR),y
@@ -2635,7 +2635,7 @@ waitAnyKey:
 	sec
 	rts
 
-// Skip spaces starting at X// returns X at first non-space
+// Skip spaces starting at X; returns X at first non-space
 skipSpaces:
 @ss:
 	lda inputBuf,x
@@ -3610,7 +3610,7 @@ conversationMenu_exit:
 	rts
 
 cmdInspect:
-	// If noun present, inspect object// else re-describe location
+	// If noun present, inspect object; else re-describe location
 	// Find first space after verb
 	ldx #0
 @findSpace:
@@ -3689,7 +3689,7 @@ cmdInspect:
 	rts
 
 cmdPickUp:
-	// Handle "PICK UP <obj>"// if no UP, treat as TAKE
+	// Handle "PICK UP <obj>"; if no UP, treat as TAKE
 	ldx #0
 	// Find first space
 @p1:
@@ -3771,7 +3771,7 @@ cmdTakeFromX:
 	rts
 
 cmdSetDown:
-	// Handle "SET DOWN <obj>"// else DROP
+	// Handle "SET DOWN <obj>"; else DROP
 	ldx #0
 @s1:
 	lda inputBuf,x
@@ -4052,7 +4052,7 @@ cmdLoad:
 	rts
 
 @load_ok:
-	// No PIN prompt on in-session LOAD// assumes current user
+	// No PIN prompt on in-session LOAD; assumes current user
 	jsr commitLoadedState
 	jsr ensureQuest
 	lda #<msgLoaded
