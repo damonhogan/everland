@@ -27,14 +27,22 @@ Fully Working Features
 - KERNAL Routines: File handling and console I/O routines used.
 - IRQ / Music Hook: Music IRQ handler and safe IRQ stub scaffold present.
 
+Recent Additions (confirmed working)
+- Multi-slot save/load: multiple save slots with validation and slot prompt.
+- Multi-stage quests: quest stage persistence and `questCheckGive`/`questComplete` integration.
+- Conversation variants: per-NPC/ per-quest message tables and deterministic selection rules.
+- Playtest automation: `tools/vice_playtest.ps1` and `tools/vice_playtest.bat` present and usable.
+- Docker PDF build: `tools/Dockerfile` builds `MANUAL.pdf` inside a container.
+- MANUAL.pdf: Generated locally using `pandoc` + `wkhtmltopdf` (see Appendix C for details).
+
 Partially Working / Needs Attention
 ----------------------------------
-- Assembler Branch/Label Issues: Recent trampoline edits required fixes; re-verify with a full assemble.
-- Conversation/Trampoline Robustness: Conversation menu logic works but needs final branch/label cleanup.
-- SID Music Content: IRQ handler exists but SID tracks are not fully integrated.
-- Quest Persistency Edge Cases: Basic quest assignment and save/load implemented; complex flows need expansion/testing.
-- UI Polish: Dialog strings and message layout may need trimming.
-- Multiplayer/Net: Not functional.
+- Assembler Branch/Label Issues: Trampolines added where needed; recommend a full assemble and focused review for remaining long-branch patterns.
+- Conversation tree expansion: Per-npc/quest tables are in place but branching trees and larger dialogue flows need more content and testing.
+- SID Music: IRQ handler and new Celtic patterns added; full soundtrack integration and voice balancing still in progress.
+- Quest edge-cases: Multi-stage quests persist, but complex state transitions need playtesting.
+- UI polish: PETSCII art, pacing and transitions need refinement for better immersion.
+- Automated emulator tests: Playtest scripts exist but comprehensive deterministic harness (screenshots, long flows) is TODO.
 
 Beginner Player Manual
 ----------------------
@@ -251,6 +259,47 @@ powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
 After installing `wkhtmltopdf` and ensuring it's on your PATH, re-run the wrapper above — it will detect `wkhtmltopdf` and use it to convert the generated `MANUAL.html` to `MANUAL.pdf`.
 - Docker (optional) — we provide a Dockerfile below to build the manual inside a container without installing TeX locally. See the `tools/Dockerfile` file.
 - Optional screenshot / helper tools (only for extended playtests): `nircmd.exe`, `ImageMagick (magick)`, or any command-line screenshot tool.
+
+What we did locally (full summary)
+----------------------------------
+This project attempted multiple routes to produce `MANUAL.pdf` on a Windows dev machine; the following documents exactly what we ran and what succeeded.
+
+- Step: Run `tools/build_manual.ps1` initially. Result: `pandoc` found, no TeX engines detected, no `wkhtmltopdf` present — script produced `MANUAL.html` fallback.
+
+- Step: Attempted to install `wkhtmltopdf` via Chocolatey (non-elevated). Result: `choco` was not found.
+
+- Step: Attempted Chocolatey bootstrap as an elevated process (UAC). The installer was launched but the elevated session did not leave a usable `choco` binary in the non-elevated shell (install requires admin and interactive UAC acceptance). Because automated elevation in this environment is unreliable, we fell back to a user-level installer.
+
+- Step: Installed `wkhtmltopdf` via Scoop (user-level). Commands used:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iwr -useb get.scoop.sh | iex
+scoop update
+scoop bucket add extras
+scoop install wkhtmltopdf
+```
+
+- Step: Re-ran `tools/build_manual.ps1`. `pandoc` and `wkhtmltopdf` were detected, but `wkhtmltopdf` initially failed with network/ProtocolUnknownError when converting because local images were not accessible by default.
+
+- Fix: Regenerated HTML with `pandoc` then converted with `wkhtmltopdf --enable-local-file-access` to allow embedded `images/` files to load. Command used:
+
+```powershell
+pandoc MANUAL.md -o MANUAL.html --standalone --toc
+wkhtmltopdf --enable-local-file-access MANUAL.html MANUAL.pdf
+```
+
+- Result: `MANUAL.pdf` was successfully created and placed in the repository root.
+
+Files modified during this process:
+- `tools/build_manual.ps1` — updated to pass `--enable-local-file-access` to `wkhtmltopdf` to avoid the ProtocolUnknown/blocked local file access error.
+- `MANUAL.md` — Appendix C updated with these notes and step-by-step install instructions for `wkhtmltopdf`.
+- `MANUAL.pdf` — generated and added to the repo.
+
+Notes and recommendations
+- When converting Markdown -> HTML -> PDF with `wkhtmltopdf`, use `--enable-local-file-access` so local images referenced with relative paths load correctly.
+- If you prefer a system-wide package manager, Chocolatey works but requires admin privileges and UAC acceptance; Scoop provides a user-friendly, non-admin alternative on Windows.
+- Docker provides a fully reproducible environment if you cannot or do not wish to install TeX or `wkhtmltopdf` locally.
 
 2) Build wrapper (text copy)
 
