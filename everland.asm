@@ -3657,10 +3657,108 @@ conv_choice5:
 	jmp conversationMenu_exit
 
 conv_do_speak:
+	// Deterministic overrides by NPC+location
+	txa
+	cmp #NPC_BARTENDER
+	beq conv_speak_bartender
+	txa
+	cmp #NPC_CONDUCTOR
+	beq conv_speak_conductor
+	txa
+	cmp #NPC_KNIGHT
+	beq conv_speak_knight
+	txa
+	cmp #NPC_WITCH
+	beq conv_speak_witch
+	// fallback to RNG
+	jmp conv_speak_rng
+
+conv_speak_bartender:
+	lda currentLoc
+	cmp #LOC_TAVERN
+	beq conv_speak_bart_alt2
+	jmp conv_speak_rng
+
+conv_speak_conductor:
+	lda currentLoc
+	cmp #LOC_TRAIN
+	beq conv_speak_conductor_alt1
+	jmp conv_speak_rng
+
+conv_speak_knight:
+	lda currentLoc
+	cmp #LOC_PLAZA
+	beq conv_speak_knight_alt1
+	jmp conv_speak_rng
+
+conv_speak_witch:
+	lda currentLoc
+	cmp #LOC_GROVE
+	beq conv_speak_witch_alt2
+	jmp conv_speak_rng
+
+conv_speak_bart_alt2:
+	lda convAlt2Lo,x
+	sta lastMsgLo
+	lda convAlt2Hi,x
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_speak_conductor_alt1:
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_speak_knight_alt1:
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_speak_witch_alt2:
+	lda convAlt2Lo,x
+	sta lastMsgLo
+	lda convAlt2Hi,x
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_speak_rng:
+	// Choose main/alt/alt2 via inexpensive RNG (0..3 -> map to 0/1/2)
+	lda $D012
+	eor $DC04
+	and #$03
+	cmp #3
+	beq conv_speak_main
+	cmp #1
+	beq conv_speak_alt1
+	// otherwise use alt2
+	lda convAlt2Lo,x
+	sta lastMsgLo
+	lda convAlt2Hi,x
+	sta lastMsgHi
+	jmp conv_speak_render
+
+conv_speak_alt1:
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	jmp conv_speak_render
+
+conv_speak_main:
 	lda npcTalkLo,x
 	sta lastMsgLo
 	lda npcTalkHi,x
 	sta lastMsgHi
+
+conv_speak_render:
 	jsr render
 	jmp conv_loop
 
@@ -3683,14 +3781,164 @@ conv_do_temp:
 conv_do_quest:
 	lda npcOffersQuest,x
 	cmp #QUEST_NONE
-	beq conv_noquest
-	// set quest active and status
+	bne conv_do_quest_cont2
+	jmp conv_noquest
+conv_do_quest_cont2:
+	// If NPC offers a quest that's not the currently active one, offer it
+	lda activeQuest
+	cmp npcOffersQuest,x
+	bne conv_dq_continue2
+	jmp conv_dq_already
+conv_dq_continue2:
+
+	// Start new quest for this NPC
+	lda npcOffersQuest,x
 	sta activeQuest
 	lda #1
 	sta questStatus
-	lda #<msgQuestOfferGeneric
+	// If player already has the stage0 required item, auto-accept the stage
+	lda activeQuest
+	tay
+	lda questReq0Obj,y
+	cmp #$FF
+	bne conv_offer_have_req
+	jmp conv_offer_render
+conv_offer_have_req:
+	sta tmpRand
+	lda tmpRand
+	tay
+	lda objLoc,y
+	cmp #OBJ_INVENTORY
+	bne conv_offer_render
+	// simulate GIVE: ZP_PTR2=objId, ZP_PTR2+1=npcId (X)
+	lda tmpRand
+	sta ZP_PTR2
+	stx ZP_PTR2+1
+	jsr questCheckGive
+	// If questCheckGive completed/advanced, show auto-feedback then the quest message
+	php
+	lda lastMsgLo
+	sta tmpPer
+	lda lastMsgHi
+	sta tmpHp
+	plp
+	sec
+	bcs conv_offer_auto_completed
+	jmp conv_offer_auto_advanced
+
+conv_offer_auto_completed:
+	// show auto-completed then show quest message
+	lda #<msgAutoCompleted
 	sta lastMsgLo
-	lda #>msgQuestOfferGeneric
+	lda #>msgAutoCompleted
+	sta lastMsgHi
+	jsr render
+	// restore quest message (set by questComplete)
+	lda tmpPer
+	sta lastMsgLo
+	lda tmpHp
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_offer_auto_advanced:
+	// show auto-accepted/advanced then show quest message
+	lda #<msgAutoAccepted
+	sta lastMsgLo
+	lda #>msgAutoAccepted
+	sta lastMsgHi
+	jsr render
+	// restore quest message (set by questCheckGive)
+	lda tmpPer
+	sta lastMsgLo
+	lda tmpHp
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+	// Show offer message from per-quest table
+
+	lda activeQuest
+	tay
+	lda convOfferLo,y
+	sta lastMsgLo
+	lda convOfferHi,y
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_offer_render_complete:
+	jsr render
+	jmp conv_loop
+
+conv_offer_render:
+
+conv_dq_already:
+	// NPC's quest is currently active — respond based on status
+	lda questStatus
+	and #$03
+	cmp #2
+	beq conv_dq_completed
+	cmp #1
+	beq conv_dq_inprog
+	jmp conv_loop
+
+conv_dq_inprog:
+	// If player already has the stage1 required item, auto-complete
+	lda activeQuest
+	tay
+	lda questReq1Obj,y
+	cmp #$FF
+	beq conv_inprog_render
+	sta tmpRand
+	lda tmpRand
+	tay
+	lda objLoc,y
+	cmp #OBJ_INVENTORY
+	bne conv_inprog_render
+	// simulate GIVE next-stage item
+	lda tmpRand
+	sta ZP_PTR2
+	stx ZP_PTR2+1
+	jsr questCheckGive
+	bcs conv_inprog_render_complete
+
+conv_inprog_render:
+	// If we reached here, show normal in-progress message
+	lda convInProgLo,y
+	sta lastMsgLo
+	lda convInProgHi,y
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_inprog_render_complete:
+	// questCheckGive advanced/completed; show auto feedback then the quest message
+	// save quest message bytes (set by questCheckGive)
+	lda lastMsgLo
+	sta tmpPer
+	lda lastMsgHi
+	sta tmpHp
+	// show auto feedback
+	lda #<msgAutoCompleted
+	sta lastMsgLo
+	lda #>msgAutoCompleted
+	sta lastMsgHi
+	jsr render
+	// restore quest message and show it
+	lda tmpPer
+	sta lastMsgLo
+	lda tmpHp
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_dq_completed:
+	lda activeQuest
+	tay
+	lda convDoneLo,y
+	sta lastMsgLo
+	lda convDoneHi,y
 	sta lastMsgHi
 	jsr render
 	jmp conv_loop
@@ -4723,10 +4971,50 @@ talkFairy:     .text "A FAIRY SAYS: LISTEN CLOSELY. THE GARDENS REMEMBER YOUR KI
 talkPixie:     .text "A PIXIE CHIMES: TRADE A SECRET FOR A SPARKLE!"
 	.byte 0
 
+// Alternate one-line talk variants per NPC for extra flavor
+talkConductorAlt: .text "CONDUCTOR: WATCH THE TRACKS OF YOUR THOUGHTS." 
+	.byte 0
+talkBartenderAlt: .text "BARTENDER: WATCH YOUR POUCH, STRANGER. LUCK MOVES QUICK."
+	.byte 0
+talkKnightAlt: .text "KNIGHT: A SMALL GESTURE CAN BE AS BINDING AS A SWORD."
+	.byte 0
+talkWitchAlt: .text "WITCH: MURMUR THE RIGHT NAME, AND THE MOON LISTENS."
+	.byte 0
+talkFairyAlt: .text "FAIRY: LEAVE A LITTLE LIGHT, AND THE GARDEN WILL GUIDE YOU." 
+	.byte 0
+talkPixieAlt: .text "PIXIE: HEY! A SECRET FOR A GLIMMER, YES?"
+	.byte 0
+
+// Second alternate variants for extra variety
+talkConductorAlt2: .text "CONDUCTOR: YOUR NEXT STOP MAY BE SURPRISING."
+	.byte 0
+talkBartenderAlt2: .text "BARTENDER: A FINE NIGHT FOR A STORY AND A STIFF MUG."
+	.byte 0
+talkKnightAlt2: .text "KNIGHT: STEADFASTNESS IS A SHIELD NO ARMOR MATCHES."
+	.byte 0
+talkWitchAlt2: .text "WITCH: STIR GENTLY; KNOWLEDGE BREWS SLOWLY."
+	.byte 0
+talkFairyAlt2: .text "FAIRY: TAKE A MOMENT, HUMBLE ONE; THE FLOWERS KNOW YOUR NAME." 
+	.byte 0
+talkPixieAlt2: .text "PIXIE: GLITTER AWAY, QUICKLY NOW — OR IT'LL FLY!"
+	.byte 0
+
 npcTalkLo:
 	.byte <talkConductor,<talkBartender,<talkKnight,<talkWitch,<talkFairy,<talkPixie
 npcTalkHi:
 	.byte >talkConductor,>talkBartender,>talkKnight,>talkWitch,>talkFairy,>talkPixie
+
+// Alternate talk pointers (same order as npcTalkLo/Hi)
+convAltLo:
+	.byte <talkConductorAlt,<talkBartenderAlt,<talkKnightAlt,<talkWitchAlt,<talkFairyAlt,<talkPixieAlt
+convAltHi:
+	.byte >talkConductorAlt,>talkBartenderAlt,>talkKnightAlt,>talkWitchAlt,>talkFairyAlt,>talkPixieAlt
+
+// Second alternate pointer tables
+convAlt2Lo:
+	.byte <talkConductorAlt2,<talkBartenderAlt2,<talkKnightAlt2,<talkWitchAlt2,<talkFairyAlt2,<talkPixieAlt2
+convAlt2Hi:
+	.byte >talkConductorAlt2,>talkBartenderAlt2,>talkKnightAlt2,>talkWitchAlt2,>talkFairyAlt2,>talkPixieAlt2
 
 // Which quest (if any) each NPC can offer
 npcOffersQuest:
@@ -5147,7 +5435,6 @@ questDetail2: .text "QUEST: GIVE LANTERN TO THE WITCH."
 
 questDetailLo:
 	.byte <questDetail0,<questDetail1,<questDetail2
-questDetailHi:
 // Quest requirements per stage (obj, npc). Stage0 = initial requirement; Stage1 = follow-up or $FF if none.
 questReq0Obj: .byte OBJ_COIN, OBJ_KEY, OBJ_LANTERN
 questReq0Npc: .byte NPC_BARTENDER, NPC_KNIGHT, NPC_WITCH
@@ -5156,4 +5443,35 @@ questReq1Npc: .byte NPC_BARTENDER, $FF, $FF
 
 msgQuestStageNext: .text "STEP COMPLETE. NEXT: BRING THE MUG."
 	.byte 0
+
+msgAutoAccepted: .text "NOTICE: QUEST AUTOMATICALLY ACCEPTED."
+	.byte 0
+msgAutoCompleted: .text "NOTICE: QUEST AUTOMATICALLY COMPLETED."
+	.byte 0
+
+// Bartender-specific conversation messages (stage-aware sample)
+msgBartenderOffer: .text "BARTENDER: I'D TAKE A COIN FOR A MUG. BRING ONE, BRING ME LUCK."
+	.byte 0
+msgBartenderInProg: .text "BARTENDER: YOU OWE ME A COIN. COME BACK WITH ONE."
+	.byte 0
+msgBartenderCompleted: .text "BARTENDER: NICE! HERE'S YOUR MUG. DRINK UP."
+	.byte 0
+
+// Per-quest conversation message tables (indexed by quest id)
+convOfferLo:
+	.byte <msgBartenderOffer,<msgQuestOfferGeneric,<msgQuestOfferGeneric
+convOfferHi:
+	.byte >msgBartenderOffer,>msgQuestOfferGeneric,>msgQuestOfferGeneric
+
+convInProgLo:
+	.byte <msgBartenderInProg,<msgQuestStageNext,<msgQuestStageNext
+convInProgHi:
+	.byte >msgBartenderInProg,>msgQuestStageNext,>msgQuestStageNext
+
+convDoneLo:
+	.byte <msgBartenderCompleted,<msgQuestDone,<msgQuestDone
+convDoneHi:
+	.byte >msgBartenderCompleted,>msgQuestDone,>msgQuestDone
+
+questDetailHi:
 	.byte >questDetail0,>questDetail1,>questDetail2

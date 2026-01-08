@@ -138,3 +138,215 @@ Notes:
 PDF Location
 ------------
 If I successfully generate `MANUAL.pdf` in the repository root, it will be placed at `c:/commodore/everland/MANUAL.pdf` and offered for download here.
+
+Appendix B: Running the Automated VICE Playtest Script
+-----------------------------------------------------
+
+This appendix describes how to run the provided playtest helpers (`tools/vice_playtest.ps1` and `tools/vice_playtest.bat`) to automatically launch VICE and run a short smoke-test sequence against `bin/everland.prg`.
+
+1) Quick launcher (recommended)
+
+- Use the batch file if you just want to start the emulator with the PRG. From a Command Prompt or PowerShell in the project root run:
+
+```powershell
+tools\vice_playtest.bat "C:\Program Files (x86)\VICE\x64sc.exe" "c:\commodore\everland\bin\everland.prg"
+```
+
+If VICE is installed in the default path the arguments are optional:
+
+```powershell
+tools\vice_playtest.bat
+```
+
+2) Full scripted playtest (PowerShell)
+
+- The PowerShell script `tools/vice_playtest.ps1` launches x64sc, waits for the emulator window, brings it to the foreground and sends a small keystroke sequence to exercise a conversation flow (example: `TALK BARTENDER` → choose menu option `3`). To run it once without changing policy:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\vice_playtest.ps1 -VicePath "C:\Program Files (x86)\VICE\x64sc.exe" -PrgPath ".\bin\everland.prg"
+```
+
+- If the script is blocked by Windows Defender / SmartScreen or another AV, unblock it and re-run:
+
+```powershell
+Unblock-File .\tools\vice_playtest.ps1
+powershell -ExecutionPolicy Bypass -File .\tools\vice_playtest.ps1
+```
+
+Security and AV notes
+
+- The PowerShell script sends keystrokes to the emulator window — some endpoint protection tools flag or block this behavior. If your AV blocks the script, prefer the batch launcher or add an exclusion for `tools\vice_playtest.ps1` in your AV settings.
+- `-ExecutionPolicy Bypass` runs the script just for the process and does not permanently change system policy.
+
+Script behavior and customization
+
+- What the script does by default:
+	- Launches x64sc with `-autostart <prg>` and `-warp` (fast boot).
+	- Waits for the main emulator window and brings it to front.
+	- Sends the keystrokes: `TALK BARTENDER{ENTER}` then `3{ENTER}` (selects the conversation menu's quest option).
+	- Pauses and lets you inspect the emulator before exiting.
+- You can modify the script to send other sequences (e.g., `TAKE COIN{ENTER}`, `GIVE COIN TO BARTENDER{ENTER}`) or longer test flows. Timings are configurable (delays in milliseconds between SendKeys).
+
+Automating screenshot capture (optional)
+
+- The script does not capture screenshots by default. To capture screens you can:
+	- Use a command-line screenshot tool (e.g., `nircmd.exe` or `magick` from ImageMagick) and call it after the SendKeys sequence.
+	- Or use VICE's built-in screenshot feature (keyboard binding) and send that key sequence from the script (timing-sensitive).
+
+Troubleshooting
+
+- If VICE fails to start: verify the `-VicePath` you provided points at `x64sc.exe` (or `x64.exe`/`x64sc.exe` depending on your build).
+- If the PRG doesn't autostart: ensure `bin\everland.prg` exists and is the output from the latest assembly.
+- If SendKeys appear to be ignored: ensure the emulator window has keyboard focus and increase the script's delay values.
+
+Extending the playtest harness
+
+- I can add additional scripted flows (save/load, give item flows, combat sequence) and optional screenshot collection. Tell me which flows you'd like automated and I will add them to `tools/vice_playtest.ps1` as named scenarios.
+
+Appendix C: Build environment & scripts (PDF automation)
+------------------------------------------------------
+
+This appendix documents the environment and scripts used to build the manual, and includes a text copy of the build wrapper for reproducibility.
+
+1) Dependencies (for PDF creation)
+
+- `pandoc` — the primary tool to convert Markdown to HTML/PDF. Install from https://pandoc.org/
+- A TeX engine (one of):
+  - `xelatex` (recommended) — part of TeX Live or MiKTeX; provides good Unicode and font handling.
+  - `pdflatex` — alternative TeX engine (also part of TeX Live / MiKTeX).
+- `wkhtmltopdf` (optional) — alternative path: convert Markdown -> HTML via `pandoc`, then HTML -> PDF via `wkhtmltopdf`.
+ - `wkhtmltopdf` (optional) — alternative path: convert Markdown -> HTML via `pandoc`, then HTML -> PDF via `wkhtmltopdf`.
+ 
+wkhtmltopdf installation (Windows)
+---------------------------------
+If you prefer converting via HTML -> PDF, install `wkhtmltopdf`. On Windows you can install it in several ways:
+
+- Using Chocolatey (recommended if you have Chocolatey installed):
+
+```powershell
+choco install wkhtmltopdf -y
+```
+
+- Using Scoop (if you use Scoop):
+
+```powershell
+iwr -useb get.scoop.sh | iex
+scoop install wkhtmltopdf
+```
+
+- Manual download (no package manager):
+
+1. Download the Windows 64-bit `wkhtmltopdf` binary ZIP from the official releases page: https://github.com/wkhtmltopdf/wkhtmltopdf/releases
+2. Extract `wkhtmltopdf.exe` from the ZIP and place it in a folder such as `C:\Program Files\wkhtmltopdf`.
+3. Add that folder to your user PATH (or system PATH) and restart your shell.
+
+Note about PowerShell execution policy
+-------------------------------------
+If `tools\build_manual.ps1` is blocked on your system, run it with `-ExecutionPolicy Bypass` so the wrapper can run without changing system policy permanently:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
+```
+
+After installing `wkhtmltopdf` and ensuring it's on your PATH, re-run the wrapper above — it will detect `wkhtmltopdf` and use it to convert the generated `MANUAL.html` to `MANUAL.pdf`.
+- Docker (optional) — we provide a Dockerfile below to build the manual inside a container without installing TeX locally. See the `tools/Dockerfile` file.
+- Optional screenshot / helper tools (only for extended playtests): `nircmd.exe`, `ImageMagick (magick)`, or any command-line screenshot tool.
+
+2) Build wrapper (text copy)
+
+The repository includes `tools/build_manual.ps1`, a PowerShell wrapper that detects available engines and builds `MANUAL.pdf` if possible (falling back to `MANUAL.html` otherwise). The full script is below:
+
+---- begin `build_manual.ps1` ----
+
+<inserted-script>
+
+---- end `build_manual.ps1` ----
+
+Replace `<inserted-script>` with the following exact contents (copy-paste into a file):
+
+```powershell
+<#
+Build wrapper for MANUAL.md -> MANUAL.pdf
+Detects available PDF engines (xelatex, pdflatex, wkhtmltopdf) and runs pandoc accordingly.
+Usage: powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
+#>
+param(
+	[string]$ManualMd = "MANUAL.md",
+	[string]$OutPdf = "MANUAL.pdf",
+	[string]$OutHtml = "MANUAL.html"
+)
+
+function Which($name) { 
+	$c = Get-Command $name -ErrorAction SilentlyContinue
+	if ($c) { return $c.Source } 
+	return $null
+}
+
+$pandoc = Which "pandoc"
+if (-not $pandoc) {
+	Write-Host "pandoc not found in PATH. Please install pandoc." -ForegroundColor Red
+	exit 2
+}
+
+$xelatex = Which "xelatex"
+$pdflatex = Which "pdflatex"
+$wkhtmltopdf = Which "wkhtmltopdf"
+
+Write-Host "Found: pandoc=$pandoc" -ForegroundColor Cyan
+if ($xelatex) { Write-Host "Found xelatex: $xelatex" -ForegroundColor Cyan }
+if ($pdflatex) { Write-Host "Found pdflatex: $pdflatex" -ForegroundColor Cyan }
+if ($wkhtmltopdf) { Write-Host "Found wkhtmltopdf: $wkhtmltopdf" -ForegroundColor Cyan }
+
+if ($xelatex) {
+	Write-Host "Building PDF via xelatex..." -ForegroundColor Green
+	& $pandoc $ManualMd -o $OutPdf --pdf-engine=xelatex --toc
+	if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf" -ForegroundColor Green; exit 0 }
+	else { Write-Host "pandoc/xelatex failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+}
+
+if ($pdflatex) {
+	Write-Host "Building PDF via pdflatex..." -ForegroundColor Green
+	& $pandoc $ManualMd -o $OutPdf --pdf-engine=pdflatex --toc
+	if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf" -ForegroundColor Green; exit 0 }
+	else { Write-Host "pandoc/pdflatex failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+}
+
+if ($wkhtmltopdf) {
+	Write-Host "Building HTML then converting via wkhtmltopdf..." -ForegroundColor Green
+	& $pandoc $ManualMd -o $OutHtml --standalone --toc
+	if ($LASTEXITCODE -ne 0) { Write-Host "pandoc->HTML failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+	& $wkhtmltopdf $OutHtml $OutPdf
+	if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf via wkhtmltopdf" -ForegroundColor Green; exit 0 }
+	else { Write-Host "wkhtmltopdf failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+}
+
+# Fallback: produce HTML and inform user
+Write-Host "No PDF engine found (xelatex/pdflatex/wkhtmltopdf). Producing HTML fallback..." -ForegroundColor Yellow
+& $pandoc $ManualMd -o $OutHtml --standalone --toc
+if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutHtml. Install a TeX engine or wkhtmltopdf to produce PDF." -ForegroundColor Yellow; exit 1 }
+else { Write-Host "pandoc->HTML failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+```
+
+3) Docker build (one-step reproducible PDF)
+
+Use the provided `tools/Dockerfile` to build the manual inside a container that already includes pandoc + TeX. Example:
+
+```powershell
+docker build -t everland-manual -f tools/Dockerfile .
+docker create --name tmp everland-manual
+docker cp tmp:/work/MANUAL.pdf .
+docker rm tmp
+```
+
+The Dockerfile uses the `pandoc/latex` base image and runs `pandoc MANUAL.md -o MANUAL.pdf --pdf-engine=xelatex --toc` during build; the generated PDF will be present at `/work/MANUAL.pdf` inside the image.
+
+4) Rebuilding the manual using the wrapper
+
+To rebuild locally (non-Docker):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
+```
+
+If the script reports missing `xelatex`/`pdflatex`/`wkhtmltopdf`, either install one of those or use the Docker method above.
+
