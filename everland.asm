@@ -251,8 +251,39 @@ conv_node_choice_loop:
 	sta ZP_PTR+1
 	jsr printZ
 
-	; read player input (keyword)
+	; read player input (keyword or numeric choice)
 	jsr readLine
+
+	; Check numeric choice: if first char is '1'..'9', select that choice directly
+	lda inputBuf
+	cmp #'1'
+	bcc conv_after_check_digit
+	cmp #'9'+1
+	bcs conv_after_check_digit
+	; compute index = inputBuf - '1'
+	sec
+	sbc #'1'
+	sta tmpPer        ; tmpPer = index (0-based)
+	; entryIndex = convTmpBase + index
+	lda convTmpBase
+	clc
+	adc tmpPer
+	sta tmpPer        ; tmpPer now holds absolute entry index
+	; apply effect for this entry
+	tay
+	lda convChoiceType,y
+	; load effect value
+	lda convChoiceVal,y
+	sta tmpPer+1
+	jsr conv_apply_effect
+	; determine next node
+	lda convChoiceNext,y
+	cmp #$FF
+	beq conv_run_node_done
+	sta convTmpNode
+	jmp conv_run_node_loop_restart
+
+conv_after_check_digit:
 
 	; attempt to match input against each choice keyword
 	lda convTmpBase
@@ -321,12 +352,35 @@ conv_run_node_loop_restart:
 ; Compare inputBuf against string at (ZP_PTR)
 ; return with Z set if equal, clear if not
 cmpInputWithZPptr:
+	; Case-insensitive compare of inputBuf with string at (ZP_PTR)
 	ldy #0
 cmpInp_loop:
 	lda inputBuf,y
+	beq cmpInp_checkbothzero
+	; uppercase ASCII a-z -> A-Z (0x61-0x7A -> -0x20)
+	cmp #'a'
+	bcc cmpInp_no_low_a
+	cmp #'z'
+	bcs cmpInp_no_low_a
+	sec
+	sbc #$20
+	; store uppercase char in A for compare
+cmpInp_no_low_a:
+	tay
+	lda (ZP_PTR),y
+	; uppercase keyword char too
+	cmp #'a'
+	bcc cmpInp_no_low_b
+	cmp #'z'
+	bcs cmpInp_no_low_b
+	sec
+	sbc #$20
+cmpInp_no_low_b:
+	; compare normalized characters
+	; reload input char into A for final compare
+	lda inputBuf,y
 	cmp (ZP_PTR),y
 	bne cmpInp_nomatch
-	beq cmpInp_checkbothzero
 	iny
 	jmp cmpInp_loop
 cmpInp_checkbothzero:
@@ -5527,27 +5581,29 @@ npcConvIndex:
 	.byte $FF, 0, $FF, $FF, $FF, $FF
 
 ; Per-node: message pointer (.word)
+
 convNodeMsgPtrs:
-	.word node_bartender_greeting
+	.word node_bartender_greeting, node_bartender_afterquest
 
 ; Per-node: choices display label pointer (single-line summary shown after message)
 convNodeChoicesLabelPtrs:
-	.word node_bartender_choices
+	.word node_bartender_choices, node_bartender_afterchoices
 
 ; Per-node: number of choices
 convNodeChoiceCount:
-	.byte 3
+	.byte 3, 0
 
 ; Per-node: base index into choice arrays
 convNodeChoiceBase:
-	.byte 0
+	.byte 0, 3
 
 ; Choice tables (entries contiguous): for each entry: keyword pointer (.word), nextNode byte, type byte, value byte
 convChoiceKeywordPtrs:
 	.word kw_ale, kw_quest, kw_leave
 
+
 convChoiceNext:
-	.byte $FF, $FF, $FF
+	.byte $FF, 1, $FF
 
 convChoiceType:
 	.byte 0, 1, 0
@@ -5558,7 +5614,12 @@ convChoiceVal:
 ; Node messages and choice display strings
 node_bartender_greeting: .text "THE BARTENDER WIPES A MUG AND EYE S YOU WARMLY."
 	.byte 0
-node_bartender_choices: .text "OPTIONS: ALE, QUEST, LEAVE"
+node_bartender_choices: .text "OPTIONS: 1) ALE  2) QUEST  3) LEAVE"
+	.byte 0
+node_bartender_afterquest: .text "THE BARTENDER NODS: 'BRING ME A COIN, AND I'LL REMEMBER YOU.'"
+	.byte 0
+node_bartender_afterchoices: .text "OPTIONS: 1) LEAVE"
+	.byte 0
 	.byte 0
 
 ; Choice keyword labels (uppercase, no trailing zero used by cmpInputWithZPptr)

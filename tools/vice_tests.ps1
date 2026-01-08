@@ -27,6 +27,11 @@ switch ($Scenario.ToLower()) {
         RunScenario 'save' @('TALK BARTENDER{ENTER}','3{ENTER}','S{ENTER}','1{ENTER}')
         break
     }
+    'conv' {
+        # conversation numeric-choice smoke test: TALK BARTENDER -> choose 2 (QUEST) -> leave
+        RunScenario 'conv' @('TALK BARTENDER{ENTER}','2{ENTER}','1{ENTER}')
+        break
+    }
     default {
         Write-Host "Unknown scenario: $Scenario. Available: smoke, quest, save" -ForegroundColor Yellow
         break
