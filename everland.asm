@@ -209,6 +209,9 @@ saveSlot: .byte 0
 npcConvStage:
 	.fill NPC_COUNT, 0
 
+// UI options
+uiSlowText: .byte 1
+
 // Input buffer (PETSCII)
 inputLen: .byte 0
 inputBuf:
@@ -2152,6 +2155,14 @@ printZ_loop:
 	lda (ZP_PTR),y
 	beq printZ_done
 	jsr CHROUT
+	; small pacing delay when uiSlowText enabled
+	lda uiSlowText
+	beq printZ_continue
+	ldx #4
+printZ_delay:
+	dex
+	bne printZ_delay
+printZ_continue:
 	iny
 	bne printZ_loop
 
@@ -3725,14 +3736,30 @@ conv_bart_stage0:
 	jmp conv_loop
 
 conv_speak_conductor_alt1:
+	lda npcConvStage,x
+	cmp #0
+	beq conv_conductor_stage0
 	lda convAltLo,x
 	sta lastMsgLo
 	lda convAltHi,x
 	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_conductor_stage0:
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	lda #1
+	sta npcConvStage,x
 	jsr render
 	jmp conv_loop
 
 conv_speak_knight_alt1:
+	lda npcConvStage,x
+	cmp #0
+	beq conv_knight_stage0
 	lda convAltLo,x
 	sta lastMsgLo
 	lda convAltHi,x
@@ -3740,11 +3767,34 @@ conv_speak_knight_alt1:
 	jsr render
 	jmp conv_loop
 
+conv_knight_stage0:
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	lda #1
+	sta npcConvStage,x
+	jsr render
+	jmp conv_loop
+
 conv_speak_witch_alt2:
+	lda npcConvStage,x
+	cmp #0
+	beq conv_witch_stage0
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_witch_stage0:
 	lda convAlt2Lo,x
 	sta lastMsgLo
 	lda convAlt2Hi,x
 	sta lastMsgHi
+	lda #1
+	sta npcConvStage,x
 	jsr render
 	jmp conv_loop
 

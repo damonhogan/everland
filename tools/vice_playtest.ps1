@@ -5,7 +5,8 @@
 param(
     [string]$VicePath = '',
     [string]$PrgPath = "$PWD\\bin\\everland.prg",
-    [switch]$Headless
+    [switch]$Headless,
+    [string[]]$Sequence = @("TALK BARTENDER{ENTER}", "3{ENTER}")
 )
 
 # Helper: find x64sc in common locations
@@ -64,12 +65,12 @@ function Send-ToVice([string]$keys, [int]$delayMs=300) {
     Start-Sleep -Milliseconds $delayMs
 }
 
-# Playtest sequence (tweak as needed): TALK BARTENDER <enter>, then choose 3 (quest)
+# Playtest sequence (tweak as needed): send each entry from -Sequence
 # Note: Commodore keys: Send normal text then {ENTER}
-Send-ToVice("TALK BARTENDER{ENTER}", 1000)
-Start-Sleep -Milliseconds 800
-Send-ToVice("3{ENTER}", 800)
-Start-Sleep -Milliseconds 800
+foreach ($s in $Sequence) {
+    Send-ToVice($s, 1000)
+    Start-Sleep -Milliseconds 600
+}
 # If a prompt appears for slot or choices, send defaults (this is just a simple smoke test)
 # Optionally capture a screenshot (requires external tool). We'll pause so tester can see results.
 Write-Host "Playtest sequence sent. Emulator running. Press Enter to terminate the emulator (script will not kill it)."
