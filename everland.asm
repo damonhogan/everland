@@ -212,6 +212,153 @@ npcConvStage:
 // UI options
 uiSlowText: .byte 1
 
+// Node-driven conversation runtime temps
+convTmpNode: .byte 0
+convTmpBase: .byte 0
+
+// conv_run_node: A = nodeId
+conv_run_node:
+	pha
+	sta convTmpNode        ; save node id
+	; load node message pointer (nodeId*2 -> index into convNodeMsgPtrs)
+	lda convTmpNode
+	asl
+	tax
+	lda convNodeMsgPtrs,x
+	sta lastMsgLo
+	lda convNodeMsgPtrs+1,x
+	sta lastMsgHi
+	jsr render
+
+	; get choice count
+	lda convTmpNode
+	tay
+	lda convNodeChoiceCount,y
+	beq conv_run_node_done
+
+	; load base index for choices (entry index into choice arrays)
+	lda convNodeChoiceBase,y
+	sta convTmpBase
+
+conv_node_choice_loop:
+	; display node choices line (prebuilt string per node)
+	lda convTmpNode
+	asl
+	tax
+	lda convNodeChoicesLabelPtrs,x
+	sta ZP_PTR
+	lda convNodeChoicesLabelPtrs+1,x
+	sta ZP_PTR+1
+	jsr printZ
+
+	; read player input (keyword)
+	jsr readLine
+
+	; attempt to match input against each choice keyword
+	lda convTmpBase
+	sta tmpPer        ; entry index (will be incremented per choice)
+	ldy #0
+conv_choice_try_loop:
+	; load keyword pointer for entry = tmpPer
+	lda tmpPer
+	tax
+	asl               ; X = entryIndex*2 (pointer table of words)
+	lda convChoiceKeywordPtrs,x
+	sta ZP_PTR
+	lda convChoiceKeywordPtrs+1,x
+	sta ZP_PTR+1
+	; compare inputBuf to keyword via cmpInputWithZPptr (returns Z clear if no match, Z set if equal)
+	jsr cmpInputWithZPptr
+	beq conv_choice_no_match
+	; matched -> apply effect and branch
+	; load effect type/val
+	lda tmpPer
+	tay
+	lda convChoiceType,y
+	; effect type in A
+	; load effect value
+	lda convChoiceVal,y
+	sta tmpPer+1      ; store effect value temporarily at tmpPer+1
+	; apply effect
+	jsr conv_apply_effect
+	; determine next node
+	lda tmpPer
+	tay
+	lda convChoiceNext,y
+	cmp #$FF
+	beq conv_run_node_done
+	; otherwise set new node id and loop
+	sta convTmpNode
+	; jump to top: load message pointer of new node and render
+	jmp conv_run_node_loop_restart
+
+conv_choice_no_match:
+	; increment entry and y; compare to choiceCount
+	inc tmpPer
+	inc y
+	lda convTmpNode
+	tay
+	lda convNodeChoiceCount,y
+	cmp y
+	bne conv_choice_try_loop
+	; if no match found, show 'I DIDN'T UNDERSTAND' and return
+	lda #<msgUnknown
+	sta lastMsgLo
+	lda #>msgUnknown
+	sta lastMsgHi
+	jsr render
+
+conv_run_node_done:
+	pla
+	rts
+
+conv_run_node_loop_restart:
+	pla
+	; A contains saved node id from stack placement earlier; reload from convTmpNode into A
+	lda convTmpNode
+	jmp conv_run_node
+
+; Compare inputBuf against string at (ZP_PTR)
+; return with Z set if equal, clear if not
+cmpInputWithZPptr:
+	ldy #0
+cmpInp_loop:
+	lda inputBuf,y
+	cmp (ZP_PTR),y
+	bne cmpInp_nomatch
+	beq cmpInp_checkbothzero
+	iny
+	jmp cmpInp_loop
+cmpInp_checkbothzero:
+	; both bytes zero -> equal
+	rts
+cmpInp_nomatch:
+	clc
+	lda #0
+	rts
+
+; conv_apply_effect: expects A = effectType (at call), effect value saved at tmpPer+1
+; effectType: 0=none,1=startQuest,2=completeQuest
+conv_apply_effect:
+	; effect type already in A
+	cmp #1
+	beq conv_apply_startquest
+	cmp #2
+	beq conv_apply_completequest
+	rts
+
+conv_apply_startquest:
+	; load effect value
+	lda tmpPer+1
+	jsr assignQuest_mod  ; expects A = quest id (mod will clamp)
+	rts
+
+conv_apply_completequest:
+	lda tmpPer+1
+	sta activeQuest
+	jsr questComplete
+	rts
+
 // Input buffer (PETSCII)
 inputLen: .byte 0
 inputBuf:
@@ -3828,6 +3975,14 @@ conv_speak_main:
 	sta lastMsgHi
 
 conv_speak_render:
+	; If this NPC has a conversation node, run node-driven convo, else render normally
+	lda npcConvIndex,x
+	cmp #$FF
+	beq conv_speak_render_norm
+	jsr conv_run_node
+	jmp conv_loop
+
+conv_speak_render_norm:
 	jsr render
 	jmp conv_loop
 
@@ -5365,6 +5520,54 @@ npcNameLo:
 	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5
 npcNameHi:
 	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5
+
+; Node/table-driven conversation data (example: bartender)
+; npcConvIndex maps NPC index -> start node id ($FF = none)
+npcConvIndex:
+	.byte $FF, 0, $FF, $FF, $FF, $FF
+
+; Per-node: message pointer (.word)
+convNodeMsgPtrs:
+	.word node_bartender_greeting
+
+; Per-node: choices display label pointer (single-line summary shown after message)
+convNodeChoicesLabelPtrs:
+	.word node_bartender_choices
+
+; Per-node: number of choices
+convNodeChoiceCount:
+	.byte 3
+
+; Per-node: base index into choice arrays
+convNodeChoiceBase:
+	.byte 0
+
+; Choice tables (entries contiguous): for each entry: keyword pointer (.word), nextNode byte, type byte, value byte
+convChoiceKeywordPtrs:
+	.word kw_ale, kw_quest, kw_leave
+
+convChoiceNext:
+	.byte $FF, $FF, $FF
+
+convChoiceType:
+	.byte 0, 1, 0
+
+convChoiceVal:
+	.byte 0, QUEST_COIN_BARTENDER, 0
+
+; Node messages and choice display strings
+node_bartender_greeting: .text "THE BARTENDER WIPES A MUG AND EYE S YOU WARMLY."
+	.byte 0
+node_bartender_choices: .text "OPTIONS: ALE, QUEST, LEAVE"
+	.byte 0
+
+; Choice keyword labels (uppercase, no trailing zero used by cmpInputWithZPptr)
+kw_ale:   .text "ALE"
+	.byte 0
+kw_quest: .text "QUEST"
+	.byte 0
+kw_leave: .text "LEAVE"
+	.byte 0
 
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
