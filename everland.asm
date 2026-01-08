@@ -205,6 +205,10 @@ tmpCnt: .byte 0
 tmpRand: .byte 0
 saveSlot: .byte 0
 
+// Per-NPC conversation stage (0 = initial, 1 = progressed)
+npcConvStage:
+	.fill NPC_COUNT, 0
+
 // Input buffer (PETSCII)
 inputLen: .byte 0
 inputBuf:
@@ -3698,10 +3702,25 @@ conv_speak_witch:
 	jmp conv_speak_rng
 
 conv_speak_bart_alt2:
+	lda npcConvStage,x
+	cmp #0
+	beq conv_bart_stage0
+	; stage > 0: use alt1
+	lda convAltLo,x
+	sta lastMsgLo
+	lda convAltHi,x
+	sta lastMsgHi
+	jsr render
+	jmp conv_loop
+
+conv_bart_stage0:
 	lda convAlt2Lo,x
 	sta lastMsgLo
 	lda convAlt2Hi,x
 	sta lastMsgHi
+	; advance bartender conversation stage
+	lda #1
+	sta npcConvStage,x
 	jsr render
 	jmp conv_loop
 
