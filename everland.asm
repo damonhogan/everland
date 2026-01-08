@@ -300,7 +300,7 @@ conv_choice_try_loop:
 	sta ZP_PTR+1
 	; compare inputBuf to keyword via cmpInputWithZPptr (returns Z clear if no match, Z set if equal)
 	jsr cmpInputWithZPptr
-	beq conv_choice_no_match
+	beq conv_choice_check_alt1
 	; matched -> apply effect and branch
 	; load effect type/val
 	lda tmpPer
@@ -323,6 +323,33 @@ conv_choice_try_loop:
 	; jump to top: load message pointer of new node and render
 	jmp conv_run_node_loop_restart
 
+conv_choice_check_alt1:
+	; try alt keyword 1
+	lda tmpPer
+	tax
+	asl
+	lda convChoiceAlt1Ptr,x
+	beq conv_choice_check_alt2
+	sta ZP_PTR
+	lda convChoiceAlt1Ptr+1,x
+	sta ZP_PTR+1
+	jsr cmpInputWithZPptr
+	beq conv_choice_matched_alt
+
+conv_choice_check_alt2:
+	; try alt keyword 2
+	lda tmpPer
+	tax
+	asl
+	lda convChoiceAlt2Ptr,x
+	beq conv_choice_no_match
+	sta ZP_PTR
+	lda convChoiceAlt2Ptr+1,x
+	sta ZP_PTR+1
+	jsr cmpInputWithZPptr
+	beq conv_choice_matched_alt
+
+	; no match on any keyword
 conv_choice_no_match:
 	; increment entry and y; compare to choiceCount
 	inc tmpPer
@@ -338,6 +365,30 @@ conv_choice_no_match:
 	lda #>msgUnknown
 	sta lastMsgHi
 	jsr render
+
+; matched via alt keyword label falls through to apply effect
+conv_choice_matched_alt:
+	; matched -> apply effect and branch (falls through to existing matched code)
+	; load effect type/val
+	lda tmpPer
+	tay
+	lda convChoiceType,y
+	; effect type in A
+	; load effect value
+	lda convChoiceVal,y
+	sta tmpPer+1      ; store effect value temporarily at tmpPer+1
+	; apply effect
+	jsr conv_apply_effect
+	; determine next node
+	lda tmpPer
+	tay
+	lda convChoiceNext,y
+	cmp #$FF
+	beq conv_run_node_done
+	; otherwise set new node id and loop
+	sta convTmpNode
+	; jump to top: load message pointer of new node and render
+	jmp conv_run_node_loop_restart
 
 conv_run_node_done:
 	pla
@@ -5599,7 +5650,13 @@ convNodeChoiceBase:
 
 ; Choice tables (entries contiguous): for each entry: keyword pointer (.word), nextNode byte, type byte, value byte
 convChoiceKeywordPtrs:
-	.word kw_ale, kw_quest, kw_leave
+	.word kw_ale, kw_quest, kw_leave, kw_leave
+
+convChoiceAlt1Ptr:
+	.word kw_beer, kw_job, kw_go, 0
+
+convChoiceAlt2Ptr:
+	.word 0, kw_mission, kw_exit, 0
 
 
 convChoiceNext:
@@ -5625,9 +5682,19 @@ node_bartender_afterchoices: .text "OPTIONS: 1) LEAVE"
 ; Choice keyword labels (uppercase, no trailing zero used by cmpInputWithZPptr)
 kw_ale:   .text "ALE"
 	.byte 0
+kw_beer:  .text "BEER"
+	.byte 0
 kw_quest: .text "QUEST"
 	.byte 0
+kw_job:   .text "JOB"
+	.byte 0
+kw_mission: .text "MISSION"
+	.byte 0
 kw_leave: .text "LEAVE"
+	.byte 0
+kw_go:    .text "GO"
+	.byte 0
+kw_exit:  .text "EXIT"
 	.byte 0
 
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
