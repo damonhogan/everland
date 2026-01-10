@@ -72,7 +72,7 @@
 .const LOC_GOLEM  = 3
 .const LOC_PLAZA  = 4
 .const LOC_ALLEY  = 5
-.const LOC_WITCH  = 6
+.const LOC_MYSTIC  = 6
 .const LOC_GROVE  = 7
 .const LOC_TAVERN = 8
 .const LOC_GRAVE  = 9
@@ -85,7 +85,9 @@
 .const OBJ_COIN    = 1
 .const OBJ_MUG     = 2
 .const OBJ_KEY     = 3
-.const OBJ_COUNT   = 4
+.const OBJ_TREASURE= 4
+.const OBJ_STOLEN_NAME = 5
+.const OBJ_COUNT   = 6
 
 .const OBJ_INVENTORY = $FE
 .const OBJ_NOWHERE   = $FF
@@ -93,10 +95,14 @@
 .const NPC_CONDUCTOR = 0
 .const NPC_BARTENDER = 1
 .const NPC_KNIGHT    = 2
-.const NPC_WITCH     = 3
+.const NPC_MYSTIC     = 3
 .const NPC_FAIRY     = 4
 .const NPC_PIXIE     = 5
-.const NPC_COUNT     = 6
+.const NPC_SPIDER_PRINCESS = 6
+.const NPC_PIRATE_CAPTAIN = 7
+.const NPC_PIRATE_FIRSTMATE = 8
+.const NPC_UNSEELY_FAE = 9
+.const NPC_COUNT     = 10
 
 .const ROW_MAP_LAST   = 11
 .const ROW_DIVIDER    = 12
@@ -122,8 +128,12 @@
 .const QUEST_NONE = $FF
 .const QUEST_COIN_BARTENDER = 0
 .const QUEST_KEY_KNIGHT     = 1
-.const QUEST_LANTERN_WITCH  = 2
-.const QUEST_COUNT          = 3
+.const QUEST_LANTERN_MYSTIC  = 2
+.const QUEST_TREASURE       = 3
+.const QUEST_LURE_MYSTIC    = 4
+.const QUEST_BLACK_ROSE     = 5
+.const QUEST_UNSEELY_NAME   = 6
+.const QUEST_COUNT          = 7
 
 // Game state
 currentLoc: .byte LOC_PLAZA
@@ -133,6 +143,14 @@ lastMsgHi:  .byte >msgWelcome
 
 // UI state
 uiHideExits: .byte 0
+// When set, suppress map rendering (used during login and conversations)
+uiInConversation: .byte 0
+// Debug mode flag (enabled in dev auto-login)
+debugEnabled: .byte 0
+
+// Debug print for coin location/state if enabled
+debug_print_coin_info:
+	rts
 
 // Player profile (fixed-length text, 0 padded)
 usernameLen: .byte 0
@@ -169,6 +187,12 @@ saveBaseBuf:
 saveNameLen: .byte 0
 saveNameBuf:
 	.fill 24, 0
+// --- Dev-mode auto login defaults ---
+autoMarkerName: .byte 'E','V','A','U','T','O'
+autoUserZ:  .text "AUTOTEST"; .byte 0
+autoDispZ:  .text "AUTO"; .byte 0
+autoClassZ: .text "KNIGHT"; .byte 0
+
 
 // Music state (runs in IRQ)
 musicEnabled: .byte 0
@@ -200,7 +224,11 @@ selCount: .byte 0
 selChoice: .byte 0
 tmpNpcIdx: .byte 0
 tmpHp: .byte 0
-tmpPer: .byte 0
+tmpPer: .byte 0,0
+// Per-NPC conversation stage (0 = initial, 1 = progressed)
+npcConvStage:
+	.fill NPC_COUNT, 0
+npcMaskHiTemp: .byte 0
 tmpCnt: .byte 0
 
 // Input buffer (PETSCII)
@@ -214,6 +242,8 @@ objLoc:
 	.byte LOC_MARKET  // COIN
 	.byte LOC_TAVERN  // MUG
 	.byte LOC_GATE    // KEY
+	.byte LOC_CATACOMBS // TREASURE (starts hidden in catacombs)
+	.byte OBJ_NOWHERE // STOLEN NAME (starts nowhere; given by Fairy on trade)
 
 // --- Program entry ---
 start:
@@ -1163,10 +1193,27 @@ assignQuestForWeek:
 	sta questStatus
 	rts
 
+assignQuest_mod:
+	// A = desired quest id (may be out of range); reduce modulo QUEST_COUNT
+	// Use simple subtraction loop
+@aqm_loop:
+	cmp #QUEST_COUNT
+	bcc @aqm_set
+	sec
+	sbc #QUEST_COUNT
+	jmp @aqm_loop
+@aqm_set:
+	sta activeQuest
+	lda #1
+	sta questStatus
+	rts
+
 questComplete:
 	lda questStatus
 	cmp #2
-	beq @qc_done
+	bne @qc_qc_continue
+	jmp @qc_done
+@qc_qc_continue:
 	lda #2
 	sta questStatus
 	inc scoreLo
@@ -1188,6 +1235,70 @@ questComplete:
 	lda #>msgQuestDone
 	sta lastMsgHi
 	jsr saveGame
+
+	// Grant quest-specific rewards via table-dispatch (indexed by quest id)
+	lda activeQuest
+	tay
+	lda questRewardLo,y
+	sta ZP_PTR
+	lda questRewardHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@qc_reward_bartender:
+	// Give player the mug (OBJ_MUG)
+	lda #OBJ_MUG
+	tax
+	lda #OBJ_INVENTORY
+	sta objLoc,x
+	// Optionally set a message (keep quest done message)
+	jmp @qc_done_after
+
+@qc_reward_treasure:
+	// Treasure quest: give a larger score reward (+5)
+	lda scoreLo
+	clc
+	adc #5
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	jmp @qc_done_after
+
+@qc_reward_lure:
+	// Lure quest: modest reputation reward (+3)
+	lda scoreLo
+	clc
+	adc #3
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	jmp @qc_done_after
+
+// Reward dispatch table (low/high pointers) - indexed by quest id
+questRewardLo:
+	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely
+questRewardHi:
+	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely
+
+@qc_reward_unseely:
+	// Reward for retrieving the stolen name: +4 score and progress Unseely Fae
+	lda scoreLo
+	clc
+	adc #4
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	// set Unseely Fae conversation stage progressed
+	lda #NPC_UNSEELY_FAE
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	jmp @qc_done_after
+
+@qc_done_after:
 
 @qc_done:
 	rts
@@ -1611,13 +1722,13 @@ musicAdvanceSparkle:
 
 // Scary locations (spooky music)
 locScary:
-	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	// Extra (non-map) locations reuse nearby marker positions.
 	.byte 0,0,0,1,0,0,1,0,0,1,1,0,0
 
 // Indoor/location music override ($FF = none). Theme ids match musicTheme.
 locMusicOverride:
-	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	.byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,8,5,$FF,$FF,6,7
 
 // Notes table (indices used in sequences):
@@ -1720,6 +1831,11 @@ piBass0: .byte 1,0,5,0, 1,0,6,0, 5,0,3,0, 2,0,1,0
 piBass1: .byte 3,0,6,0, 3,0,5,0, 6,0,5,0, 3,0,2,0
 piBass2: .byte 5,0,8,0, 5,0,6,0, 8,0,6,0, 5,0,3,0
 
+// INN sparkle ornaments (soft trills)
+inSpk0: .byte 0,9,0,0, 0,10,0,0, 0,9,0,0, 0,10,0,0
+inSpk1: .byte 9,0,0,9, 0,10,0,10, 9,0,0,9, 0,10,0,10
+inSpk2: .byte 0,0,9,0, 0,10,0,0, 0,0,9,0, 0,10,0,0
+
 // Theme pointer tables: each theme entry points to 3 patterns
 myLeadPtr: .word myLead0,myLead1,myLead2
 loLeadPtr: .word loLead0,loLead1,loLead2
@@ -1746,6 +1862,7 @@ piBassPtr: .word piBass0,piBass1,piBass2
 auSpkPtr:  .word auSpk0,auSpk1,auSpk2
 tvSpkPtr:  .word tvSpk0,tvSpk1,tvSpk2
 faSpkPtr:  .word faSpk0,faSpk1,faSpk2
+inSpkPtr: .word inSpk0,inSpk1,inSpk2
 
 // Dummy sparkle (all rests) for themes that don't use it
 noSpk0: .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -1763,9 +1880,9 @@ themeBassNotesHi:
 	.byte >ofBassPtr,>myBassPtr,>loBassPtr,>auBassPtr,>scBassPtr,>tvBassPtr,>inBassPtr,>tpBassPtr,>faBassPtr,>piBassPtr
 
 themeSparkNotesLo:
-	.byte <noSpkPtr,<noSpkPtr,<noSpkPtr,<auSpkPtr,<noSpkPtr,<tvSpkPtr,<noSpkPtr,<noSpkPtr,<faSpkPtr,<noSpkPtr
+    	.byte <noSpkPtr,<noSpkPtr,<noSpkPtr,<auSpkPtr,<noSpkPtr,<tvSpkPtr,<inSpkPtr,<noSpkPtr,<faSpkPtr,<noSpkPtr
 themeSparkNotesHi:
-	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>noSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr
+    	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>inSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr
 
 // Theme settings (tempo + timbre). 10 entries, indexed by musicTheme.
 // Smaller = faster (ticks per step). Values tuned for atmosphere.
@@ -1790,9 +1907,13 @@ init:
 	jsr musicInit
 	jsr musicStartLoginTheme
 
+	// Ensure debug mode is disabled for normal operation
+	lda #0
+	sta debugEnabled
 	lda #1
 	sta uiHideExits
 	jsr loginOrCreate
+@init_skip_login:
 	lda #0
 	sta uiHideExits
 	jsr musicPickForLocation
@@ -1843,6 +1964,7 @@ render:
 	lda lastMsgHi
 	sta ZP_PTR+1
 	jsr printZ
+	jsr renderAuthTag
 	clc
 	ldx #ROW_AUTH_PROMPT
 	ldy #0
@@ -1855,7 +1977,11 @@ render:
 	rts
 
 render_game:
+	lda uiInConversation
+	cmp #0
+	bne @render_skip_map
 	jsr drawMap
+@render_skip_map:
 
 	// UI title line
 	jsr setCursorUi
@@ -1933,10 +2059,98 @@ clearScreen:
 	jsr CHROUT
 	rts
 
+	// Render a context tag line under the auth message indicating the active prompt
+	renderAuthTag:
+		// Position at ROW_AUTH_MSG+1
+		clc
+		ldx #ROW_AUTH_MSG+1
+		ldy #0
+		jsr PLOT
+		// Compare lastMsg to known auth prompts
+		lda lastMsgLo
+		cmp #<msgAskUser
+		bne @rat_disp
+		lda lastMsgHi
+		cmp #>msgAskUser
+		bne @rat_disp
+		lda #<msgTagUser
+		sta ZP_PTR
+		lda #>msgTagUser
+		sta ZP_PTR+1
+		jmp @rat_print
+	@rat_disp:
+		lda lastMsgLo
+		cmp #<msgAskDisplay
+		bne @rat_class
+		lda lastMsgHi
+		cmp #>msgAskDisplay
+		bne @rat_class
+		lda #<msgTagDisplay
+		sta ZP_PTR
+		lda #>msgTagDisplay
+		sta ZP_PTR+1
+		jmp @rat_print
+	@rat_class:
+		lda lastMsgLo
+		cmp #<msgAskClass
+		bne @rat_pin
+		lda lastMsgHi
+		cmp #>msgAskClass
+		bne @rat_pin
+		lda #<msgTagClass
+		sta ZP_PTR
+		lda #>msgTagClass
+		sta ZP_PTR+1
+		jmp @rat_print
+	@rat_pin:
+		lda lastMsgLo
+		cmp #<msgAskPin
+		beq @rat_pin_set
+		cmp #<msgAskPinLogin
+		bne @rat_month
+	@rat_pin_set:
+		lda #<msgTagPin
+		sta ZP_PTR
+		lda #>msgTagPin
+		sta ZP_PTR+1
+		jmp @rat_print
+	@rat_month:
+		lda lastMsgLo
+		cmp #<msgAskMonth
+		bne @rat_week
+		lda lastMsgHi
+		cmp #>msgAskMonth
+		bne @rat_week
+		lda #<msgTagMonth
+		sta ZP_PTR
+		lda #>msgTagMonth
+		sta ZP_PTR+1
+		jmp @rat_print
+	@rat_week:
+		lda lastMsgLo
+		cmp #<msgAskWeek
+		bne @rat_rts
+		lda lastMsgHi
+		cmp #>msgAskWeek
+		bne @rat_rts
+		lda #<msgTagWeek
+		sta ZP_PTR
+		lda #>msgTagWeek
+		sta ZP_PTR+1
+		jmp @rat_print
+	@rat_print:
+		jsr printZ
+	@rat_rts:
+		rts
+
 drawMap:
+	// Skip drawing the map while in a conversation (extra safety)
+	lda uiInConversation
+	cmp #0
+	bne drawMap_skip
 	// Print static 12-line map
 	ldx #0
-@lineLoop:
+	@lineLoop:
 	lda mapLineLo,x
 	sta ZP_PTR
 	lda mapLineHi,x
@@ -1956,6 +2170,7 @@ drawMap:
 	jsr newline
 
 	jsr placeMarker
+	drawMap_skip:
 	rts
 
 placeMarker:
@@ -2061,6 +2276,163 @@ printZ:
 @pz_done:
 	rts
 
+// conv_apply_effect: expects A = effectType (at call), effect value saved at tmpPer+1
+// effectType: 0=none,1=startQuest,2=completeQuest,3=giveItem,4=takeItem,5=addScore,6=setNpcStage
+conv_apply_effect:
+	// effect type already in A
+	cmp #1
+	beq conv_apply_startquest
+	cmp #2
+	beq conv_apply_completequest
+	cmp #3
+	beq conv_apply_give_item
+	cmp #4
+	beq conv_apply_take_item
+	cmp #5
+	beq conv_apply_add_score
+	cmp #6
+	beq conv_apply_set_npcstage
+	rts
+
+conv_apply_startquest:
+	// load effect value
+	lda tmpPer+1
+	jsr assignQuest_mod  // expects A = quest id (mod will clamp)
+	rts
+
+conv_apply_completequest:
+	lda tmpPer+1
+	sta activeQuest
+	jsr questComplete
+	rts
+
+conv_apply_give_item:
+	// tmpPer+1 = item id -> give to player (put in inventory)
+	lda tmpPer+1
+	tax
+	lda #OBJ_INVENTORY
+	sta objLoc,x
+	jsr log_give_item
+	lda #<msgTook
+	sta lastMsgLo
+	lda #>msgTook
+	sta lastMsgHi
+	jsr saveGame
+	rts
+
+conv_apply_take_item:
+	// tmpPer+1 = item id -> remove from player (set nowhere)
+	lda tmpPer+1
+	tax
+	lda #OBJ_NOWHERE
+	sta objLoc,x
+	lda #<msgDropped
+	sta lastMsgLo
+	lda #>msgDropped
+	sta lastMsgHi
+	jsr saveGame
+	rts
+
+conv_apply_add_score:
+	// tmpPer+1 = amount to add to score (8-bit add, carry into high byte)
+	lda scoreLo
+	clc
+	adc tmpPer+1
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	lda #<msgOk
+	sta lastMsgLo
+	lda #>msgOk
+	sta lastMsgHi
+	rts
+
+conv_apply_set_npcstage:
+	// tmpPer+1 = npc index; set its conv stage to progressed (1)
+	lda tmpPer+1
+	tax
+	lda #1
+	sta npcConvStage,x
+	lda #<msgOk
+	sta lastMsgLo
+	lda #>msgOk
+	sta lastMsgHi
+	rts
+
+// log_give_item: write a short record to device 8 file EVLOG
+// Expects tmpPer+1 contains the item id to log as an ASCII digit.
+log_give_item:
+	// set filename EVLOG
+	lda #5
+	ldx #<logName
+	ldy #>logName
+	jsr SETNAM
+	// set LFN/DEVICE/SA
+	lda #LFN
+	ldx #DEVICE
+	ldy #SA
+	jsr SETLFS
+	jsr OPEN
+	jsr CHKOUT
+	// write: 'G ' <item> ' Q ' <quest|N> ' L ' <loc>
+	lda #'G'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda tmpPer+1
+	clc
+	adc #$30
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #'Q'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda activeQuest
+	cmp #QUEST_NONE
+	beq @lgq_none
+	clc
+	adc #$30
+	jsr CHROUT
+	jmp @lg_loc
+@lgq_none:
+	lda #'N'
+	jsr CHROUT
+@lg_loc:
+	lda #' '
+	jsr CHROUT
+	lda #'L'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda currentLoc
+	cmp #10
+	bcc @lg_loc_low
+	// >=10: write '1' then ones digit
+	lda #'1'
+	jsr CHROUT
+	lda currentLoc
+	sec
+	sbc #10
+	clc
+	adc #$30
+	jsr CHROUT
+	jmp @lg_cr
+@lg_loc_low:
+	lda currentLoc
+	clc
+	adc #$30
+	jsr CHROUT
+@lg_cr:
+	lda #$0D
+	jsr CHROUT
+	// close file
+	lda #LFN
+	jsr CLOSE
+	rts
+
 // --- Input ---
 readLine:
 	lda #0
@@ -2090,12 +2462,10 @@ readLine:
 	jmp @poll
 
 @maybeFinish:
-	// In auth mode, ignore empty RETURNs (prevents buffered RETURN from skipping prompts).
+	// Finish on RETURN (empty input allowed) — avoid double-enter at prompts.
 	ldx inputLen
 	bne @finish
-	lda uiHideExits
-	beq @finish
-	jmp @poll
+	jmp @finish
 
 @back:
 	ldx inputLen
@@ -2120,6 +2490,134 @@ flushKeys:
 	jsr SCNKEY
 	jsr GETIN
 	bne @fk
+	rts
+
+// tryAutoLoginDev: if file EVAUTO exists on device 8, fill profile with defaults,
+// attempt to load and commit save, else create default profile. Returns C=1 on success (skip login).
+tryAutoLoginDev:
+	// Check for marker file EVAUTO
+	lda #6
+	ldx #<autoMarkerName
+	ldy #>autoMarkerName
+	jsr SETNAM
+	lda #LFN
+	ldx #DEVICE
+	ldy #SA
+	jsr SETLFS
+	jsr OPEN
+	jsr READST
+	bne @tad_fail_near
+	// close
+	lda #LFN
+	jsr CLOSE
+
+	// Copy defaults: USERNAME
+	lda #<autoUserZ
+	sta ZP_PTR
+	lda #>autoUserZ
+	sta ZP_PTR+1
+	lda #<username
+	sta ZP_PTR2
+	lda #>username
+	sta ZP_PTR2+1
+	lda #12
+	jsr copyZToFixedGeneric
+	lda tmpCnt
+	sta usernameLen
+
+	// DISPLAY NAME
+	lda #<autoDispZ
+	sta ZP_PTR
+	lda #>autoDispZ
+	sta ZP_PTR+1
+	lda #<displayName
+	sta ZP_PTR2
+	lda #>displayName
+	sta ZP_PTR2+1
+	lda #16
+	jsr copyZToFixedGeneric
+	lda tmpCnt
+	sta displayLen
+
+	// CLASS NAME
+	lda #<autoClassZ
+	sta ZP_PTR
+	lda #>autoClassZ
+	sta ZP_PTR+1
+	lda #<className
+	sta ZP_PTR2
+	lda #>className
+	sta ZP_PTR2+1
+	lda #12
+	jsr copyZToFixedGeneric
+	lda tmpCnt
+	sta classLen
+	jsr mapPlayerClass
+
+	// PIN = 0000
+	lda #0
+	sta pinLo
+	sta pinHi
+
+	// Month/Week = 1
+	lda #1
+	sta month
+	sta week
+
+	// Build save base and try load
+	jsr buildSaveNameBase
+	jsr tryLoadGame
+	bcc @tad_create
+	// loaded: commit without PIN
+	jsr commitLoadedState
+	// enable debug during auto-login
+	lda #1
+	sta debugEnabled
+	sec
+	rts
+@tad_fail_near:
+	clc
+	rts
+@tad_create:
+	// set HP from class
+	jsr computePlayerMaxHp
+	lda tmpHp
+	sta playerCurHp
+	// save defaults
+	jsr saveGame
+	// enable debug during auto-login
+	lda #1
+	sta debugEnabled
+	sec
+	rts
+
+@tad_fail:
+	clc
+	rts
+
+// copyZToFixedGeneric: copy zero-terminated string at (ZP_PTR) into dest (ZP_PTR2),
+// up to A bytes max. Writes copied length into tmpCnt. Pads remaining with 0.
+copyZToFixedGeneric:
+	sta tmpHp         // tmpHp = max bytes
+	ldy #0
+@cz_loop:
+	cpy tmpHp
+	bcs @cz_done_copy
+	lda (ZP_PTR),y
+	beq @cz_done_copy
+	sta (ZP_PTR2),y
+	iny
+	bne @cz_loop
+@cz_done_copy:
+	sty tmpCnt        // tmpCnt = length copied
+	lda #0
+@cz_pad_loop:
+	cpy tmpHp
+	bcs @cz_rts
+	sta (ZP_PTR2),y   // pad with 0
+	iny
+	bne @cz_pad_loop
+@cz_rts:
 	rts
 
 // --- Command execution ---
@@ -2148,44 +2646,109 @@ executeCommand:
 	jmp @ec_done
 
 @ec_start2:
+	// treat single-letter directional commands only when the input is a single-letter
 	cmp #'N'
 	bne @ec_chkS
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdNorth
+	cmp #0
+	beq @do_cmdNorth
+	jmp @ec_chkS
+@do_cmdNorth:
 	jmp cmdNorth
 @ec_chkS:
 	cmp #'S'
 	bne @ec_chkE
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdSouth
+	cmp #0
+	beq @do_cmdSouth
+	jmp @ec_chkE
+@do_cmdSouth:
 	jmp cmdSouth
 @ec_chkE:
 	cmp #'E'
 	bne @ec_chkW
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdEast
+	cmp #0
+	beq @do_cmdEast
+	jmp @ec_chkW
+@do_cmdEast:
 	jmp cmdEast
 @ec_chkW:
 	cmp #'W'
 	bne @ec_chkC
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdWest
+	cmp #0
+	beq @do_cmdWest
+	jmp @ec_chkC
+@do_cmdWest:
 	jmp cmdWest
 @ec_chkC:
 	cmp #'C'
-	beq @ec_doC
+	beq @ec_doC_check
 	cmp #'c'
 	bne @ec_chkT
-	jmp cmdCharactersMenu
-@ec_doC:
+	jmp @ec_doC_check
+@ec_doC_check:
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdCharacters
+	cmp #0
+	beq @do_cmdCharacters
+	jmp @ec_chkT
+@do_cmdCharacters:
 	jmp cmdCharactersMenu
 @ec_chkT:
 	cmp #'T'
 	bne @ec_chkI
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdTalk
+	cmp #0
+	beq @do_cmdTalk
+	jmp @ec_chkI
+@do_cmdTalk:
 	jmp cmdTalk
 @ec_chkI:
 	cmp #'I'
 	bne @ec_chkM
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdInventory
+	cmp #0
+	beq @do_cmdInventory
+@do_cmdInventory:
 	jmp cmdInventory
-
+	jmp @ec_chkM
 @ec_chkM:
 	cmp #'M'
 	beq @ec_m_ok
 	cmp #'m'
 	bne @ec_afterQuick
 @ec_m_ok:
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdMusic
+	cmp #0
+	beq @do_cmdMusic
+	jmp @ec_afterQuick
+
+@do_cmdMusic:
 	jmp cmdMusicToggle
 
 @ec_afterQuick:
@@ -2388,7 +2951,7 @@ executeCommand:
 	tax
 	jsr matchKeywordAtX
 	bcc @ec_tryCharacters
-	jmp cmdTalk
+	jmp cmdTalkWord
 
 @ec_tryCharacters:
 
@@ -2555,7 +3118,17 @@ matchKeywordAtX:
 @mk:
 	lda (ZP_PTR2),y
 	beq @endkw
-	cmp inputBuf,x
+	sta tmpCnt                // save keyword char (upper-case in tables)
+	lda inputBuf,x            // load input char
+	// to upper-case if in 'a'..'z'
+	cmp #'a'
+	bcc @cmp_kw
+	cmp #'z'+1
+	bcs @cmp_kw
+	sec
+	sbc #32                   // A = input uppe 300r-case
+@cmp_kw:
+	cmp tmpCnt               // compare input upper-case with keyword
 	bne @no
 	iny
 	inx
@@ -2812,22 +3385,22 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @witch
+	bcc @mystic
 	lda #NPC_KNIGHT
 	sec
 	rts
-@witch:
+@mystic:
 	txa
 	pha
-	lda #<kwWitch
+	lda #<kwMystic
 	sta ZP_PTR2
-	lda #>kwWitch
+	lda #>kwMystic
 	sta ZP_PTR2+1
 	pla
 	tax
 	jsr matchKeywordAtX
 	bcc @fairy
-	lda #NPC_WITCH
+	lda #NPC_MYSTIC
 	sec
 	rts
 @fairy:
@@ -2989,17 +3562,38 @@ cmdCharactersMenu:
 @cc_afterPlayer:
 	jsr newline
 
-	// List NPCs present at this location
+	// List NPCs present at this location (supports >8 NPCs via low/high mask)
 	ldx currentLoc
-	lda npcMaskByLoc,x
+	lda npcMaskByLocLo,x
 	sta ZP_PTR2
+	lda npcMaskByLocHi,x
+	sta npcMaskHiTemp
 	lda #0
 	sta selCount
 	ldx #0
 @cc_npc_loop:
 	lda ZP_PTR2
-	and npcBit,x
-	beq @cc_npc_next
+	and npcBitLo,x
+	beq @cc_check_hi_1
+	// increment display count
+	inc selCount
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	// print npc name
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+@cc_present_1:
 	// increment display count
 	inc selCount
 	lda selCount
@@ -3023,6 +3617,16 @@ cmdCharactersMenu:
 	cpx #NPC_COUNT
 	bne @cc_npc_loop
 
+	jmp @cc_npc_after
+
+@cc_check_hi_1:
+	lda npcMaskHiTemp
+	and npcBitHi,x
+	beq @cc_npc_next
+	jmp @cc_present_1
+
+@cc_npc_after:
+
 	// Prompt and read choice
 	jsr setCursorPrompt
 	jsr readLine
@@ -3039,8 +3643,23 @@ cmdCharactersMenu:
 	ldy #0
 @cc_find_loop:
 	lda ZP_PTR2
-	and npcBit,x
+	and npcBitLo,x
+	beq @cc_find_check_hi
+	// found in low
+	iny
+	tya
+	cmp selChoice
+	beq @cc_selected
+	jmp @cc_find_next
+
+@cc_find_check_hi:
+	lda npcMaskHiTemp
+	and npcBitHi,x
 	beq @cc_find_next
+	iny
+	tya
+	cmp selChoice
+	beq @cc_selected
 	// increment y (count)
 	iny
 	tya
@@ -3331,16 +3950,20 @@ cmdTalk:
 	jsr newline
 
 	ldx currentLoc
-	lda npcMaskByLoc,x
+	lda npcMaskByLocLo,x
 	sta ZP_PTR2
+	lda npcMaskByLocHi,x
+	sta npcMaskHiTemp
 	lda #0
 	sta selCount
 	ldx #0
 @tt_npc_loop:
 	lda ZP_PTR2
-	and npcBit,x
-	beq @tt_npc_next
-	inc selCount
+	and npcBitLo,x
+	beq @tt_check_hi_2
+	jmp @tt_present_2
+
+@tt_present_2:
 	lda selCount
 	clc
 	adc #'0'
@@ -3355,11 +3978,22 @@ cmdTalk:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	inc selCount
 
 @tt_npc_next:
 	inx
 	cpx #NPC_COUNT
 	bne @tt_npc_loop
+
+	jmp @tt_npc_done
+
+@tt_check_hi_2:
+	lda npcMaskHiTemp
+	and npcBitHi,x
+	beq @tt_npc_next
+	jmp @tt_present_2
+
+@tt_npc_done:
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -3368,11 +4002,22 @@ cmdTalk:
 	sec
 	sbc #'0'
 	sta selChoice
+	inc selChoice
 	ldx #0
 	ldy #0
 @tt_find_loop:
 	lda ZP_PTR2
-	and npcBit,x
+	and npcBitLo,x
+	beq @tt_find_check_hi
+	iny
+	tya
+	cmp selChoice
+	beq @tt_selected
+	jmp @tt_find_next
+
+@tt_find_check_hi:
+	lda npcMaskHiTemp
+	and npcBitHi,x
 	beq @tt_find_next
 	iny
 	tya
@@ -3400,8 +4045,41 @@ cmdTalk:
 	sta lastMsgHi
 	rts
 
+// TALK word handler: supports 'TALK <NPCNAME>' directly; falls back to menu
+cmdTalkWord:
+	// X currently points just after the matched TALK keyword
+	jsr skipFillers
+	jsr parseNpcNoun
+	bcs @ctw_haveNpc
+	// no noun provided -> show menu
+	jmp cmdTalk
+@ctw_haveNpc:
+	// A = npcId
+	tax
+	// Check NPC presence at currentLoc
+	ldy currentLoc
+	lda npcMaskByLocLo,y
+	sta ZP_PTR2
+	lda npcMaskByLocHi,y
+	sta npcMaskHiTemp
+	lda ZP_PTR2
+	and npcBitLo,x
+	bne @ctw_present
+	lda npcMaskHiTemp
+	and npcBitHi,x
+	bne @ctw_present
+	// Not here
+	jmp @npcNotHere
+@ctw_present:
+	// Open conversation with this NPC
+	jsr conversationMenu
+	rts
+
 // Conversation menu for an NPC. Expects X = npc index
 conversationMenu:
+	// mark we're in a conversation so render() won't show the map
+	lda #1
+	sta uiInConversation
 	jsr clearScreen
 	// Print NPC name as header
 	lda npcNameLo,x
@@ -3499,7 +4177,9 @@ conv_loop:
 	jsr setCursorPrompt
 	jsr readLine
 	lda inputBuf
-	beq conv_exit_short
+	// Ignore empty RETURN here to avoid stray buffered RETURNs exiting
+	// the conversation immediately; re-prompt instead.
+	beq @conv_jump
 	sec
 	sbc #'0'
 	tay
@@ -3516,10 +4196,13 @@ conv_loop:
 	beq conv_choice3
 	cmp #4
 	beq conv_choice4
-	jmp conv_loop
+		jmp conv_loop
 
-conv_exit_short:
-	jmp conversationMenu_exit
+	@conv_jump:
+		jmp conv_loop
+
+	conv_exit_short:
+		jmp conversationMenu_exit
 
 conv_choice0:
 	jmp @conv_do_speak
@@ -3540,12 +4223,1119 @@ conv_choice5:
 	jmp conversationMenu_exit
 
 @conv_do_speak:
+	// Indirect dispatch table by NPC index (X)
+	lda convSpeakHandlerLo,x
+	sta ZP_PTR
+	lda convSpeakHandlerHi,x
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@conv_speak_default:
 	lda npcTalkLo,x
 	sta lastMsgLo
 	lda npcTalkHi,x
 	sta lastMsgHi
 	jsr render
+	// Check per-choice effect (choice0)
+	lda convChoiceType_choice0,x
+	beq @conv_speak_noeff
+	lda convChoiceVal_choice0,x
+	sta tmpPer+1
+	lda convChoiceType_choice0,x
+	jsr conv_apply_effect
+@conv_speak_noeff:
 	jmp conv_loop
+
+@conv_pirate:
+	jsr pirateConversation
+	jmp conv_loop
+
+@conv_bartender:
+	jsr bartenderConversation
+	jmp conv_loop
+
+@conv_knight:
+	jsr knightConversation
+	jmp conv_loop
+
+@conv_fairy:
+	jsr fairyConversation
+	jmp conv_loop
+
+@conv_pixie:
+	jsr pixieConversation
+	jmp conv_loop
+
+@conv_spider:
+	jsr spiderConversation
+	jmp conv_loop
+
+@conv_unseely:
+	jsr unseelyConversation
+	jmp conv_loop
+
+// Unseely Fae conversation
+unseelyConversation:
+	jsr clearScreen
+	lda #<msgUnseelyMenuHeader
+	sta ZP_PTR
+	lda #>msgUnseelyMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgUnseelyOpt0
+	sta ZP_PTR
+	lda #>msgUnseelyOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgUnseelyOpt1
+	sta ZP_PTR
+	lda #>msgUnseelyOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgUnseelyOpt2
+	sta ZP_PTR
+	lda #>msgUnseelyOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgUnseelyOpt3
+	sta ZP_PTR
+	lda #>msgUnseelyOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @u_noinput
+	sec
+	sbc #'0'
+	tay
+	lda unseelyJumpLo,y
+	sta ZP_PTR
+	lda unseelyJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@u_noinput:
+	jmp unseelyConversation
+
+@u_ask:
+	lda #<msgUnseelyAsk
+	sta lastMsgLo
+	lda #>msgUnseelyAsk
+	sta lastMsgHi
+	jsr render
+	jmp unseelyConversation
+
+@u_request:
+	// start quest if not already started
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @u_noquest
+	lda npcOffersQuest,x
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #<msgUnseelyRequest
+	sta lastMsgLo
+	lda #>msgUnseelyRequest
+	sta lastMsgHi
+	jsr render
+	jmp unseelyConversation
+
+@u_noquest:
+	lda #<msgUnseelyOfferAlready
+	sta lastMsgLo
+	lda #>msgUnseelyOfferAlready
+	sta lastMsgHi
+	jsr render
+	jmp unseelyConversation
+
+@u_leave:
+	rts
+
+@u_offer:
+	// Offer the stolen name: check player inventory and active quest
+	lda objLoc+OBJ_STOLEN_NAME
+	cmp #OBJ_INVENTORY
+	bne @u_noname
+	lda activeQuest
+	cmp #QUEST_UNSEELY_NAME
+	bne @u_noquest
+	// take the stolen name
+	lda #OBJ_STOLEN_NAME
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect
+	// complete the quest
+	lda #QUEST_UNSEELY_NAME
+	sta tmpPer+1
+	lda #2
+	jsr conv_apply_effect
+	lda #<msgUnseelyThanks
+	sta lastMsgLo
+	lda #>msgUnseelyThanks
+	sta lastMsgHi
+	jsr render
+	jmp unseelyConversation
+
+@u_noname:
+	lda #<msgUnseelyNoName
+	sta lastMsgLo
+	lda #>msgUnseelyNoName
+	sta lastMsgHi
+	jsr render
+	jmp unseelyConversation
+
+unseelyJumpLo:
+	.byte <@u_ask,<@u_request,<@u_offer,<@u_leave
+unseelyJumpHi:
+	.byte >@u_ask,>@u_request,>@u_offer,>@u_leave
+
+// Spider Princess conversation. Expects X = npc index.
+spiderConversation:
+	jsr clearScreen
+	// Header
+	lda #<msgSpiderMenuHeader
+	sta ZP_PTR
+	lda #>msgSpiderMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Options
+	lda #<msgSpiderOpt0
+	sta ZP_PTR
+	lda #>msgSpiderOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgSpiderOpt1
+	sta ZP_PTR
+	lda #>msgSpiderOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgSpiderOpt2
+	sta ZP_PTR
+	lda #>msgSpiderOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgSpiderOpt3
+	sta ZP_PTR
+	lda #>msgSpiderOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @s_noinput
+	sec
+	sbc #'0'
+	tay
+	// indirect jump table
+	lda spiderJumpLo,y
+	sta ZP_PTR
+	lda spiderJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@s_noinput:
+	jmp spiderConversation
+
+@s_flirt:
+	lda #<msgSpiderFlirt
+	sta lastMsgLo
+	lda #>msgSpiderFlirt
+	sta lastMsgHi
+	jsr render
+	jmp spiderConversation
+
+@s_whisper:
+	// set conversation stage progressed
+	lda #1
+	sta npcConvStage,x
+	lda #<msgSpiderWhisper
+	sta lastMsgLo
+	lda #>msgSpiderWhisper
+	sta lastMsgHi
+	jsr render
+	jmp spiderConversation
+
+@s_offer:
+	// start spider's lure quest if not active
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @s_noquest
+	lda npcOffersQuest,x
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #1
+	sta npcConvStage,x
+	// custom spider message
+	lda #<msgSpiderOfferStart
+	sta lastMsgLo
+	lda #>msgSpiderOfferStart
+	sta lastMsgHi
+	jsr render
+	jmp spiderConversation
+
+@s_noquest:
+	lda #<msgSpiderOfferAlready
+	sta lastMsgLo
+	lda #>msgSpiderOfferAlready
+	sta lastMsgHi
+	jsr render
+	jmp spiderConversation
+
+@s_leave:
+	rts
+
+spiderJumpLo:
+	.byte <@s_flirt,<@s_whisper,<@s_offer,<@s_leave
+spiderJumpHi:
+	.byte >@s_flirt,>@s_whisper,>@s_offer,>@s_leave
+
+@conv_conductor:
+	jsr conductorConversation
+	jmp conv_loop
+
+// Conversation handler table indexed by NPC index (X)
+convSpeakHandlerLo:
+	.byte <@conv_conductor, <@conv_bartender, <@conv_knight, <@conv_speak_default, <@conv_fairy, <@conv_pixie, <@conv_spider, <@conv_pirate, <@conv_pirate, <@conv_unseely
+convSpeakHandlerHi:
+	.byte >@conv_conductor, >@conv_bartender, >@conv_knight, >@conv_speak_default, >@conv_fairy, >@conv_pixie, >@conv_spider, >@conv_pirate, >@conv_pirate, >@conv_unseely
+
+// Pirate-specific conversation tree. Expects X = npc index.
+pirateConversation:
+	jsr clearScreen
+	// Print header
+	lda #<msgPirateMenuHeader
+	sta ZP_PTR
+	lda #>msgPirateMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Show options
+	lda #<msgPirateOpt0
+	sta ZP_PTR
+	lda #>msgPirateOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt1
+	sta ZP_PTR
+	lda #>msgPirateOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt2
+	sta ZP_PTR
+	lda #>msgPirateOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt3
+	sta ZP_PTR
+	lda #>msgPirateOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt4
+	sta ZP_PTR
+	lda #>msgPirateOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @pc_noinput
+	sec
+	sbc #'0'
+	tay
+	// indirect jump via table to avoid short-branch distance limits
+	lda pirateJumpLo,y
+	sta ZP_PTR
+	lda pirateJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@pc_noinput:
+	jmp pirateConversation
+
+	// Jump table: low/high word pairs for pirate choices
+	pirateJumpLo:
+		.byte <@pc_tale, <@pc_treasure, <@pc_join, <@pc_leave, <@pc_offer
+	pirateJumpHi:
+		.byte >@pc_tale, >@pc_treasure, >@pc_join, >@pc_leave, >@pc_offer
+
+@pc_tale:
+	// Different lines for captain vs first mate
+	cpx #NPC_PIRATE_CAPTAIN
+	beq @pc_tale_capt
+	// First mate
+	lda #<msgPirateTaleMate
+	sta lastMsgLo
+	lda #>msgPirateTaleMate
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_tale_capt:
+	lda #<msgPirateTaleCapt
+	sta lastMsgLo
+	lda #>msgPirateTaleCapt
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_treasure:
+	// Start the TREASURE HUNT quest if not already active
+	lda activeQuest
+	cmp #QUEST_TREASURE
+	beq @pc_treasure_already
+	lda #QUEST_TREASURE
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #<msgPirateTreasureStart
+	sta lastMsgLo
+	lda #>msgPirateTreasureStart
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_treasure_already:
+	lda #<msgPirateTreasureAlready
+	sta lastMsgLo
+	lda #>msgPirateTreasureAlready
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_join:
+	// set npc stage via conv_apply_effect (effect 6), pass npc index
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #<msgPirateJoin
+	sta lastMsgLo
+	lda #>msgPirateJoin
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_offer:
+	// Offer treasure: check player's inventory for OBJ_TREASURE
+	lda objLoc+OBJ_TREASURE
+	cmp #OBJ_INVENTORY
+	beq @pc_offer_have
+	// No treasure to offer
+	lda #<msgPirateNoTreasure
+	sta lastMsgLo
+	lda #>msgPirateNoTreasure
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_offer_have:
+	// If the treasure quest is active, take the treasure and complete quest
+	lda activeQuest
+	cmp #QUEST_TREASURE
+	beq @pc_offer_complete
+	// Player has treasure but no relevant quest
+	lda #<msgPirateNoQuest
+	sta lastMsgLo
+	lda #>msgPirateNoQuest
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_offer_complete:
+	lda #OBJ_TREASURE
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect	// takeItem
+	lda #QUEST_TREASURE
+	sta tmpPer+1
+	lda #2
+	jsr conv_apply_effect	// completeQuest
+	lda #<msgPirateOfferYes
+	sta lastMsgLo
+	lda #>msgPirateOfferYes
+	sta lastMsgHi
+	jsr render
+	jmp pirateConversation
+
+@pc_leave:
+	rts
+
+// Bartender-specific conversation tree. Expects X = npc index.
+bartenderConversation:
+	jsr clearScreen
+	// Header
+	lda #<msgBartenderMenuHeader
+	sta ZP_PTR
+	lda #>msgBartenderMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Options
+	lda #<msgBartenderOpt0
+	sta ZP_PTR
+	lda #>msgBartenderOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBartenderOpt1
+	sta ZP_PTR
+	lda #>msgBartenderOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBartenderOpt2
+	sta ZP_PTR
+	lda #>msgBartenderOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBartenderOpt3
+	sta ZP_PTR
+	lda #>msgBartenderOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBartenderOpt4
+	sta ZP_PTR
+	lda #>msgBartenderOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @b_noinput
+	sec
+	sbc #'0'
+	tay
+	// indirect jump table to avoid branch distance issues
+	lda bartenderJumpLo,y
+	sta ZP_PTR
+	lda bartenderJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@b_noinput:
+	jmp bartenderConversation
+
+	bartenderJumpLo:
+		.byte <@b_job, <@b_buy, <@b_tip, <@b_quest, <@b_leave
+	bartenderJumpHi:
+		.byte >@b_job, >@b_buy, >@b_tip, >@b_quest, >@b_leave
+
+@b_job:
+	lda #<msgBartenderJob
+	sta lastMsgLo
+	lda #>msgBartenderJob
+	sta lastMsgHi
+	jsr render
+	jmp bartenderConversation
+
+@b_buy:
+	// If player has a coin, take coin and give mug
+	lda objLoc+OBJ_COIN
+	cmp #OBJ_INVENTORY
+	bne @b_nocoin
+	// take coin
+	lda #OBJ_COIN
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect
+	// give mug
+	lda #OBJ_MUG
+	sta tmpPer+1
+	lda #3
+	jsr conv_apply_effect
+	lda #<msgBartenderBought
+	sta lastMsgLo
+	lda #>msgBartenderBought
+	sta lastMsgHi
+	jsr render
+	jmp bartenderConversation
+
+@b_nocoin:
+	lda #<msgBartenderNoCoin
+	sta lastMsgLo
+	lda #>msgBartenderNoCoin
+	sta lastMsgHi
+	jsr render
+	jmp bartenderConversation
+
+@b_tip:
+	// Tip: if player has a coin, take it and add score +1
+	lda objLoc+OBJ_COIN
+	cmp #OBJ_INVENTORY
+	bne @b_notipcoin
+	// take coin
+	lda #OBJ_COIN
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect
+	// add score +1
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgBartenderTipThanks
+	sta lastMsgLo
+	lda #>msgBartenderTipThanks
+	sta lastMsgHi
+	jsr render
+	jmp bartenderConversation
+
+@b_notipcoin:
+	lda #<msgBartenderNoCoin
+	sta lastMsgLo
+	lda #>msgBartenderNoCoin
+	sta lastMsgHi
+	jsr render
+	jmp bartenderConversation
+
+@b_leave:
+	rts
+
+@b_quest:
+	// Offer/check quest for this NPC
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @b_noquest
+	lda npcOffersQuest,x
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	// mark this NPC's conversation stage as progressed
+	lda #1
+	sta npcConvStage,x
+	lda #<msgQuestOfferGeneric
+	sta lastMsgLo
+	lda #>msgQuestOfferGeneric
+	sta lastMsgHi
+	jsr render
+	jsr waitAnyKey
+	jmp bartenderConversation
+
+@b_noquest:
+	lda #<msgNoQuestNpc
+	sta lastMsgLo
+	lda #>msgNoQuestNpc
+	sta lastMsgHi
+	jsr render
+	jsr waitAnyKey
+	jmp bartenderConversation
+
+// Conductor-specific conversation tree. Expects X = npc index.
+conductorConversation:
+	jsr clearScreen
+	// Header
+	lda #<msgConductorMenuHeader
+	sta ZP_PTR
+	lda #>msgConductorMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Options
+	lda #<msgConductorOpt0
+	sta ZP_PTR
+	lda #>msgConductorOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgConductorOpt1
+	sta ZP_PTR
+	lda #>msgConductorOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgConductorOpt2
+	sta ZP_PTR
+	lda #>msgConductorOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgConductorOpt3
+	sta ZP_PTR
+	lda #>msgConductorOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @c_noinput
+	sec
+	sbc #'0'
+	tay
+	// indirect jump table to avoid branch-distance issues
+	lda conductorJumpLo,y
+	sta ZP_PTR
+	lda conductorJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@c_noinput:
+	jmp conductorConversation
+
+	conductorJumpLo:
+		.byte <@c_about, <@c_tune, <@c_join, <@c_quest, <@c_leave
+	conductorJumpHi:
+		.byte >@c_about, >@c_tune, >@c_join, >@c_quest, >@c_leave
+
+@c_about:
+	lda #<msgConductorAbout
+	sta lastMsgLo
+	lda #>msgConductorAbout
+	sta lastMsgHi
+	jsr render
+	jmp conductorConversation
+
+@c_tune:
+	// Play a short tune: reward player with +2 score
+	lda #2
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgConductorTune
+	sta lastMsgLo
+	lda #>msgConductorTune
+	sta lastMsgHi
+	jsr render
+	jmp conductorConversation
+
+@c_join:
+	// Player may join conductor's ensemble (set npc stage)
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #<msgConductorJoin
+	sta lastMsgLo
+	lda #>msgConductorJoin
+	sta lastMsgHi
+	jsr render
+	jmp conductorConversation
+
+@c_quest:
+	// Offer/check quest for this NPC
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	bne @c_quest_have
+	// Fallback: Conductor should offer coin quest even if table is unset
+	txa
+	cmp #NPC_CONDUCTOR
+	bne @c_noquest
+	lda #QUEST_COIN_BARTENDER
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #1
+	sta npcConvStage,x
+	jmp @c_maybe_coin
+@c_quest_have:
+	lda npcOffersQuest,x
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #1
+	sta npcConvStage,x
+@c_maybe_coin:
+	// If this is the Conductor and the active quest is coin->bartender, give a starter coin
+	txa
+	cmp #NPC_CONDUCTOR
+	bne @c_nooffermsg
+	lda activeQuest
+	cmp #QUEST_COIN_BARTENDER
+	bne @c_nooffermsg
+	lda #OBJ_COIN
+	sta tmpPer+1
+	lda #3
+	jsr conv_apply_effect
+	// Debug print coin location/state if enabled
+	jsr debug_print_coin_info
+	// Show explicit confirmation that the player received a coin
+	lda #<msgCoinRec
+	sta lastMsgLo
+	lda #>msgCoinRec
+	sta lastMsgHi
+	jsr render
+	jsr waitAnyKey
+	// fall through to show the quest offer message (override msg from give)
+
+@c_nooffermsg:
+	lda #<msgQuestOfferGeneric
+	sta lastMsgLo
+	lda #>msgQuestOfferGeneric
+	sta lastMsgHi
+	jsr render
+	jsr waitAnyKey
+	jmp conductorConversation
+
+@c_noquest:
+	lda #<msgNoQuestNpc
+	sta lastMsgLo
+	lda #>msgNoQuestNpc
+	sta lastMsgHi
+	jsr render
+	jmp conductorConversation
+
+@c_leave:
+	rts
+
+// Knight-specific conversation tree. Expects X = npc index.
+knightConversation:
+	jsr clearScreen
+	lda #<msgKnightMenuHeader
+	sta ZP_PTR
+	lda #>msgKnightMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt0
+	sta ZP_PTR
+	lda #>msgKnightOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt1
+	sta ZP_PTR
+	lda #>msgKnightOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt2
+	sta ZP_PTR
+	lda #>msgKnightOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt3
+	sta ZP_PTR
+	lda #>msgKnightOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @k_noinput
+	sec
+	sbc #'0'
+	tay
+	tya
+	// indirect jump table
+	lda knightJumpLo,y
+	sta ZP_PTR
+	lda knightJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@k_noinput:
+	jmp knightConversation
+
+@k_about:
+	lda #<msgKnightAbout
+	sta lastMsgLo
+	lda #>msgKnightAbout
+	sta lastMsgHi
+	jsr render
+	jmp knightConversation
+
+@k_offer:
+	// Offer: if player has key and active quest is QUEST_KEY_KNIGHT, take key and complete quest
+	lda objLoc+OBJ_KEY
+	cmp #OBJ_INVENTORY
+	bne @k_nokey
+	lda activeQuest
+	cmp #QUEST_KEY_KNIGHT
+	bne @k_noquest
+	// take key
+	lda #OBJ_KEY
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect
+	// complete quest
+	lda #QUEST_KEY_KNIGHT
+	sta tmpPer+1
+	lda #2
+	jsr conv_apply_effect
+	lda #<msgKnightThanks
+	sta lastMsgLo
+	lda #>msgKnightThanks
+	sta lastMsgHi
+	jsr render
+	jmp knightConversation
+
+@k_nokey:
+	lda #<msgKnightNoKey
+	sta lastMsgLo
+	lda #>msgKnightNoKey
+	sta lastMsgHi
+	jsr render
+	jmp knightConversation
+
+@k_noquest:
+	lda #<msgKnightNoQuest
+	sta lastMsgLo
+	lda #>msgKnightNoQuest
+	sta lastMsgHi
+	jsr render
+	jmp knightConversation
+
+@k_leave:
+	rts
+
+@k_join:
+	// Start the Order of the Black Rose quest if available
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @k_noquest
+	lda npcOffersQuest,x
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #<msgKnightThanks
+	sta lastMsgLo
+	lda #>msgKnightThanks
+	sta lastMsgHi
+	jsr render
+	jmp knightConversation
+
+knightJumpLo:
+	.byte <@k_about,<@k_offer,<@k_join,<@k_leave
+knightJumpHi:
+	.byte >@k_about,>@k_offer,>@k_join,>@k_leave
+
+// Fairy-specific conversation tree. Expects X = npc index.
+fairyConversation:
+	jsr clearScreen
+	lda #<msgFairyMenuHeader
+	sta ZP_PTR
+	lda #>msgFairyMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgFairyOpt0
+	sta ZP_PTR
+	lda #>msgFairyOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgFairyOpt1
+	sta ZP_PTR
+	lda #>msgFairyOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgFairyOpt2
+	sta ZP_PTR
+	lda #>msgFairyOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgFairyOpt3
+	sta ZP_PTR
+	lda #>msgFairyOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @f_noinput
+	sec
+	sbc #'0'
+	tay
+	tya
+	lda fairyJumpLo,y
+	sta ZP_PTR
+	lda fairyJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@f_noinput:
+	jmp fairyConversation
+
+@f_bless:
+	// add score +1
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgFairyBless
+	sta lastMsgLo
+	lda #>msgFairyBless
+	sta lastMsgHi
+	jsr render
+	jmp fairyConversation
+
+@f_coin:
+	// give a coin
+	lda #OBJ_COIN
+	sta tmpPer+1
+	lda #3
+	jsr conv_apply_effect
+	lda #<msgFairyGive
+	sta lastMsgLo
+	lda #>msgFairyGive
+	sta lastMsgHi
+	jsr render
+	jmp fairyConversation
+
+@f_trade:
+	// Trade: if player has a coin, take coin and give stolen name
+	lda objLoc+OBJ_COIN
+	cmp #OBJ_INVENTORY
+	bne @f_nocoin
+	// take coin
+	lda #OBJ_COIN
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect
+	// give stolen name
+	lda #OBJ_STOLEN_NAME
+	sta tmpPer+1
+	lda #3
+	jsr conv_apply_effect
+	lda #<msgFairyTradeSuccess
+	sta lastMsgLo
+	lda #>msgFairyTradeSuccess
+	sta lastMsgHi
+	jsr render
+	jmp fairyConversation
+
+@f_nocoin:
+	lda #<msgBartenderNoCoin
+	sta lastMsgLo
+	lda #>msgBartenderNoCoin
+	sta lastMsgHi
+	jsr render
+	jmp fairyConversation
+
+@f_leave:
+	rts
+
+fairyJumpLo:
+	.byte <@f_bless,<@f_coin,<@f_trade,<@f_leave
+fairyJumpHi:
+	.byte >@f_bless,>@f_coin,>@f_trade,>@f_leave
+
+// Pixie-specific conversation tree. Expects X = npc index.
+pixieConversation:
+	jsr clearScreen
+	lda #<msgPixieMenuHeader
+	sta ZP_PTR
+	lda #>msgPixieMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPixieOpt0
+	sta ZP_PTR
+	lda #>msgPixieOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPixieOpt1
+	sta ZP_PTR
+	lda #>msgPixieOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPixieOpt2
+	sta ZP_PTR
+	lda #>msgPixieOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @p_noinput
+	sec
+	sbc #'0'
+	tay
+	tya
+	lda pixieJumpLo,y
+	sta ZP_PTR
+	lda pixieJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@p_noinput:
+	jmp pixieConversation
+
+@p_trick:
+	// If the player has a lantern, pixie steals it (takeItem)
+	lda objLoc+OBJ_LANTERN
+	cmp #OBJ_INVENTORY
+	bne @p_notlan
+	lda #OBJ_LANTERN
+	sta tmpPer+1
+	lda #4
+	jsr conv_apply_effect
+	lda #<msgPixieStole
+	sta lastMsgLo
+	lda #>msgPixieStole
+	sta lastMsgHi
+	jsr render
+	jmp pixieConversation
+
+@p_notlan:
+	lda #<msgPixieNoLan
+	sta lastMsgLo
+	lda #>msgPixieNoLan
+	sta lastMsgHi
+	jsr render
+	jmp pixieConversation
+
+@p_play:
+	// Pixie's play: add score +1 and advance pixie stage
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #<msgPixiePlay
+	sta lastMsgLo
+	lda #>msgPixiePlay
+	sta lastMsgHi
+	jsr render
+	jmp pixieConversation
+
+@p_leave:
+	rts
+
+pixieJumpLo:
+	.byte <@p_trick,<@p_play,<@p_leave
+pixieJumpHi:
+	.byte >@p_trick,>@p_play,>@p_leave
 
 @conv_do_weather:
 	lda #<msgAskWeather
@@ -3553,6 +5343,14 @@ conv_choice5:
 	lda #>msgAskWeather
 	sta lastMsgHi
 	jsr render
+	// Check per-choice effect (choice1)
+	lda convChoiceType_choice1,x
+	beq @conv_weather_noeff
+	lda convChoiceVal_choice1,x
+	sta tmpPer+1
+	lda convChoiceType_choice1,x
+	jsr conv_apply_effect
+@conv_weather_noeff:
 	jmp conv_loop
 
 @conv_do_temp:
@@ -3561,21 +5359,45 @@ conv_choice5:
 	lda #>msgTempResponse
 	sta lastMsgHi
 	jsr render
+	// Check per-choice effect (choice2)
+	lda convChoiceType_choice2,x
+	beq @conv_temp_noeff
+	lda convChoiceVal_choice2,x
+	sta tmpPer+1
+	lda convChoiceType_choice2,x
+	jsr conv_apply_effect
+@conv_temp_noeff:
 	jmp conv_loop
 
 @conv_do_quest:
 	lda npcOffersQuest,x
 	cmp #QUEST_NONE
 	beq @conv_noquest
-	// set quest active and status
-	sta activeQuest
+	// start quest via conv_apply_effect: A=1 (startQuest), tmpPer+1=quest id
+	sta tmpPer+1
 	lda #1
-	sta questStatus
+	jsr conv_apply_effect
+	// mark this NPC's conversation stage as progressed
+	lda #1
+	sta npcConvStage,x
+	// Spider Princess has a custom offer message
+	cpx #NPC_SPIDER_PRINCESS
+	beq @cq_spider
 	lda #<msgQuestOfferGeneric
 	sta lastMsgLo
 	lda #>msgQuestOfferGeneric
 	sta lastMsgHi
+	jmp @cq_render
+
+@cq_spider:
+	lda #<msgSpiderQuestOffer
+	sta lastMsgLo
+	lda #>msgSpiderQuestOffer
+	sta lastMsgHi
+
+@cq_render:
 	jsr render
+	jsr waitAnyKey
 	jmp conv_loop
 
 @conv_noquest:
@@ -3584,6 +5406,7 @@ conv_choice5:
 	lda #>msgNoQuestNpc
 	sta lastMsgHi
 	jsr render
+	jsr waitAnyKey
 	jmp conv_loop
 
 @conv_do_qinfo:
@@ -3596,6 +5419,14 @@ conv_choice5:
 	lda questDetailHi,x
 	sta lastMsgHi
 	jsr render
+	// Check per-choice effect (choice4)
+	lda convChoiceType_choice4,x
+	beq @conv_qinfo_noeff
+	lda convChoiceVal_choice4,x
+	sta tmpPer+1
+	lda convChoiceType_choice4,x
+	jsr conv_apply_effect
+@conv_qinfo_noeff:
 	jmp conv_loop
 
 @conv_noactive:
@@ -3607,6 +5438,9 @@ conv_choice5:
 	jmp conv_loop
 
 conversationMenu_exit:
+	// clear conversation flag and return
+	lda #0
+	sta uiInConversation
 	rts
 
 cmdInspect:
@@ -3927,8 +5761,15 @@ cmdGive:
 	sta ZP_PTR2+1 // temp npcId
 	tax
 	ldy currentLoc
-	lda npcMaskByLoc,y
-	and npcBit,x
+	lda npcMaskByLocLo,y
+	sta ZP_PTR2
+	lda npcMaskByLocHi,y
+	sta npcMaskHiTemp
+	lda ZP_PTR2
+	and npcBitLo,x
+	bne @give_npcHere
+	lda npcMaskHiTemp
+	and npcBitHi,x
 	bne @give_npcHere
 	jmp @npcNotHere
 
@@ -3950,8 +5791,9 @@ cmdGive:
 
 @noTarget:
 	// If no explicit target, require someone here
-	ldx currentLoc
-	lda npcMaskByLoc,x
+	ldy currentLoc
+	lda npcMaskByLocLo,y
+	ora npcMaskByLocHi,y
 	bne @give_nt_someone
 	jmp @noone
 
@@ -4019,12 +5861,24 @@ questCheckGive:
 	sec
 	rts
 @q2:
-	// QUEST_LANTERN_WITCH
+	// QUEST_LANTERN_MYSTIC
 	lda ZP_PTR2
 	cmp #OBJ_LANTERN
 	bne @qcg_no
 	lda ZP_PTR2+1
-	cmp #NPC_WITCH
+	cmp #NPC_MYSTIC
+	bne @qcg_no
+	jsr questComplete
+	sec
+	rts
+
+@q3:
+	// QUEST_LURE_MYSTIC: player gives TREASURE to SPIDER PRINCESS
+	lda ZP_PTR2
+	cmp #OBJ_TREASURE
+	bne @qcg_no
+	lda ZP_PTR2+1
+	cmp #NPC_SPIDER_PRINCESS
 	bne @qcg_no
 	jsr questComplete
 	sec
@@ -4072,7 +5926,17 @@ cmdMusicToggle:
 	eor #$01
 	sta musicEnabled
 	beq @mto_off
+	// If enabling music at runtime, ensure IRQ + SID are initialized
+	lda musicInstalled
+	beq @mto_init
 	jsr musicPickForLocation
+	jmp @mto_done
+
+@mto_init:
+	jsr musicInit
+	jsr musicPickForLocation
+
+@mto_done:
 	lda #<msgMusicOn
 	sta lastMsgLo
 	lda #>msgMusicOn
@@ -4258,15 +6122,15 @@ buildCharactersMessage:
 	jsr appendToMsgBuf
 
 	ldx currentLoc
-	lda npcMaskByLoc,x
-	beq @bcm_none
+	lda npcMaskByLocLo,x
 	sta ZP_PTR2 // reuse low byte as mask temp
-
+	lda npcMaskByLocHi,x
+	sta npcMaskHiTemp
 	ldx #0
 @npcLoop:
 	lda ZP_PTR2
-	and npcBit,x
-	beq @next
+	and npcBitLo,x
+	beq @bcm_check_hi
 	lda npcNameLo,x
 	sta ZP_PTR
 	lda npcNameHi,x
@@ -4277,7 +6141,24 @@ buildCharactersMessage:
 	lda #>strSpace
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
-@next:
+	jmp @bcm_next
+
+@bcm_check_hi:
+	lda npcMaskHiTemp
+	and npcBitHi,x
+	beq @bcm_next
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+
+@bcm_next:
 	inx
 	cpx #NPC_COUNT
 	bne @npcLoop
@@ -4386,7 +6267,7 @@ map1:  .text "         .-'      TRN      '-.         "
 	.byte 0
 map2:  .text "       .'   NW  /  |  \\  NE   '.       "
 	.byte 0
-map3:  .text "      /  GOY  /   |   \\  MKT    \\     "
+map3:  .text "      /  DGH  /   |   \\  MKT    \\     "
 	.byte 0
 map4:  .text "     ;       /   TMP    \\       ;     "
 	.byte 0
@@ -4415,7 +6296,7 @@ strDivider: .text "----------------------------------------"
 
 // Player marker coordinates (col 0-39, row 0-24)
 locMarkX:
-	// LOC order: TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// LOC order: TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	// Extra (non-map) locations reuse nearby marker positions.
 	.byte 19, 27,  9, 10, 18, 28, 11, 28, 18, 13, 10, 22, 18
 locMarkY:
@@ -4428,13 +6309,13 @@ locName1: .text "MARKET GREEN"
 	.byte 0
 locName2: .text "KNIGHT'S GATE"
 	.byte 0
-locName3: .text "GOLEM YARD"
+locName3: .text "DRAGON HAVEN"
 	.byte 0
 locName4: .text "CENTRAL PLAZA"
 	.byte 0
 locName5: .text "CLOCKWORK ALLEY"
 	.byte 0
-locName6: .text "WITCHWOOD"
+locName6: .text "MYSTICWOOD"
 	.byte 0
 locName7: .text "FAIRY GARDENS"
 	.byte 0
@@ -4466,9 +6347,9 @@ locDesc2: .text "IRON BANNERS AND WOODEN PALISADES."
 	.byte $0D
 	.text "A RUSTED KEY RESTS BY A POST."
 	.byte 0
-locDesc3: .text "STONE FIGURES WATCH SILENTLY."
+locDesc3: .text "LOUDEN'S REST"
 	.byte $0D
-	.text "FOOTSTEPS ECHO IN A RING."
+	.text "A MAUSOLEUM LOOMS IN THE FOG. A CROOKED GRAVEYARD WITH HEADSTONES."
 	.byte 0
 locDesc4: .text "THE HEART OF THE PARK."
 	.byte $0D
@@ -4490,9 +6371,9 @@ locDesc8: .text "LAUGHTER, MUSIC, AND FOAMING MUGS."
 	.byte $0D
 	.text "A MUG SITS UNCLAIMED."
 	.byte 0
-locDesc9:  .text "CROOKED STONES AND TATTERED RIBBONS."
+locDesc9:  .text "MEETING PLACE FOR THE ORDER OF THE EMERALD SKY"
 	.byte $0D
-	.text "A MAUSOLEUM LOOMS IN THE FOG."
+	.text "DRAGON TRAINERS GATHER HERE."
 	.byte 0
 locDesc10: .text "COLD STEPS DESCEND BENEATH THE TOMB."
 	.byte $0D
@@ -4514,24 +6395,25 @@ locDescHi:
 
 // Exits by cardinal direction ($FF = none)
 exitN:
-	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, WITCH, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	.byte $FF,  $FF,  LOC_GOLEM, $FF,  LOC_TRAIN, LOC_MARKET, LOC_GATE, LOC_TEMPLE, LOC_ALLEY, $FF,  LOC_GRAVE, $FF,  LOC_PLAZA
 exitE:
-	.byte LOC_MARKET, $FF,       LOC_PLAZA, LOC_TRAIN, LOC_ALLEY, $FF,       LOC_GROVE, LOC_TAVERN, LOC_INN, LOC_WITCH, $FF, $FF, LOC_GOLEM
+	.byte LOC_MARKET, $FF,       LOC_PLAZA, LOC_TRAIN, LOC_ALLEY, $FF,       LOC_GROVE, LOC_TAVERN, LOC_INN, LOC_MYSTIC, $FF, $FF, LOC_GOLEM
 exitS:
-	.byte LOC_PLAZA, LOC_ALLEY,  LOC_WITCH, LOC_GATE,  LOC_TEMPLE, LOC_TAVERN, $FF, $FF, $FF, LOC_CATACOMBS, $FF, $FF, LOC_GROVE
+	.byte LOC_PLAZA, LOC_ALLEY,  LOC_MYSTIC, LOC_GATE,  LOC_TEMPLE, LOC_TAVERN, $FF, $FF, $FF, LOC_CATACOMBS, $FF, $FF, LOC_GROVE
 exitW:
-	.byte LOC_GOLEM, LOC_TRAIN,  $FF,       LOC_TEMPLE, LOC_GATE, LOC_PLAZA, LOC_GRAVE, LOC_WITCH, LOC_GROVE, $FF, $FF, LOC_TAVERN, $FF
+	.byte LOC_GOLEM, LOC_TRAIN,  $FF,       LOC_TEMPLE, LOC_GATE, LOC_PLAZA, LOC_GRAVE, LOC_MYSTIC, LOC_GROVE, $FF, $FF, LOC_TAVERN, $FF
 
 // NPC masks by location (bit 0..5)
-npcMaskByLoc:
+// NPC masks by location (two bytes per location: low, high)
+npcMaskByLocLo:
 	.byte %0001 // TRAIN: CONDUCTOR
 	.byte %0000 // MARKET
 	.byte %0100 // GATE: KNIGHT
 	.byte %0000 // GOLEM
-	.byte %0000 // PLAZA
-	.byte %0000 // ALLEY
-	.byte %1000 // WITCHWOOD: WITCH
+	.byte %01000000 // PLAZA: SPIDER PRINCESS
+	.byte %10000000 // ALLEY: PIRATE_CAPTAIN (bit7)
+	.byte %1000 // MYSTICWOOD: MYSTIC
 	.byte %00110000 // FAIRY GARDENS: FAIRY + PIXIE
 	.byte %0010 // TAVERN: BARTENDER
 	.byte %0000 // LOUDEN'S REST
@@ -4539,15 +6421,30 @@ npcMaskByLoc:
 	.byte %0000 // PIGGLYWEED INN
 	.byte %0000 // TEMPLE RUINS
 
+npcMaskByLocHi:
+	.byte %00000000 // TRAIN
+	.byte %00000000 // MARKET
+	.byte %00000000 // GATE
+	.byte %00000000 // GOLEM
+	.byte %00000000 // PLAZA
+	.byte %00000001 // ALLEY: PIRATE_FIRSTMATE (high bit0)
+	.byte %00000000 // MYSTICWOOD
+	.byte %00000000 // FAIRY GARDENS
+	.byte %00000000 // TAVERN
+	.byte %00000000 // LOUDEN'S REST
+	.byte %00000000 // CATACOMBS
+	.byte %00000000 // PIGGLYWEED INN
+	.byte %00000010 // TEMPLE (UNSEELY_FAE -> index9 -> high bit1)
+
 // Default NPC to address in a location when only one is present
 npcDefaultByLoc:
-	.byte NPC_CONDUCTOR, $FF, NPC_KNIGHT, $FF, $FF, $FF, NPC_WITCH, NPC_FAIRY, NPC_BARTENDER, $FF, $FF, $FF, $FF
+	.byte NPC_CONDUCTOR, $FF, NPC_KNIGHT, $FF, NPC_SPIDER_PRINCESS, NPC_PIRATE_CAPTAIN, NPC_MYSTIC, NPC_FAIRY, NPC_BARTENDER, $FF, $FF, $FF, NPC_UNSEELY_FAE
 
 // One-line talk per location (MVP)
 npcTalkLoByLoc:
-	.byte <talkConductor,<msgNoOne,<talkKnight,<msgNoOne,<msgNoOne,<msgNoOne,<talkWitch,<talkFairy,<talkBartender,<msgNoOne,<msgNoOne,<msgNoOne,<msgNoOne
+	.byte <talkConductor,<msgNoOne,<talkKnight,<msgNoOne,<msgNoOne,<talkPirateCaptain,<talkMystic,<talkFairy,<talkBartender,<msgNoOne,<msgNoOne,<msgNoOne,<msgNoOne
 npcTalkHiByLoc:
-	.byte >talkConductor,>msgNoOne,>talkKnight,>msgNoOne,>msgNoOne,>msgNoOne,>talkWitch,>talkFairy,>talkBartender,>msgNoOne,>msgNoOne,>msgNoOne,>msgNoOne
+	.byte >talkConductor,>msgNoOne,>talkKnight,>msgNoOne,>msgNoOne,>talkPirateCaptain,>talkMystic,>talkFairy,>talkBartender,>msgNoOne,>msgNoOne,>msgNoOne,>msgNoOne
 
 talkConductor: .text "THE CONDUCTOR SAYS: ALL ABOARD THE IMAGINATION EXPRESS!"
 	.byte 0
@@ -4555,21 +6452,32 @@ talkBartender: .text "THE BARTENDER SAYS: CAREFUL WHAT YOU PROMISE IN HERE."
 	.byte 0
 talkKnight:    .text "THE KNIGHT SAYS: HONOR OPENS MORE DOORS THAN KEYS."
 	.byte 0
-talkWitch:     .text "THE WITCH SAYS: WORDS HAVE POWER. CHOOSE THEM WELL."
+talkMystic:     .text "THE MYSTIC SAYS: WORDS HAVE POWER. CHOOSE THEM WELL."
 	.byte 0
 talkFairy:     .text "A FAIRY SAYS: LISTEN CLOSELY. THE GARDENS REMEMBER YOUR KINDNESS."
 	.byte 0
 talkPixie:     .text "A PIXIE CHIMES: TRADE A SECRET FOR A SPARKLE!"
 	.byte 0
+talkSpiderPrincess: .text "THE SPIDER PRINCESS SAYS: I CAME THROUGH A FRACTURED PORTAL; WHO AM I?"
+	.byte 0
+talkPirateCaptain: .text "THE PIRATE CAPTAIN GRINS: GOLD AND TALES MAKE A FINE COCKTAIL."
+	.byte 0
+talkPirateFirstMate: .text "FIRST MATE: WE SWEAR BY WIND AND WHEEL, STRANGER."
+	.byte 0
+
+talkUnseelyFae: .text "AN UNSEELY FAE WHISPERS: THE RUINS REMEMBER BLOOMS THAT NEVER WERE."
+	.byte 0
 
 npcTalkLo:
-	.byte <talkConductor,<talkBartender,<talkKnight,<talkWitch,<talkFairy,<talkPixie
+	.byte <talkConductor,<talkBartender,<talkKnight,<talkMystic,<talkFairy,<talkPixie,<talkSpiderPrincess,<talkPirateCaptain,<talkPirateFirstMate,<talkUnseelyFae
 npcTalkHi:
-	.byte >talkConductor,>talkBartender,>talkKnight,>talkWitch,>talkFairy,>talkPixie
+	.byte >talkConductor,>talkBartender,>talkKnight,>talkMystic,>talkFairy,>talkPixie,>talkSpiderPrincess,>talkPirateCaptain,>talkPirateFirstMate,>talkUnseelyFae
 
 // Which quest (if any) each NPC can offer
+// Which quest (if any) each NPC can offer
+// Which quest (if any) each NPC can offer
 npcOffersQuest:
-	.byte QUEST_NONE, QUEST_COIN_BARTENDER, QUEST_KEY_KNIGHT, QUEST_LANTERN_WITCH, QUEST_NONE, QUEST_NONE
+	.byte QUEST_COIN_BARTENDER, QUEST_NONE, QUEST_BLACK_ROSE, QUEST_LANTERN_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_LURE_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_UNSEELY_NAME
 
 // Conversation strings
 msgAskWeather: .text "THE SKY LOOKS LIKE IT'LL HOLD FOR NOW."
@@ -4578,10 +6486,205 @@ msgTempResponse: .text "YOU SENSE THE AIR: IT FEELS A LITTLE CHILLY."
 	.byte 0
 msgQuestOfferGeneric: .text "I MIGHT HAVE SOMETHING FOR YOU."
 	.byte 0
+msgSpiderQuestOffer: .text "SPIDER PRINCESS: I WANT A ROMANTIC DATE. BRING ME THE MYSTIC... SHE'LL BE BITTEN."
+	.byte 0
 msgNoQuestNpc: .text "I HAVE NOTHING FOR YOU, FRIEND."
 	.byte 0
 msgEndConversation: .text "YOU END THE CONVERSATION."
 	.byte 0
+msgPirateMenuHeader: .text "PIRATE TALK"
+	.byte 0
+msgPirateOpt0: .text "0. TELL A TALE"
+	.byte 0
+msgPirateOpt1: .text "1. ASK ABOUT TREASURE"
+	.byte 0
+msgPirateOpt2: .text "2. JOIN THE CREW"
+	.byte 0
+msgPirateOpt3: .text "3. LEAVE"
+	.byte 0
+msgPirateOpt4: .text "4. OFFER TREASURE"
+	.byte 0
+msgPirateTaleCapt: .text "CAPTAIN: A STORM, A RIDDLE, AND A CUP OF RUM."
+	.byte 0
+msgPirateTaleMate: .text "MATE: WE SING OF WIND AND WHEEL, BUT WE SHARE OUR GOLD."
+	.byte 0
+msgPirateTreasure: .text "THEY HAND YOU A SHINY COIN."
+	.byte 0
+msgPirateTreasureStart: .text "CAPTAIN: AH, A TREASURE HUNT! BRING ME THE TROVE." 
+	.byte 0
+msgPirateTreasureAlready: .text "CAPTAIN: YOU'RE ALREADY ON THE TREASURE HUNT."
+	.byte 0
+msgPirateNoTreasure: .text "YOU HAVE NO TREASURE TO OFFER."
+	.byte 0
+msgPirateNoQuest: .text "CAPTAIN: I HAVE NO NEED FOR THIS, NOT NOW."
+	.byte 0
+msgPirateOfferYes: .text "THE CREW CHEERS; YOUR DEED IS REWARDED."
+	.byte 0
+msgBartenderMenuHeader: .text "BARTENDER"
+	.byte 0
+msgBartenderOpt0: .text "0. ASK ABOUT JOB"
+	.byte 0
+msgBartenderOpt1: .text "1. BUY ALE (1 COIN)"
+	.byte 0
+msgBartenderOpt2: .text "2. GIVE TIP"
+	.byte 0
+msgBartenderOpt3: .text "3. ANY QUESTS?"
+	.byte 0
+msgBartenderOpt4: .text "4. LEAVE"
+	.byte 0
+msgBartenderNoCoin: .text "YOU HAVE NO COINS."
+	.byte 0
+msgBartenderBought: .text "YOU BUY A DRINK; THE BARTENDER SMILES."
+	.byte 0
+msgBartenderTipThanks: .text "THE BARTENDER NODS; YOUR GENEROSITY IS NOTED."
+	.byte 0
+msgBartenderJob: .text "BARTENDER: I KEEP THE TAP FLOWING AND EARS OPEN."
+	.byte 0
+msgConductorMenuHeader: .text "CONDUCTOR"
+	.byte 0
+msgConductorOpt0: .text "0. ASK ABOUT WORK"
+	.byte 0
+msgConductorOpt1: .text "1. HEAR A TUNE"
+	.byte 0
+msgConductorOpt2: .text "2. JOIN THE ENSEMBLE"
+	.byte 0
+msgConductorOpt3: .text "3. ANY QUESTS?"
+	.byte 0
+msgConductorOpt4: .text "4. LEAVE"
+	.byte 0
+msgConductorAbout: .text "CONDUCTOR: I KEEP THE CLOCKWORK IN RHYTHM."
+	.byte 0
+msgConductorTune: .text "A BRISK TUNE LIFTS YOUR SPIRITS."
+	.byte 0
+msgConductorJoin: .text "THE CONDUCTOR NODS; YOUR RHYTHM IS ACCEPTED."
+	.byte 0
+msgPirateJoin: .text "YOU SWORE AN OATH; THE CREW RESPECTS IT."
+	.byte 0
+msgKnightMenuHeader: .text "KNIGHT"
+	.byte 0
+msgKnightOpt0: .text "0. ASK ABOUT HONOR"
+	.byte 0
+msgKnightOpt1: .text "1. OFFER KEY"
+	.byte 0
+msgKnightOpt2: .text "2. JOIN THE ORDER"
+	.byte 0
+msgKnightOpt3: .text "3. LEAVE"
+	.byte 0
+msgKnightAbout: .text "KNIGHT: HONOR OPENS MORE DOORS THAN KEYS."
+	.byte 0
+msgKnightNoKey: .text "YOU DO NOT HAVE THE KEY."
+	.byte 0
+msgKnightNoQuest: .text "THE KNIGHT DOESN'T NEED THIS NOW."
+	.byte 0
+msgKnightThanks: .text "THE KNIGHT BLESSES YOU FOR YOUR SERVICE."
+	.byte 0
+
+msgFairyMenuHeader: .text "FAIRY"
+	.byte 0
+msgFairyOpt0: .text "0. RECEIVE BLESSING"
+	.byte 0
+msgFairyOpt1: .text "1. ASK FOR COIN"
+	.byte 0
+msgFairyOpt2: .text "2. TRADE FOR NAME (1 COIN)"
+	.byte 0
+msgFairyOpt3: .text "3. LEAVE"
+	.byte 0
+msgFairyBless: .text "A SOFT LIGHT FILLS YOU; YOU FEEL LUCKIER."
+	.byte 0
+msgFairyGive: .text "A FAIRY DROPS A COIN INTO YOUR HAND."
+	.byte 0
+msgFairyTradeSuccess: .text "THE FAIRY HANDS YOU A NAME, WRAPPED IN WIND."
+	.byte 0
+
+msgPixieMenuHeader: .text "PIXIE"
+	.byte 0
+msgPixieOpt0: .text "0. TRICK"
+	.byte 0
+msgPixieOpt1: .text "1. PLAY"
+	.byte 0
+msgPixieOpt2: .text "2. LEAVE"
+	.byte 0
+msgPixieStole: .text "THE PIXIE SWIPES A LANTERN!"
+	.byte 0
+msgPixieNoLan: .text "THE PIXIE LOOKS DISAPPOINTED."
+	.byte 0
+msgPixiePlay: .text "THE PIXIE LAUGHS AND DANCES; YOU GAIN A LITTLE JOY."
+	.byte 0
+
+// Spider Princess conversation/messages
+msgSpiderMenuHeader: .text "SPIDER PRINCESS"
+	.byte 0
+msgSpiderOpt0: .text "0. FLIRT"
+	.byte 0
+msgSpiderOpt1: .text "1. WHISPER"
+	.byte 0
+msgSpiderOpt2: .text "2. OFFER A GIFT"
+	.byte 0
+msgSpiderOpt3: .text "3. LEAVE"
+	.byte 0
+msgSpiderFlirt: .text "THE SPIDER COOS: YOUR WORDS WRAP AROUND ME."
+	.byte 0
+msgSpiderWhisper: .text "THE SPIDER LEANS CLOSE AND LOWERS HER VOICE."
+	.byte 0
+msgSpiderOfferStart: .text "SPIDER PRINCESS: BRING ME THE MYSTIC FOR A ROMANTIC DATE."
+	.byte 0
+msgSpiderOfferAlready: .text "SPIDER PRINCESS: YOU'VE ALREADY PROMISED TO HELP ME."
+	.byte 0
+// Unseely Fae quest strings
+msgUnseelyMenuHeader: .text "UNSEELY FAE"
+	.byte 0
+msgUnseelyOpt0: .text "0. ASK ABOUT NAMES"
+	.byte 0
+msgUnseelyOpt1: .text "1. REQUEST STOLEN NAME"
+	.byte 0
+msgUnseelyOpt2: .text "2. OFFER NAME"
+	.byte 0
+msgUnseelyOpt3: .text "3. LEAVE"
+	.byte 0
+msgUnseelyAsk: .text "UNSEELY FAE: NAMES SLIP LIKE RIBBONS; WHAT WAS YOURS?"
+	.byte 0
+msgUnseelyRequest: .text "UNSEELY FAE: BRING ME THE NAME THE FAIRY STOLE FROM THE GARDENS."
+	.byte 0
+msgUnseelyOfferAlready: .text "UNSEELY FAE: YOU'VE ALREADY PROMISED THIS TASK."
+	.byte 0
+msgUnseelyThanks: .text "THE UNSEELY FAE WHISPERS THE NAME BACK; HER EYES GLINT."
+	.byte 0
+msgUnseelyNoName: .text "YOU DO NOT HOLD THE STOLEN NAME."
+	.byte 0
+// Per-choice effect tables (one table per numeric menu choice). Each table
+// contains one byte per NPC (indexed by npc index). Effect types:
+// 0=none,1=startQuest,2=completeQuest,3=giveItem,4=takeItem,5=addScore,6=setNpcStage
+// Corresponding value tables hold the effect value (item id, score amount, npc idx, etc.)
+convChoiceType_choice0:
+	.byte 6,3,3,3,3,0,0,0,0,0   // speak: conductor setNpcStage, bartender give MUG, knight give KEY, mystic give LANTERN, fairy give COIN
+convChoiceVal_choice0:
+	.byte 0,OBJ_MUG,OBJ_KEY,OBJ_LANTERN,OBJ_COIN,0,0,0,0,0
+
+convChoiceType_choice1:
+	.byte 5,0,0,0,5,0,0,0,0,0   // ask weather: conductor +2 score, fairy +1 score
+convChoiceVal_choice1:
+	.byte 2,0,0,0,1,0,0,0,0,0
+
+convChoiceType_choice2:
+	.byte 0,0,0,4,0,6,0,0,0,0   // temp comment: mystic may take LANTERN, pixie advances NPC stage
+convChoiceVal_choice2:
+	.byte 0,0,0,OBJ_LANTERN,0,1,0,0,0,0
+
+convChoiceType_choice3:
+	.byte 0,0,0,0,0,0,0,0,0,0
+convChoiceVal_choice3:
+	.byte 0,0,0,0,0,0,0,0,0,0
+
+convChoiceType_choice4:
+	.byte 0,2,2,2,0,0,0,0,0,0   // quest info: bartender/knight/mystic can complete their quests
+convChoiceVal_choice4:
+	.byte 0,QUEST_COIN_BARTENDER,QUEST_KEY_KNIGHT,QUEST_LANTERN_MYSTIC,0,0,0,0,0,QUEST_UNSEELY_NAME
+
+convChoiceType_choice5:
+	.byte 0,0,0,0,0,0,0,0,0,0
+convChoiceVal_choice5:
+	.byte 0,0,0,0,0,0,0,0,0,0
+
 
 
 // NPC class names (for sheets)
@@ -4591,7 +6694,7 @@ className1: .text "BARTENDER"
 	.byte 0
 className2: .text "KNIGHT"
 	.byte 0
-className3: .text "WITCH"
+	className3: .text "MYSTIC"
 	.byte 0
 className4: .text "FAIRY"
 	.byte 0
@@ -4611,16 +6714,16 @@ classHpPerLevel:
 
 // NPC static attributes per NPC index
 npcClassIdx:
-	.byte 0,1,2,3,4,5
+	.byte 0,1,2,3,4,5,4,6,6,4
 npcLevel:
-	.byte 1,1,2,3,1,1
+	.byte 1,1,2,3,1,1,1,2,1,1
 npcScoreLo:
-	.byte 0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0
 npcScoreHi:
-	.byte 0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0
 // NPC current HP (persisted across saves)
 npcCurHp:
-	.byte 0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0
 
 // Playable classes (for player)
 playClass0: .text "MAGE"
@@ -4755,7 +6858,7 @@ kwBartender: .text "BARTENDER"
 	.byte 0
 kwKnight:    .text "KNIGHT"
 	.byte 0
-kwWitch:     .text "WITCH"
+kwMystic:     .text "MYSTIC"
 	.byte 0
 kwFairy:     .text "FAIRY"
 	.byte 0
@@ -4827,8 +6930,11 @@ strSpace:      .text " "
 strNoData: .text "(no data)"
 	.byte 0
 
-npcBit:
-	.byte %0001,%0010,%0100,%1000,%00010000,%00100000
+// npcBit split into low/high bytes to support up to 16 NPCs
+npcBitLo:
+	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000,%00000000,%00000000
+npcBitHi:
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000001,%00000010
 
 npcName0: .text "CONDUCTOR"
 	.byte 0
@@ -4836,17 +6942,25 @@ npcName1: .text "BARTENDER"
 	.byte 0
 npcName2: .text "KNIGHT"
 	.byte 0
-npcName3: .text "WITCH"
+npcName3: .text "MYSTIC"
 	.byte 0
 npcName4: .text "FAIRY"
 	.byte 0
 npcName5: .text "PIXIE"
 	.byte 0
+npcName6: .text "SPIDER PRINCESS"
+	.byte 0
+npcName7: .text "PIRATE CAPTAIN"
+	.byte 0
+npcName8: .text "PIRATE FIRST MATE"
+	.byte 0
+npcName9: .text "UNSEELY FAE"
+	.byte 0
 
 npcNameLo:
-	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5
+	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5,<npcName6,<npcName7,<npcName8,<npcName9
 npcNameHi:
-	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5
+	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9
 
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
@@ -4895,6 +7009,35 @@ msgNoChars:    .text "NO CHARACTERS ARE HERE."
 	.byte 0
 msgGave:       .text "GIVEN."
 	.byte 0
+
+msgCoinRec:    .text "YOU RECEIVE A COIN."
+	.byte 0
+
+// --- Simple log buffer and name used for write-only event logging to device 8 ---
+logName: .byte 'E','V','L','O','G'
+logBuf:  .byte 'G', ' ', '0', $0D
+
+msgDbgCoinInv:    .text "DEBUG: COIN IN INVENTORY."
+	.byte 0
+msgDbgCoinNowhere:.text "DEBUG: COIN NOWHERE."
+	.byte 0
+msgDbgCoinUpdated:.text "DEBUG: COIN LOCATION UPDATED."
+	.byte 0
+
+// Auth prompt context tags
+msgTagUser:    .text "[USERNAME]"
+	.byte 0
+msgTagDisplay: .text "[DISPLAY]"
+	.byte 0
+msgTagClass:   .text "[CLASS]"
+	.byte 0
+msgTagPin:     .text "[PIN]"
+	.byte 0
+msgTagMonth:   .text "[MONTH]"
+	.byte 0
+msgTagWeek:    .text "[WEEK]"
+	.byte 0
+
 
 msgStall:      .text "A BUSY MARKET STALL: BELLS, RIBBONS, AND A NOTE: 'TRADE IN STORIES'."
 	.byte 0
@@ -4966,22 +7109,34 @@ questName0: .text "PAY THE BARTENDER"
 	.byte 0
 questName1: .text "BRING KEY TO KNIGHT"
 	.byte 0
-questName2: .text "LIGHT FOR THE WITCH"
-	.byte 0
+	questName2: .text "LIGHT FOR THE MYSTIC"
+		.byte 0
+	questName3: .text "LURE THE MYSTIC"
+		.byte 0
+		questName4: .text "PLANT BLACK ROSES"
+			.byte 0
+			questName5: .text "RECOVER STOLEN NAME"
+				.byte 0
 
 questNameLo:
-	.byte <questName0,<questName1,<questName2
+	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5
 questNameHi:
-	.byte >questName0,>questName1,>questName2
+	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5
 
 questDetail0: .text "QUEST: GIVE COIN TO THE BARTENDER."
 	.byte 0
 questDetail1: .text "QUEST: GIVE KEY TO THE KNIGHT."
 	.byte 0
-questDetail2: .text "QUEST: GIVE LANTERN TO THE WITCH."
-	.byte 0
+	questDetail2: .text "QUEST: GIVE LANTERN TO THE MYSTIC."
+		.byte 0
+	questDetail3: .text "QUEST: BRING THE MYSTIC TO A DATE WITH THE SPIDER PRINCESS."
+		.byte 0
+	questDetail4: .text "QUEST: PLANT BULBS AROUND THE PARK TO GROW BLACK ROSES. JOIN THE ORDER."
+		.byte 0
+		questDetail5: .text "QUEST: RETRIEVE THE NAME STOLEN BY THE FAIRY IN THE FAIRY GARDENS AND RETURN IT TO THE UNSEELY FAE."
+			.byte 0
 
 questDetailLo:
-	.byte <questDetail0,<questDetail1,<questDetail2
+	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5
 questDetailHi:
-	.byte >questDetail0,>questDetail1,>questDetail2
+	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5

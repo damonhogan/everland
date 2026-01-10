@@ -35,6 +35,46 @@ Recent Additions (confirmed working)
 - Docker PDF build: `tools/Dockerfile` builds `MANUAL.pdf` inside a container.
 - MANUAL.pdf: Generated locally using `pandoc` + `wkhtmltopdf` (see Appendix C for details).
 
+What's New In This Release
+---------------------------
+- Added NPCs: `SPIDER PRINCESS`, `PIRATE CAPTAIN`, `PIRATE FIRST MATE`, and `UNSEELY FAE`.
+- New quest & item: `QUEST_UNSEELY_NAME` and `OBJ_STOLEN_NAME` (trade flows between Fairy and Unseely Fae).
+- Conversation side-effects: choice selections can now start/complete quests, give/take items, set NPC stages, and add score.
+- Talk menus and character lists support multiple NPCs per location (e.g., Alley now shows Captain + First Mate).
+
+Coin / Bartender Quest (player walkthrough)
+-------------------------------------------
+This release includes a small fetch quest where the Conductor asks you to bring a coin to the Bartender.
+
+1) Accept the quest from the Conductor
+	- `TALK CONDUCTOR` then select the "Any quests?" menu option (usually `3`) to accept `QUEST_COIN_BARTENDER`.
+
+2) Get a coin
+	- The `COIN` object spawns in the Market by default. Travel to the Market and run:
+
+```
+TAKE COIN
+```
+
+	- Verify with `I` (Inventory) that `COIN` is now in your inventory.
+
+3) Give the coin to the Bartender
+	- Go to the Tavern and either:
+	  - `GIVE COIN TO BARTENDER` (explicit target), or
+	  - `GIVE COIN` while standing in the Tavern (auto-targets default NPC at location), or
+	  - `TALK BARTENDER` and choose `BUY ALE (1 COIN)` or `GIVE TIP` — both consume a coin.
+
+	- If `QUEST_COIN_BARTENDER` is active, giving the coin to the Bartender triggers `questComplete` and marks the quest done.
+
+4) Verify
+	- `I` should show the coin removed from inventory and the last message will indicate quest completion or reward.
+
+Developer pointers (where to look in the source)
+- `objLoc` (initial item locations) contains the coin spawn location.
+- `cmdTake` and `cmdGive` implement TAKE/GIVE parsing and behavior.
+- `questCheckGive` looks up (object,npc) pairs for active quests and calls `questComplete` when matched.
+
+
 Partially Working / Needs Attention
 ----------------------------------
 - Assembler Branch/Label Issues: Trampolines added where needed; recommend a full assemble and focused review for remaining long-branch patterns.
