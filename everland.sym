@@ -658,7 +658,7 @@
 .label ec_afterQuick=$1ef4
 .label rat_pin=$1ac7
 .label pc_join=$2b2a
-.label c_quest_have=$2dad
+.label c_quest_have=$2dbd
 .label msgNoQuestNpc=$409c
 .label mas_do=$130d
 .label SETNAM=$ffbd
@@ -1095,6 +1095,7 @@
 .label musicInstalled=$8a2
 .label ec_done=$20de
 .label bcm_next=$3608
+.label c_quest_generic=$2da6
 .label u_offer=$2924
 .label rql_none=$eff
 .label tt_find_next=$26cc

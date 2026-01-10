@@ -14,8 +14,8 @@ Recommended: use `pandoc` (searchable PDF) or `wkhtmltopdf` if you prefer HTML r
 ```powershell
 # Convert Markdown -> HTML
 pandoc MANUAL.md -o MANUAL.html --standalone --toc
-# Convert HTML -> searchable PDF with wkhtmltopdf
-wkhtmltopdf MANUAL.html MANUAL.pdf
+# Convert HTML -> searchable PDF with wkhtmltopdf (enable local file access for images)
+wkhtmltopdf --enable-local-file-access MANUAL.html MANUAL.pdf
 ```
 
 4) Or convert directly with pandoc + LaTeX (produces high-quality PDF):
@@ -27,8 +27,26 @@ pandoc MANUAL.md -o MANUAL.pdf --pdf-engine=xelatex --toc
 Notes:
 - The resulting PDF is searchable because text comes from Markdown/HTML.
 - If images are missing, they will be shown as broken links; add images to `images/` then re-run conversion.
+- `tools/build_manual.ps1` provides a wrapper that detects available engines and will build PDF (or HTML fallback). Run with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
+```
 - If you want me to produce the PDF for you, upload the screenshots here and I will insert them and generate the Markdown; you'll still need to run the conversion locally or I can provide a downloadable PDF if you allow upload of images.
 
 Troubleshooting:
 - If `pandoc` cannot find images, ensure path is `images/screenshot1.png` relative to `MANUAL.md`.
 - For Windows line endings issues, use `--wrap=preserve` if needed.
+ - If `wkhtmltopdf` fails to load local images, include `--enable-local-file-access`.
+
+Operational tips (C64 runtime)
+------------------------------
+- Wildcard LOAD and lowercase: When launching from a D64, prefer lowercase commands and wildcard load to avoid PETSCII filename mismatches:
+
+```basic
+load"*",8,1
+run
+```
+
+- VICE `-keybuf`: Use lowercase sequences in `-keybuf` for reliability (e.g., `load"*",8,1` then `run`). This avoids case-conversion surprises in PETSCII.
+- EVLOG device 8: Game logging writes to device 8. To observe logs when running PRG directly, enable virtual device traps in VICE or run with `-autostartprgmode 0` so filesystem writes map to host.

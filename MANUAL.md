@@ -42,12 +42,20 @@ What's New In This Release
 - Conversation side-effects: choice selections can now start/complete quests, give/take items, set NPC stages, and add score.
 - Talk menus and character lists support multiple NPCs per location (e.g., Alley now shows Captain + First Mate).
 
+Latest Operational Updates
+--------------------------
+- Build helper: `tools/build_prg_simple.bat` compiles `everland.asm` with your KickAssembler JAR, then auto-refreshes a D64 via `tools/make_d64.bat`.
+- Disk runner: `tools/run_from_d64.bat` mounts `bin/everland.d64` on drive 8 and auto-types `load"*",8,1` then `run` (lowercase) to avoid PETSCII issues.
+- Lowercase automation: All `-keybuf` sequences are lowercase for safety; wildcard `load"*"` reliably loads the first PRG on the disk.
+- TALK flow: Command parsing is case-insensitive; `TALK <NPCNAME>` opens that NPC if present. Menu indices are 0–5.
+- Conductor quest: Selecting "3. Any quests?" at Train starts `QUEST_COIN_BARTENDER` and grants a coin with confirmation.
+
 Coin / Bartender Quest (player walkthrough)
 -------------------------------------------
 This release includes a small fetch quest where the Conductor asks you to bring a coin to the Bartender.
 
 1) Accept the quest from the Conductor
-	- `TALK CONDUCTOR` then select the "Any quests?" menu option (usually `3`) to accept `QUEST_COIN_BARTENDER`.
+	- `TALK CONDUCTOR` then select the "Any quests?" menu option (`3`) at the Train Station to accept `QUEST_COIN_BARTENDER`. When accepted, you will also receive a starter coin and see "YOU RECEIVE A COIN.".
 
 2) Get a coin
 	- The `COIN` object spawns in the Market by default. Travel to the Market and run:
@@ -96,6 +104,20 @@ java -cp C:\commodore\KickAssembler\KickAss.jar kickass.KickAssembler -odir bin 
 
 - Run in VICE: open `bin\everland.prg` or drag into x64.
 
+Quickstart (Windows)
+--------------------
+- Build + refresh disk image:
+
+```powershell
+C:\commodore\everland\tools\build_prg_simple.bat "C:\commodore\KickAssembler\KickAss.jar"
+```
+
+- Run from D64 with auto LOAD/RUN (lowercase, wildcard):
+
+```powershell
+C:\commodore\everland\tools\run_from_d64.bat "C:\commodore\GTK3VICE-3.10-win64\bin\x64sc.exe" "C:\commodore\everland\bin\everland.d64"
+```
+
 First Run / Profiles
 
 - On first run you'll be prompted for a username/display and to pick a player class. The chosen class affects HP and is saved.
@@ -123,6 +145,15 @@ Troubleshooting
 
 - If KickAssembler reports branch/label errors, re-run and paste the build log; I can patch `everland.asm` to fix trampolines.
 - If VICE hangs, try restarting the emulator or ensure the IRQ safe stub is enabled in code.
+ - If LOAD reports `?FILE NOT FOUND` in BASIC, use wildcard and lowercase:
+
+```basic
+load"*",8,1
+run
+```
+
+ - If conversations show uppercase/PETSCII weirdness, ensure any scripted inputs use lowercase `-keybuf`.
+ - EVLOG device 8 writes may require virtual filesystem mode in VICE; when testing logs, prefer running PRG with `-autostartprgmode 0` and device traps enabled.
 
 Upcoming / Recommended Features
 -------------------------------

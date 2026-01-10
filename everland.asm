@@ -4939,27 +4939,29 @@ conductorConversation:
 
 @c_quest:
 	// Offer/check quest for this NPC
-	lda npcOffersQuest,x
-	cmp #QUEST_NONE
-	bne @c_quest_have
-	// Fallback: Conductor should offer coin quest even if table is unset
+	// Conductor: always start coin quest and grant a starter coin
 	txa
 	cmp #NPC_CONDUCTOR
-	bne @c_noquest
+	bne @c_quest_generic
 	lda #QUEST_COIN_BARTENDER
 	sta tmpPer+1
 	lda #1
-	jsr conv_apply_effect
+	jsr conv_apply_effect      // startQuest -> activeQuest=coin, questStatus=1
 	lda #1
 	sta npcConvStage,x
 	jmp @c_maybe_coin
-@c_quest_have:
+@c_quest_generic:
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @c_noquest
 	lda npcOffersQuest,x
 	sta tmpPer+1
 	lda #1
 	jsr conv_apply_effect
 	lda #1
 	sta npcConvStage,x
+@c_quest_have:
+	// fallthrough handled above
 @c_maybe_coin:
 	// If this is the Conductor and the active quest is coin->bartender, give a starter coin
 	txa
