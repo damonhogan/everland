@@ -18,6 +18,8 @@
 .label CLRCHN = $FFCC
 .label CHRIN  = $FFCF
 .label READST = $FFB7
+// KERNAL real-time clock read
+.label RDTIM  = $FFDE
 
 // SID
 .label SID_BASE = $D400
@@ -102,7 +104,9 @@
 .const NPC_PIRATE_CAPTAIN = 7
 .const NPC_PIRATE_FIRSTMATE = 8
 .const NPC_UNSEELY_FAE = 9
-.const NPC_COUNT     = 10
+.const NPC_APOLLONIA = 10
+.const NPC_ALYSTER   = 11
+.const NPC_COUNT     = 12
 
 .const ROW_MAP_LAST   = 11
 .const ROW_DIVIDER    = 12
@@ -133,7 +137,8 @@
 .const QUEST_LURE_MYSTIC    = 4
 .const QUEST_BLACK_ROSE     = 5
 .const QUEST_UNSEELY_NAME   = 6
-.const QUEST_COUNT          = 7
+.const QUEST_APOLLONIA_OFFERING = 7
+.const QUEST_COUNT          = 8
 
 // Game state
 currentLoc: .byte LOC_PLAZA
@@ -165,6 +170,13 @@ className:
 	.fill 12, 0
 playerClassIdx: .byte 0
 playerCurHp: .byte 0
+// Temporary bonus to max HP from training (session-only)
+playerHpBonus: .byte 0
+// Player race (e.g. HUMAN, TROLL, ELF, DRAGON) - fixed 12-byte, 0-padded
+raceLen: .byte 0
+raceName:
+	.fill 12, 0
+playerRaceIdx: .byte 0
 pinLo: .byte 0
 pinHi: .byte 0
 
@@ -235,6 +247,25 @@ tmpCnt: .byte 0
 inputLen: .byte 0
 inputBuf:
 	.fill 48, 0
+// Prefetched key handling to avoid double-enter swallowing next keystroke
+prefetchedHas: .byte 0
+prefetchedKey: .byte 0
+
+// HP regen timing (1 HP per minute while not in combat)
+regenInit: .byte 0
+lastRegen0: .byte 0
+lastRegen1: .byte 0
+lastRegen2: .byte 0
+nowRegen0: .byte 0
+nowRegen1: .byte 0
+nowRegen2: .byte 0
+deltaReg0: .byte 0
+deltaReg1: .byte 0
+deltaReg2: .byte 0
+regenMinutes: .byte 0
+hpChangedFlag: .byte 0
+regenTotal: .byte 0
+healLeft: .byte 0
 
 // Object locations (location id, $FE=inventory, $FF=nowhere)
 objLoc:
@@ -249,6 +280,7 @@ objLoc:
 start:
 	jsr init
 mainLoop:
+	jsr applyRegenIfDue
 	jsr render
 	jsr readLine
 	jsr executeCommand
@@ -257,13 +289,9 @@ mainLoop:
 // --- Profile / Save system ---
 // MVP: per-username save file on DEVICE 8.
 // File format (binary, fixed sizes):
-//  "EV1" (3 bytes)
-//  username[12], displayName[16]
-//  pinLo,pinHi (2)
-//  scoreLo,scoreHi (2)
-//  month (1), week(1), currentLoc(1)
-//  objLoc[OBJ_COUNT]
-//  activeQuest (1), questStatus(1)
+//  EV1: "EV1" username[12], display[16], pinLo,pinHi, scoreLo,scoreHi, level, curHP, classIdx, month, week, loc, objLoc[], activeQuest, questStatus
+//  EV2: "EV2" username[12], display[16], class[12], race[12], pinLo,pinHi, scoreLo,scoreHi, level, curHP, classIdx, raceIdx, month, week, loc, objLoc[], activeQuest, questStatus
+//  EV3: "EV3" username[12], display[16], class[12], race[12], pinLo,pinHi, scoreLo,scoreHi, level, curHP, classIdx, raceIdx, maxHP, month, week, loc, objLoc[], activeQuest, questStatus
 
 loginOrCreate:
 	// Prompt USERNAME
@@ -301,7 +329,10 @@ loginOrCreate:
 	jsr readLine
 	jsr copyInputToClass
 	jsr mapPlayerClass
-	// initialize player HP to max if empty
+	// Start new characters at level 1
+	lda #1
+	sta currentLevel
+	// initialize player HP to max if empty (based on class+level)
 	jsr computePlayerMaxHp
 	lda tmpHp
 	beq @lc_skip_init
@@ -314,6 +345,16 @@ loginOrCreate:
 	sta playerCurHp
 
 @lc_skip_init:
+
+	// Prompt RACE
+	lda #<msgAskRace
+	sta lastMsgLo
+	lda #>msgAskRace
+	sta lastMsgHi
+	jsr render
+	jsr readLine
+	jsr copyInputToRace
+	jsr mapPlayerRace
 
 	// Prompt PIN
 	lda #<msgAskPin
@@ -416,6 +457,11 @@ loadedClass:
 	.fill 12, 0
 loadedCurHp: .byte 0
 loadedClassIdx: .byte 0
+loadedRace:
+	.fill 12, 0
+loadedRaceIdx: .byte 0
+loadedFileVer: .byte 1
+loadedMaxHp: .byte 0
 
 commitLoadedState:
 	lda loadedPinLo
@@ -461,11 +507,22 @@ commit_c3:
 	inx
 	cpx #12
 	bne commit_c3
+	// Copy loaded race into live raceName (12 bytes)
+	ldx #0
+commit_c4:
+	lda loadedRace,x
+	sta raceName,x
+	inx
+	cpx #12
+	bne commit_c4
 	// restore player class idx and HP from loaded values
 	lda loadedClassIdx
 	sta playerClassIdx
 	lda loadedCurHp
 	sta playerCurHp
+	// restore player race idx
+	lda loadedRaceIdx
+	sta playerRaceIdx
 	rts
 
 // Copy inputBuf to username (max 12)
@@ -526,6 +583,35 @@ copyInputToUsername_pdone:
 	@copyClass_pdone:
 		rts
 
+// Copy inputBuf to raceName (max 12)
+copyInputToRace:
+	ldx #0
+	stx raceLen
+
+@copyRace_loop:
+	lda inputBuf,x
+	beq @copyRace_done
+	cpx #12
+	bcs @copyRace_done
+	sta raceName,x
+	inx
+	stx raceLen
+	jmp @copyRace_loop
+
+@copyRace_done:
+	// Pad remaining with 0
+	lda #0
+
+@copyRace_pad:
+	cpx #12
+	beq @copyRace_pdone
+	sta raceName,x
+	inx
+	jmp @copyRace_pad
+
+@copyRace_pdone:
+	rts
+
 // Map player's textual className to playable class index by first letter
 mapPlayerClass:
 	lda className
@@ -574,6 +660,50 @@ mapPlayerClass:
 @mpc_w:
 	lda #4
 	sta playerClassIdx
+	rts
+
+// Map player's textual raceName to race index by first letter
+mapPlayerRace:
+	lda raceName
+	beq @mpr_default
+	// convert lowercase to uppercase if needed
+	cmp #'a'
+	bcc @mpr_check
+	cmp #'z'+1
+	bcs @mpr_check
+	sec
+	sbc #32
+
+@mpr_check:
+	cmp #'H'
+	beq @mpr_h
+	cmp #'T'
+	beq @mpr_t
+	cmp #'E'
+	beq @mpr_e
+	cmp #'D'
+	beq @mpr_d
+
+@mpr_default:
+	lda #0
+	sta playerRaceIdx
+	rts
+
+@mpr_h:
+	lda #0
+	sta playerRaceIdx
+	rts
+@mpr_t:
+	lda #1
+	sta playerRaceIdx
+	rts
+@mpr_e:
+	lda #2
+	sta playerRaceIdx
+	rts
+@mpr_d:
+	lda #3
+	sta playerRaceIdx
 	rts
 
 copyInputToDisplay:
@@ -818,9 +948,24 @@ tryLoadGame:
 @tl_c2:
 	jsr CHRIN
 	cmp #'1'
-	beq @tl_c3
+	beq @tl_ver1
+	cmp #'2'
+	beq @tl_ver2
+	cmp #'3'
+	beq @tl_ver3
 	jmp @fail2
-@tl_c3:
+@tl_ver1:
+	lda #0
+	sta loadedFileVer
+	jmp @tl_header_ok
+@tl_ver2:
+	lda #1
+	sta loadedFileVer
+ 	jmp @tl_header_ok
+@tl_ver3:
+	lda #2
+	sta loadedFileVer
+@tl_header_ok:
 	// Read username (skip, we already have it)
 	ldx #0
 @ru:
@@ -844,6 +989,43 @@ tryLoadGame:
 	inx
 	cpx #12
 	bne @rcl
+	// Read race (12 bytes) if version 2
+	lda loadedFileVer
+	beq @rcl_race_default
+	ldx #0
+@rr:
+	jsr CHRIN
+	sta loadedRace,x
+	inx
+	cpx #12
+	bne @rr
+	jmp @after_race_read
+@rcl_race_default:
+	// Default race = HUMAN
+	ldx #0
+	lda #'H'
+	sta loadedRace,x
+	inx
+	lda #'U'
+	sta loadedRace,x
+	inx
+	lda #'M'
+	sta loadedRace,x
+	inx
+	lda #'A'
+	sta loadedRace,x
+	inx
+	lda #'N'
+	sta loadedRace,x
+	inx
+@fill_race_zero:
+	cpx #12
+	beq @after_race_read
+	lda #0
+	sta loadedRace,x
+	inx
+	jmp @fill_race_zero
+@after_race_read:
 	// pin
 	jsr CHRIN
 	sta loadedPinLo
@@ -863,6 +1045,19 @@ tryLoadGame:
 	// player class index
 	jsr CHRIN
 	sta loadedClassIdx
+	// player race index (version 2)
+	lda loadedFileVer
+	beq @skip_race_idx
+	jsr CHRIN
+	sta loadedRaceIdx
+@skip_race_idx:
+	// max HP (version 3)
+	lda loadedFileVer
+	cmp #2
+	bne @skip_maxhp
+	jsr CHRIN
+	sta loadedMaxHp
+@skip_maxhp:
 	// month/week/loc
 	jsr CHRIN
 	sta loadedMonth
@@ -921,7 +1116,7 @@ saveGame:
 	jsr CHROUT
 	lda #'V'
 	jsr CHROUT
-	lda #'1'
+	lda #'3'
 	jsr CHROUT
 	// username
 	ldx #0
@@ -947,6 +1142,14 @@ saveGame:
 	inx
 	cpx #12
 	bne @wc
+	// raceName (12 bytes)
+	ldx #0
+@wr:
+	lda raceName,x
+	jsr CHROUT
+	inx
+	cpx #12
+	bne @wr
 	// pin
 	lda pinLo
 	jsr CHROUT
@@ -965,6 +1168,13 @@ saveGame:
 	jsr CHROUT
 	// player class index
 	lda playerClassIdx
+	jsr CHROUT
+	// player race index
+	lda playerRaceIdx
+	jsr CHROUT
+	// player max HP at time of save (recomputed)
+	jsr computePlayerMaxHp
+	lda tmpHp
 	jsr CHROUT
 	// month/week/loc
 	lda month
@@ -1049,6 +1259,146 @@ renderSeasonLine:
 	lda seasonLineHi,x
 	sta ZP_PTR+1
 	jsr printZ
+	rts
+
+// --- HP Regeneration (1 HP per minute when not in combat) ---
+// Uses the KERNAL real-time clock (jiffy clock) via RDTIM.
+// We record the last regen timestamp and, on each loop, compute elapsed minutes.
+// For each elapsed minute, we heal up to 1 HP (not exceeding max), and always
+// advance the regen baseline by the full elapsed minutes.
+
+initRegenTimer:
+	jsr RDTIM
+	sta lastRegen0
+	txa
+	sta lastRegen1
+	tya
+	sta lastRegen2
+	lda #1
+	sta regenInit
+	rts
+
+applyRegenIfDue:
+	lda regenInit
+	bne @ard_have_base
+	jsr initRegenTimer
+	rts
+@ard_have_base:
+	// Read current time
+	jsr RDTIM
+	sta nowRegen0
+	txa
+	sta nowRegen1
+	tya
+	sta nowRegen2
+	// delta = now - last
+	sec
+	lda nowRegen0
+	sbc lastRegen0
+	sta deltaReg0
+	lda nowRegen1
+	sbc lastRegen1
+	sta deltaReg1
+	lda nowRegen2
+	sbc lastRegen2
+	sta deltaReg2
+	// If borrow occurred (C=0), it wrapped across midnight: add 24h (0x4F1A00 jiffies)
+	bcs @ard_no_wrap
+	clc
+	lda deltaReg0
+	adc #$00
+	sta deltaReg0
+	lda deltaReg1
+	adc #$1A
+	sta deltaReg1
+	lda deltaReg2
+	adc #$4F
+	sta deltaReg2
+@ard_no_wrap:
+	// Compute how many full minutes (3600 jiffies = $000E10) have elapsed
+	lda #0
+	sta regenMinutes
+	lda #0
+	sta hpChangedFlag
+@ard_min_check:
+	// if delta >= $000E10, subtract once and increment minutes
+	lda deltaReg2
+	bne @ard_sub_minute       // any high byte implies >= 1 minute
+	lda deltaReg1
+	cmp #$0E
+	bcc @ard_compute_heal
+	beq @ard_check_low
+	// deltaReg1 > $0E
+	jmp @ard_sub_minute
+@ard_check_low:
+	lda deltaReg0
+	cmp #$10
+	bcc @ard_compute_heal
+@ard_sub_minute:
+	// delta -= $00 0E 10
+	sec
+	lda deltaReg0
+	sbc #$10
+	sta deltaReg0
+	lda deltaReg1
+	sbc #$0E
+	sta deltaReg1
+	lda deltaReg2
+	sbc #$00
+	sta deltaReg2
+	inc regenMinutes
+	jmp @ard_min_check
+
+@ard_compute_heal:
+	// Preserve total elapsed minutes
+	lda regenMinutes
+	sta regenTotal
+	// Heal up to regenMinutes HP (capped at max)
+	jsr computePlayerMaxHp
+	lda playerCurHp
+	cmp tmpHp
+	beq @ard_advance_baseline // already full
+	// While minutes > 0 and hp < max: hp++
+    lda regenTotal
+    sta healLeft
+@ard_heal_loop:
+	lda healLeft
+	beq @ard_advance_baseline
+	lda playerCurHp
+	cmp tmpHp
+	bcs @ard_advance_baseline
+	inc playerCurHp
+	lda #1
+	sta hpChangedFlag
+	dec healLeft
+	jmp @ard_heal_loop
+
+@ard_advance_baseline:
+	// Advance lastRegen by the total elapsed full minutes we computed
+    // Add $000E10 per minute to lastRegen for all elapsed minutes
+    lda regenTotal
+    sta regenMinutes
+@ard_adv_loop:
+	lda regenMinutes
+	beq @ard_maybe_save
+	clc
+	lda lastRegen0
+	adc #$10
+	sta lastRegen0
+	lda lastRegen1
+	adc #$0E
+	sta lastRegen1
+	lda lastRegen2
+	adc #$00
+	sta lastRegen2
+	dec regenMinutes
+	jmp @ard_adv_loop
+
+@ard_maybe_save:
+	lda hpChangedFlag
+	beq @ard_done
+	jsr saveGame
+@ard_done:
 	rts
 
 renderQuestLine:
@@ -1278,9 +1628,9 @@ questComplete:
 
 // Reward dispatch table (low/high pointers) - indexed by quest id
 questRewardLo:
-	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely
+	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely, <@qc_reward_apollonia
 questRewardHi:
-	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely
+	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely, >@qc_reward_apollonia
 
 @qc_reward_unseely:
 	// Reward for retrieving the stolen name: +4 score and progress Unseely Fae
@@ -1296,6 +1646,20 @@ questRewardHi:
 	sta tmpPer+1
 	lda #6
 	jsr conv_apply_effect
+	jmp @qc_done_after
+
+@qc_reward_apollonia:
+	// Apollonia offering: healing touch + gentle blessing (+2 score)
+	jsr computePlayerMaxHp
+	lda tmpHp
+	sta playerCurHp
+	lda scoreLo
+	clc
+	adc #2
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
 	jmp @qc_done_after
 
 @qc_done_after:
@@ -1916,6 +2280,7 @@ init:
 @init_skip_login:
 	lda #0
 	sta uiHideExits
+	jsr initRegenTimer
 	jsr musicPickForLocation
 	jsr ensureQuest
 	rts
@@ -1964,7 +2329,7 @@ render:
 	lda lastMsgHi
 	sta ZP_PTR+1
 	jsr printZ
-	jsr renderAuthTag
+    
 	clc
 	ldx #ROW_AUTH_PROMPT
 	ldy #0
@@ -2437,7 +2802,19 @@ log_give_item:
 readLine:
 	lda #0
 	sta inputLen
-	jsr flushKeys
+	// no initial flush: avoid discarding the first Enter at prompts
+	// If a key was prefetched (typed immediately after prior Enter), seed the buffer
+	lda prefetchedHas
+	beq @poll
+	lda prefetchedKey
+	sta inputBuf
+	lda #0
+	sta prefetchedHas
+	lda #1
+	sta inputLen
+	// echo the prefetched character
+	lda inputBuf
+	jsr CHROUT
 
 @poll:
 	jsr SCNKEY
@@ -2454,11 +2831,17 @@ readLine:
 	cpx #47
 	bcs @poll
 
-	// Store and echo
+	// Store and echo; only debounce SPACE to avoid multi-space jumps
 	sta inputBuf,x
 	inx
 	stx inputLen
 	jsr CHROUT
+	ldx inputLen
+	dex
+	lda inputBuf,x
+	cmp #$20
+	bne @poll
+	jsr flushKeys
 	jmp @poll
 
 @maybeFinish:
@@ -2481,7 +2864,18 @@ readLine:
 	ldx inputLen
 	lda #0
 	sta inputBuf,x
-	jsr newline
+	// Drain repeated RETURNs; if a non-RETURN key is pending, prefetch it for next prompt
+	jsr SCNKEY
+@post_drain:
+	jsr GETIN
+	beq @post_done
+	cmp #$0D
+	beq @post_drain
+	// store first non-RETURN for next readLine
+	sta prefetchedKey
+	lda #1
+	sta prefetchedHas
+@post_done:
 	rts
 
 // Drain any pending buffered keys (helps avoid stray RETURN requiring double-enter)
@@ -2646,6 +3040,72 @@ executeCommand:
 	jmp @ec_done
 
 @ec_start2:
+	// Two-letter directional shortcuts: NE, NW, SE, SW
+	cmp #'N'
+	beq @ec_chkNdiag
+	cmp #'S'
+	beq @ec_chkSdiag
+	jmp @ec_afterDiag
+
+@ec_chkNdiag:
+	ldy #1
+	lda inputBuf,y
+	cmp #'E'
+	beq @ec_tryNE
+	cmp #'W'
+	beq @ec_tryNW
+	jmp @ec_afterDiag
+@ec_tryNE:
+	ldy #2
+	lda inputBuf,y
+	cmp #' '
+	beq @ec_doNE
+	cmp #0
+	beq @ec_doNE
+	jmp @ec_afterDiag
+@ec_doNE:
+	jmp cmdNE
+@ec_tryNW:
+	ldy #2
+	lda inputBuf,y
+	cmp #' '
+	beq @ec_doNW
+	cmp #0
+	beq @ec_doNW
+	jmp @ec_afterDiag
+@ec_doNW:
+	jmp cmdNW
+
+@ec_chkSdiag:
+	ldy #1
+	lda inputBuf,y
+	cmp #'E'
+	beq @ec_trySE
+	cmp #'W'
+	beq @ec_trySW
+	jmp @ec_afterDiag
+@ec_trySE:
+	ldy #2
+	lda inputBuf,y
+	cmp #' '
+	beq @ec_doSE
+	cmp #0
+	beq @ec_doSE
+	jmp @ec_afterDiag
+@ec_doSE:
+	jmp cmdSE
+@ec_trySW:
+	ldy #2
+	lda inputBuf,y
+	cmp #' '
+	beq @ec_doSW
+	cmp #0
+	beq @ec_doSW
+	jmp @ec_afterDiag
+@ec_doSW:
+	jmp cmdSW
+
+@ec_afterDiag:
 	// treat single-letter directional commands only when the input is a single-letter
 	cmp #'N'
 	bne @ec_chkS
@@ -2694,6 +3154,14 @@ executeCommand:
 	jmp @ec_chkC
 @do_cmdWest:
 	jmp cmdWest
+@do_cmdNE:
+	jmp cmdNE
+@do_cmdNW:
+	jmp cmdNW
+@do_cmdSE:
+	jmp cmdSE
+@do_cmdSW:
+	jmp cmdSW
 @ec_chkC:
 	cmp #'C'
 	beq @ec_doC_check
@@ -2738,7 +3206,7 @@ executeCommand:
 	cmp #'M'
 	beq @ec_m_ok
 	cmp #'m'
-	bne @ec_afterQuick
+	bne @ec_chkQ
 @ec_m_ok:
 	ldy #1
 	lda inputBuf,y
@@ -2746,10 +3214,26 @@ executeCommand:
 	beq @do_cmdMusic
 	cmp #0
 	beq @do_cmdMusic
-	jmp @ec_afterQuick
+	jmp @ec_chkQ
 
 @do_cmdMusic:
 	jmp cmdMusicToggle
+
+@ec_chkQ:
+	// Single-character HELP alias: '?'
+	lda inputBuf,x
+	cmp #'?'
+	bne @ec_afterQuick
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdHelpQuick
+	cmp #0
+	beq @do_cmdHelpQuick
+	jmp @ec_afterQuick
+
+@do_cmdHelpQuick:
+	jmp cmdHelp
 
 @ec_afterQuick:
 
@@ -2935,8 +3419,64 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryTalk
+	bcc @ec_tryDirNE
 	jmp cmdWest
+
+@ec_tryDirNE:
+
+	txa
+	pha
+	lda #<kwNortheast
+	sta ZP_PTR2
+	lda #>kwNortheast
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_tryDirNW
+	jmp cmdNE
+
+@ec_tryDirNW:
+
+	txa
+	pha
+	lda #<kwNorthwest
+	sta ZP_PTR2
+	lda #>kwNorthwest
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_tryDirSE
+	jmp cmdNW
+
+@ec_tryDirSE:
+
+	txa
+	pha
+	lda #<kwSoutheast
+	sta ZP_PTR2
+	lda #>kwSoutheast
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_tryDirSW
+	jmp cmdSE
+
+@ec_tryDirSW:
+
+	txa
+	pha
+	lda #<kwSouthwest
+	sta ZP_PTR2
+	lda #>kwSouthwest
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_tryTalk
+	jmp cmdSW
 
 @ec_tryTalk:
 
@@ -3097,8 +3637,23 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_unknown
+	bcc @ec_tryHelp
 	jmp cmdChart
+
+@ec_tryHelp:
+
+	// HELP
+	txa
+	pha
+	lda #<kwHelp
+	sta ZP_PTR2
+	lda #>kwHelp
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_unknown
+	jmp cmdHelp
 
 @ec_unknown:
 
@@ -3427,8 +3982,64 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @nf
+	bcc @apollonia
 	lda #NPC_PIXIE
+	sec
+	rts
+@apollonia:
+	txa
+	pha
+	lda #<kwApollonia
+	sta ZP_PTR2
+	lda #>kwApollonia
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @statue
+	lda #NPC_APOLLONIA
+	sec
+	rts
+@statue:
+	txa
+	pha
+	lda #<kwStatue
+	sta ZP_PTR2
+	lda #>kwStatue
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @nf
+	lda #NPC_APOLLONIA
+	sec
+	rts
+@alyster:
+	txa
+	pha
+	lda #<kwAlyster
+	sta ZP_PTR2
+	lda #>kwAlyster
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @dragontrainer
+	lda #NPC_ALYSTER
+	sec
+	rts
+@dragontrainer:
+	txa
+	pha
+	lda #<kwDragonTrainer
+	sta ZP_PTR2
+	lda #>kwDragonTrainer
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @nf
+	lda #NPC_ALYSTER
 	sec
 	rts
 @nf:
@@ -3507,6 +4118,98 @@ cmdWest:
 	ldx currentLoc
 	lda exitW,x
 	jmp doMove
+
+// Diagonal movement: attempt two-step paths via cardinal exits
+cmdNE:
+	// Try N then E
+	ldx currentLoc
+	lda exitN,x
+	cmp #$FF
+	beq @ne_try_e
+	tax
+	lda exitE,x
+	cmp #$FF
+	bne @ne_go
+@ne_try_e:
+	// Try E then N
+	ldx currentLoc
+	lda exitE,x
+	cmp #$FF
+	beq @diag_no
+	tax
+	lda exitN,x
+@ne_go:
+	jmp doMove
+
+cmdNW:
+	// Try N then W
+	ldx currentLoc
+	lda exitN,x
+	cmp #$FF
+	beq @nw_try_w
+	tax
+	lda exitW,x
+	cmp #$FF
+	bne @nw_go
+@nw_try_w:
+	// Try W then N
+	ldx currentLoc
+	lda exitW,x
+	cmp #$FF
+	beq @diag_no
+	tax
+	lda exitN,x
+@nw_go:
+	jmp doMove
+
+cmdSE:
+	// Try S then E
+	ldx currentLoc
+	lda exitS,x
+	cmp #$FF
+	beq @se_try_e
+	tax
+	lda exitE,x
+	cmp #$FF
+	bne @se_go
+@se_try_e:
+	// Try E then S
+	ldx currentLoc
+	lda exitE,x
+	cmp #$FF
+	beq @diag_no
+	tax
+	lda exitS,x
+@se_go:
+	jmp doMove
+
+cmdSW:
+	// Try S then W
+	ldx currentLoc
+	lda exitS,x
+	cmp #$FF
+	beq @sw_try_w
+	tax
+	lda exitW,x
+	cmp #$FF
+	bne @sw_go
+@sw_try_w:
+	// Try W then S
+	ldx currentLoc
+	lda exitW,x
+	cmp #$FF
+	beq @diag_no
+	tax
+	lda exitS,x
+@sw_go:
+	jmp doMove
+
+@diag_no:
+	lda #<msgNoWay
+	sta lastMsgLo
+	lda #>msgNoWay
+	sta lastMsgHi
+	rts
 
 doMove:
 	cmp #$FF
@@ -3592,6 +4295,7 @@ cmdCharactersMenu:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	jmp @cc_npc_next
 
 @cc_present_1:
 	// increment display count
@@ -3660,11 +4364,7 @@ cmdCharactersMenu:
 	tya
 	cmp selChoice
 	beq @cc_selected
-	// increment y (count)
-	iny
-	tya
-	cmp selChoice
-	beq @cc_selected
+	jmp @cc_find_next
 
 @cc_find_next:
 	inx
@@ -3873,6 +4573,19 @@ cmdSheet:
 	jsr printZ
 	jsr newline
 
+	// RACE:
+	lda #<strRace
+	sta ZP_PTR
+	lda #>strRace
+	sta ZP_PTR+1
+	jsr printZ
+	lda #<raceName
+	sta ZP_PTR
+	lda #>raceName
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
 	// HP: show player current/max
 	jsr computePlayerMaxHp
 	// ensure playerCurHp is initialized
@@ -3881,18 +4594,19 @@ cmdSheet:
 	lda tmpHp
 	sta playerCurHp
 @ps_hp_have:
-	// print label
-	lda #<strSpace
+	// Build "HP: cur / max" into msgBuf and print
+	jsr clearMsgBuf
+	lda #<strHP
 	sta ZP_PTR
-	lda #>strSpace
+	lda #>strHP
 	sta ZP_PTR+1
-	jsr printZ
+	jsr appendToMsgBuf
 	lda playerCurHp
 	jsr appendByteAsDec
-	lda #<'/'
-	jsr CHROUT
+	lda #'/'
+	jsr appendCharA
 	lda #' '
-	jsr CHROUT
+	jsr appendCharA
 	lda tmpHp
 	jsr appendByteAsDec
 	lda #<msgBuf
@@ -3901,6 +4615,34 @@ cmdSheet:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// If a session-only Max HP bonus is active, show a note below
+	lda playerHpBonus
+	beq @ps_no_hpbonus
+	jsr clearMsgBuf
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #<strPlus
+	sta ZP_PTR
+	lda #>strPlus
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda playerHpBonus
+	jsr appendByteAsDec
+	lda #<strMaxHpSession
+	sta ZP_PTR
+	lda #>strMaxHpSession
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+@ps_no_hpbonus:
 
 	// LEVEL (use msgBuf builder to append decimal)
 	jsr clearMsgBuf
@@ -4080,6 +4822,8 @@ conversationMenu:
 	// mark we're in a conversation so render() won't show the map
 	lda #1
 	sta uiInConversation
+	// preserve NPC index across input reads
+	stx tmpNpcIdx
 	jsr clearScreen
 	// Print NPC name as header
 	lda npcNameLo,x
@@ -4090,6 +4834,8 @@ conversationMenu:
 	jsr newline
 
 conv_loop:
+	// ensure X = npc index before using indexed tables
+	ldx tmpNpcIdx
 	// 0. Speak
 	lda #'0'  
 	jsr CHROUT
@@ -4223,6 +4969,8 @@ conv_choice5:
 	jmp conversationMenu_exit
 
 @conv_do_speak:
+	// restore npc index in X for handler dispatch
+	ldx tmpNpcIdx
 	// Indirect dispatch table by NPC index (X)
 	lda convSpeakHandlerLo,x
 	sta ZP_PTR
@@ -4231,6 +4979,8 @@ conv_choice5:
 	jmp (ZP_PTR)
 
 @conv_speak_default:
+	// ensure X = npc index for default speak
+	ldx tmpNpcIdx
 	lda npcTalkLo,x
 	sta lastMsgLo
 	lda npcTalkHi,x
@@ -4274,9 +5024,19 @@ conv_choice5:
 	jsr unseelyConversation
 	jmp conv_loop
 
+@conv_apollonia:
+	jsr apolloniaConversation
+	jmp conv_loop
+
+@conv_alyster:
+	jsr alysterConversation
+	jmp conv_loop
+
 // Unseely Fae conversation
 unseelyConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	lda #<msgUnseelyMenuHeader
 	sta ZP_PTR
 	lda #>msgUnseelyMenuHeader
@@ -4315,6 +5075,8 @@ unseelyConversation:
 	sec
 	sbc #'0'
 	tay
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda unseelyJumpLo,y
 	sta ZP_PTR
 	lda unseelyJumpHi,y
@@ -4330,6 +5092,8 @@ unseelyConversation:
 	lda #>msgUnseelyAsk
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp unseelyConversation
 
 @u_request:
@@ -4346,6 +5110,8 @@ unseelyConversation:
 	lda #>msgUnseelyRequest
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp unseelyConversation
 
 @u_noquest:
@@ -4354,6 +5120,8 @@ unseelyConversation:
 	lda #>msgUnseelyOfferAlready
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp unseelyConversation
 
 @u_leave:
@@ -4382,6 +5150,8 @@ unseelyConversation:
 	lda #>msgUnseelyThanks
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp unseelyConversation
 
 @u_noname:
@@ -4390,6 +5160,8 @@ unseelyConversation:
 	lda #>msgUnseelyNoName
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp unseelyConversation
 
 unseelyJumpLo:
@@ -4397,9 +5169,379 @@ unseelyJumpLo:
 unseelyJumpHi:
 	.byte >@u_ask,>@u_request,>@u_offer,>@u_leave
 
+// Apollonia conversation. Expects X = npc index.
+apolloniaConversation:
+	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
+	// Header
+	lda #<msgApolloniaMenuHeader
+	sta ZP_PTR
+	lda #>msgApolloniaMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Options
+	lda #<msgApolloniaOpt0
+	sta ZP_PTR
+	lda #>msgApolloniaOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgApolloniaOpt1
+	sta ZP_PTR
+	lda #>msgApolloniaOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgApolloniaOpt2
+	sta ZP_PTR
+	lda #>msgApolloniaOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgApolloniaOpt3
+	sta ZP_PTR
+	lda #>msgApolloniaOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgApolloniaOpt4
+	sta ZP_PTR
+	lda #>msgApolloniaOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @a_noinput
+	sec
+	sbc #'0'
+	tay
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
+	lda apolloniaJumpLo,y
+	sta ZP_PTR
+	lda apolloniaJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@a_noinput:
+	jmp apolloniaConversation
+
+@a_martyrs:
+	// One-time blessing: on first story selection, set stage and add +1 score
+	lda npcConvStage,x
+	bne @a_martyrs_msg
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+@a_martyrs_msg:
+	lda #<msgApolloniaMartyrs
+	sta lastMsgLo
+	lda #>msgApolloniaMartyrs
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp apolloniaConversation
+
+@a_teeth:
+	lda npcConvStage,x
+	bne @a_teeth_msg
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+@a_teeth_msg:
+	lda #<msgApolloniaTeeth
+	sta lastMsgLo
+	lda #>msgApolloniaTeeth
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp apolloniaConversation
+
+@a_fire:
+	lda npcConvStage,x
+	bne @a_fire_msg
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+@a_fire_msg:
+	lda #<msgApolloniaFire
+	sta lastMsgLo
+	lda #>msgApolloniaFire
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp apolloniaConversation
+
+@a_leave:
+	// If offering quest is active but not complete, apply a small curse (-1 score)
+	lda activeQuest
+	cmp #QUEST_APOLLONIA_OFFERING
+	bne @a_leave_rts
+	lda questStatus
+	cmp #1
+	bne @a_leave_rts
+	lda #$FF
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgApolloniaCurse
+	sta lastMsgLo
+	lda #>msgApolloniaCurse
+	sta lastMsgHi
+	jsr render
+    jsr setCursorPrompt
+    jsr readLine
+@a_leave_rts:
+	rts
+
+@a_offer:
+	// Find any item in inventory and leave it as an offering
+	ldy #0
+@a_offer_scan:
+	cpy #OBJ_COUNT
+	beq @a_offer_none
+	lda objLoc,y
+	cmp #OBJ_INVENTORY
+	beq @a_offer_found
+	iny
+	bne @a_offer_scan
+@a_offer_found:
+	lda #OBJ_NOWHERE
+	sta objLoc,y
+	// Complete quest if active
+	lda activeQuest
+	cmp #QUEST_APOLLONIA_OFFERING
+	bne @a_offer_msg
+	lda #QUEST_APOLLONIA_OFFERING
+	sta tmpPer+1
+	lda #2
+	jsr conv_apply_effect
+@a_offer_msg:
+	lda #<msgApolloniaOfferDone
+	sta lastMsgLo
+	lda #>msgApolloniaOfferDone
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp apolloniaConversation
+@a_offer_none:
+	lda #<msgApolloniaNoOffer
+	sta lastMsgLo
+	lda #>msgApolloniaNoOffer
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp apolloniaConversation
+
+apolloniaJumpLo:
+	.byte <@a_martyrs,<@a_teeth,<@a_fire,<@a_offer,<@a_leave
+apolloniaJumpHi:
+	.byte >@a_martyrs,>@a_teeth,>@a_fire,>@a_offer,>@a_leave
+
+// Alyster conversation. Expects X = npc index.
+alysterConversation:
+	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
+	// Header
+	lda #<msgAlysterMenuHeader
+	sta ZP_PTR
+	lda #>msgAlysterMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Options
+	lda #<msgAlysterOpt0
+	sta ZP_PTR
+	lda #>msgAlysterOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgAlysterOpt1
+	sta ZP_PTR
+	lda #>msgAlysterOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgAlysterOpt2
+	sta ZP_PTR
+	lda #>msgAlysterOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgAlysterOpt3
+	sta ZP_PTR
+	lda #>msgAlysterOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgAlysterOpt4
+	sta ZP_PTR
+	lda #>msgAlysterOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @ly_noinput
+	sec
+	sbc #'0'
+	tay
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
+	lda alysterJumpLo,y
+	sta ZP_PTR
+	lda alysterJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@ly_noinput:
+	jmp alysterConversation
+
+@ly_basics:
+	// One-time stage and +1 score
+	lda npcConvStage,x
+	bne @ly_basics_msg
+	txa
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+@ly_basics_msg:
+	lda #<msgAlysterBasics
+	sta lastMsgLo
+	lda #>msgAlysterBasics
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp alysterConversation
+
+@ly_care:
+	lda #<msgAlysterCare
+	sta lastMsgLo
+	lda #>msgAlysterCare
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp alysterConversation
+
+@ly_practice:
+	// Minor buff: heal +1 HP capped to max, and +1 score
+	jsr computePlayerMaxHp
+	lda playerCurHp
+	cmp tmpHp
+	bcs @ly_practice_score
+	clc
+	adc #1
+	cmp tmpHp
+	bcc @ly_hp_set
+	lda tmpHp
+@ly_hp_set:
+	sta playerCurHp
+@ly_practice_score:
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgAlysterPractice
+	sta lastMsgLo
+	lda #>msgAlysterPractice
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp alysterConversation
+
+@ly_advanced:
+	// Gate: require basics first (npcConvStage>=1)
+	lda npcConvStage,x
+	cmp #1
+	bcc @ly_notready
+	// If already has bonus, acknowledge
+	lda playerHpBonus
+	bne @ly_adv_done
+	lda #2
+	sta playerHpBonus
+	// Heal to new max and add +2 score
+	jsr computePlayerMaxHp
+	lda tmpHp
+	sta playerCurHp
+	lda #2
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgAlysterAdvanced
+	sta lastMsgLo
+	lda #>msgAlysterAdvanced
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp alysterConversation
+@ly_adv_done:
+	lda #<msgAlysterAdvancedDone
+	sta lastMsgLo
+	lda #>msgAlysterAdvancedDone
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp alysterConversation
+@ly_notready:
+	lda #<msgAlysterNotReady
+	sta lastMsgLo
+	lda #>msgAlysterNotReady
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp alysterConversation
+
+@ly_leave:
+	rts
+
+alysterJumpLo:
+	.byte <@ly_basics,<@ly_care,<@ly_practice,<@ly_advanced,<@ly_leave
+alysterJumpHi:
+	.byte >@ly_basics,>@ly_care,>@ly_practice,>@ly_advanced,>@ly_leave
+
 // Spider Princess conversation. Expects X = npc index.
 spiderConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	// Header
 	lda #<msgSpiderMenuHeader
 	sta ZP_PTR
@@ -4441,6 +5583,8 @@ spiderConversation:
 	sbc #'0'
 	tay
 	// indirect jump table
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda spiderJumpLo,y
 	sta ZP_PTR
 	lda spiderJumpHi,y
@@ -4456,6 +5600,8 @@ spiderConversation:
 	lda #>msgSpiderFlirt
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp spiderConversation
 
 @s_whisper:
@@ -4467,6 +5613,8 @@ spiderConversation:
 	lda #>msgSpiderWhisper
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp spiderConversation
 
 @s_offer:
@@ -4486,6 +5634,8 @@ spiderConversation:
 	lda #>msgSpiderOfferStart
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp spiderConversation
 
 @s_noquest:
@@ -4494,6 +5644,8 @@ spiderConversation:
 	lda #>msgSpiderOfferAlready
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp spiderConversation
 
 @s_leave:
@@ -4510,13 +5662,15 @@ spiderJumpHi:
 
 // Conversation handler table indexed by NPC index (X)
 convSpeakHandlerLo:
-	.byte <@conv_conductor, <@conv_bartender, <@conv_knight, <@conv_speak_default, <@conv_fairy, <@conv_pixie, <@conv_spider, <@conv_pirate, <@conv_pirate, <@conv_unseely
+	.byte <@conv_conductor, <@conv_bartender, <@conv_knight, <@conv_speak_default, <@conv_fairy, <@conv_pixie, <@conv_spider, <@conv_pirate, <@conv_pirate, <@conv_unseely, <@conv_apollonia, <@conv_alyster
 convSpeakHandlerHi:
-	.byte >@conv_conductor, >@conv_bartender, >@conv_knight, >@conv_speak_default, >@conv_fairy, >@conv_pixie, >@conv_spider, >@conv_pirate, >@conv_pirate, >@conv_unseely
+	.byte >@conv_conductor, >@conv_bartender, >@conv_knight, >@conv_speak_default, >@conv_fairy, >@conv_pixie, >@conv_spider, >@conv_pirate, >@conv_pirate, >@conv_unseely, >@conv_apollonia, >@conv_alyster
 
 // Pirate-specific conversation tree. Expects X = npc index.
 pirateConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	// Print header
 	lda #<msgPirateMenuHeader
 	sta ZP_PTR
@@ -4555,6 +5709,30 @@ pirateConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	lda #<msgPirateOpt5
+	sta ZP_PTR
+	lda #>msgPirateOpt5
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt6
+	sta ZP_PTR
+	lda #>msgPirateOpt6
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt7
+	sta ZP_PTR
+	lda #>msgPirateOpt7
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgPirateOpt8
+	sta ZP_PTR
+	lda #>msgPirateOpt8
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -4564,6 +5742,8 @@ pirateConversation:
 	sbc #'0'
 	tay
 	// indirect jump via table to avoid short-branch distance limits
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda pirateJumpLo,y
 	sta ZP_PTR
 	lda pirateJumpHi,y
@@ -4575,9 +5755,9 @@ pirateConversation:
 
 	// Jump table: low/high word pairs for pirate choices
 	pirateJumpLo:
-		.byte <@pc_tale, <@pc_treasure, <@pc_join, <@pc_leave, <@pc_offer
+		.byte <@pc_tale, <@pc_treasure, <@pc_join, <@pc_leave, <@pc_offer, <@pc_stance, <@pc_footwork, <@pc_parry, <@pc_lunge
 	pirateJumpHi:
-		.byte >@pc_tale, >@pc_treasure, >@pc_join, >@pc_leave, >@pc_offer
+		.byte >@pc_tale, >@pc_treasure, >@pc_join, >@pc_leave, >@pc_offer, >@pc_stance, >@pc_footwork, >@pc_parry, >@pc_lunge
 
 @pc_tale:
 	// Different lines for captain vs first mate
@@ -4589,6 +5769,8 @@ pirateConversation:
 	lda #>msgPirateTaleMate
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_tale_capt:
@@ -4597,6 +5779,8 @@ pirateConversation:
 	lda #>msgPirateTaleCapt
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_treasure:
@@ -4613,6 +5797,8 @@ pirateConversation:
 	lda #>msgPirateTreasureStart
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_treasure_already:
@@ -4621,6 +5807,8 @@ pirateConversation:
 	lda #>msgPirateTreasureAlready
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_join:
@@ -4634,6 +5822,8 @@ pirateConversation:
 	lda #>msgPirateJoin
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_offer:
@@ -4647,6 +5837,8 @@ pirateConversation:
 	lda #>msgPirateNoTreasure
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_offer_have:
@@ -4660,6 +5852,8 @@ pirateConversation:
 	lda #>msgPirateNoQuest
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_offer_complete:
@@ -4676,6 +5870,82 @@ pirateConversation:
 	lda #>msgPirateOfferYes
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp pirateConversation
+
+@pc_stance:
+	lda #<msgPirateStance
+	sta lastMsgLo
+	lda #>msgPirateStance
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp pirateConversation
+
+@pc_footwork:
+	lda #<msgPirateFootwork
+	sta lastMsgLo
+	lda #>msgPirateFootwork
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp pirateConversation
+
+@pc_parry:
+	// Practice: heal +1 HP capped to max and +1 score
+	jsr computePlayerMaxHp
+	lda playerCurHp
+	cmp tmpHp
+	bcs @pc_parry_score
+	clc
+	adc #1
+	cmp tmpHp
+	bcc @pc_parry_set
+	lda tmpHp
+@pc_parry_set:
+	sta playerCurHp
+@pc_parry_score:
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgPirateParry
+	sta lastMsgLo
+	lda #>msgPirateParry
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp pirateConversation
+
+@pc_lunge:
+	// Practice: heal +1 HP capped to max and +1 score
+	jsr computePlayerMaxHp
+	lda playerCurHp
+	cmp tmpHp
+	bcs @pc_lunge_score
+	clc
+	adc #1
+	cmp tmpHp
+	bcc @pc_lunge_set
+	lda tmpHp
+@pc_lunge_set:
+	sta playerCurHp
+@pc_lunge_score:
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgPirateLunge
+	sta lastMsgLo
+	lda #>msgPirateLunge
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pirateConversation
 
 @pc_leave:
@@ -4684,6 +5954,8 @@ pirateConversation:
 // Bartender-specific conversation tree. Expects X = npc index.
 bartenderConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	// Header
 	lda #<msgBartenderMenuHeader
 	sta ZP_PTR
@@ -4731,6 +6003,8 @@ bartenderConversation:
 	sbc #'0'
 	tay
 	// indirect jump table to avoid branch distance issues
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda bartenderJumpLo,y
 	sta ZP_PTR
 	lda bartenderJumpHi,y
@@ -4751,6 +6025,8 @@ bartenderConversation:
 	lda #>msgBartenderJob
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 @b_buy:
@@ -4773,6 +6049,8 @@ bartenderConversation:
 	lda #>msgBartenderBought
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 @b_nocoin:
@@ -4781,6 +6059,8 @@ bartenderConversation:
 	lda #>msgBartenderNoCoin
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 @b_tip:
@@ -4803,6 +6083,8 @@ bartenderConversation:
 	lda #>msgBartenderTipThanks
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 @b_notipcoin:
@@ -4811,6 +6093,8 @@ bartenderConversation:
 	lda #>msgBartenderNoCoin
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 @b_leave:
@@ -4833,7 +6117,8 @@ bartenderConversation:
 	lda #>msgQuestOfferGeneric
 	sta lastMsgHi
 	jsr render
-	jsr waitAnyKey
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 @b_noquest:
@@ -4842,12 +6127,15 @@ bartenderConversation:
 	lda #>msgNoQuestNpc
 	sta lastMsgHi
 	jsr render
-	jsr waitAnyKey
+	jsr setCursorPrompt
+	jsr readLine
 	jmp bartenderConversation
 
 // Conductor-specific conversation tree. Expects X = npc index.
 conductorConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	// Header
 	lda #<msgConductorMenuHeader
 	sta ZP_PTR
@@ -4889,6 +6177,8 @@ conductorConversation:
 	sbc #'0'
 	tay
 	// indirect jump table to avoid branch-distance issues
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda conductorJumpLo,y
 	sta ZP_PTR
 	lda conductorJumpHi,y
@@ -4909,6 +6199,8 @@ conductorConversation:
 	lda #>msgConductorAbout
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp conductorConversation
 
 @c_tune:
@@ -4922,6 +6214,8 @@ conductorConversation:
 	lda #>msgConductorTune
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp conductorConversation
 
 @c_join:
@@ -4935,6 +6229,8 @@ conductorConversation:
 	lda #>msgConductorJoin
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp conductorConversation
 
 @c_quest:
@@ -4982,7 +6278,6 @@ conductorConversation:
 	lda #>msgCoinRec
 	sta lastMsgHi
 	jsr render
-	jsr waitAnyKey
 	// fall through to show the quest offer message (override msg from give)
 
 @c_nooffermsg:
@@ -4991,7 +6286,8 @@ conductorConversation:
 	lda #>msgQuestOfferGeneric
 	sta lastMsgHi
 	jsr render
-	jsr waitAnyKey
+	jsr setCursorPrompt
+	jsr readLine
 	jmp conductorConversation
 
 @c_noquest:
@@ -5000,6 +6296,8 @@ conductorConversation:
 	lda #>msgNoQuestNpc
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp conductorConversation
 
 @c_leave:
@@ -5008,6 +6306,8 @@ conductorConversation:
 // Knight-specific conversation tree. Expects X = npc index.
 knightConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	lda #<msgKnightMenuHeader
 	sta ZP_PTR
 	lda #>msgKnightMenuHeader
@@ -5038,6 +6338,30 @@ knightConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	lda #<msgKnightOpt4
+	sta ZP_PTR
+	lda #>msgKnightOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt5
+	sta ZP_PTR
+	lda #>msgKnightOpt5
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt6
+	sta ZP_PTR
+	lda #>msgKnightOpt6
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKnightOpt7
+	sta ZP_PTR
+	lda #>msgKnightOpt7
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -5048,6 +6372,8 @@ knightConversation:
 	tay
 	tya
 	// indirect jump table
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda knightJumpLo,y
 	sta ZP_PTR
 	lda knightJumpHi,y
@@ -5063,6 +6389,8 @@ knightConversation:
 	lda #>msgKnightAbout
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp knightConversation
 
 @k_offer:
@@ -5096,6 +6424,8 @@ knightConversation:
 	lda #>msgKnightNoKey
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp knightConversation
 
 @k_noquest:
@@ -5104,16 +6434,92 @@ knightConversation:
 	lda #>msgKnightNoQuest
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp knightConversation
 
 @k_leave:
 	rts
 
+@k_guard:
+	lda #<msgKnightGuard
+	sta lastMsgLo
+	lda #>msgKnightGuard
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp knightConversation
+
+@k_footwork:
+	lda #<msgKnightFootwork
+	sta lastMsgLo
+	lda #>msgKnightFootwork
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp knightConversation
+
+@k_parry:
+	// Arena drill: heal +1 HP capped to max and +1 score
+	jsr computePlayerMaxHp
+	lda playerCurHp
+	cmp tmpHp
+	bcs @k_parry_score
+	clc
+	adc #1
+	cmp tmpHp
+	bcc @k_parry_set
+	lda tmpHp
+@k_parry_set:
+	sta playerCurHp
+@k_parry_score:
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgKnightParry
+	sta lastMsgLo
+	lda #>msgKnightParry
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp knightConversation
+
+@k_lunge:
+	// Arena drill: heal +1 HP capped to max and +1 score
+	jsr computePlayerMaxHp
+	lda playerCurHp
+	cmp tmpHp
+	bcs @k_lunge_score
+	clc
+	adc #1
+	cmp tmpHp
+	bcc @k_lunge_set
+	lda tmpHp
+@k_lunge_set:
+	sta playerCurHp
+@k_lunge_score:
+	lda #1
+	sta tmpPer+1
+	lda #5
+	jsr conv_apply_effect
+	lda #<msgKnightLunge
+	sta lastMsgLo
+	lda #>msgKnightLunge
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp knightConversation
+
 @k_join:
 	// Start the Order of the Black Rose quest if available
 	lda npcOffersQuest,x
 	cmp #QUEST_NONE
-	beq @k_noquest
+	beq @k_join_noquest
 	lda npcOffersQuest,x
 	sta tmpPer+1
 	lda #1
@@ -5123,16 +6529,23 @@ knightConversation:
 	lda #>msgKnightThanks
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp knightConversation
 
+@k_join_noquest:
+	jmp @k_noquest
+
 knightJumpLo:
-	.byte <@k_about,<@k_offer,<@k_join,<@k_leave
+	.byte <@k_about,<@k_offer,<@k_join,<@k_leave,<@k_guard,<@k_footwork,<@k_parry,<@k_lunge
 knightJumpHi:
-	.byte >@k_about,>@k_offer,>@k_join,>@k_leave
+	.byte >@k_about,>@k_offer,>@k_join,>@k_leave,>@k_guard,>@k_footwork,>@k_parry,>@k_lunge
 
 // Fairy-specific conversation tree. Expects X = npc index.
 fairyConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	lda #<msgFairyMenuHeader
 	sta ZP_PTR
 	lda #>msgFairyMenuHeader
@@ -5172,6 +6585,8 @@ fairyConversation:
 	sbc #'0'
 	tay
 	tya
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda fairyJumpLo,y
 	sta ZP_PTR
 	lda fairyJumpHi,y
@@ -5192,6 +6607,8 @@ fairyConversation:
 	lda #>msgFairyBless
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp fairyConversation
 
 @f_coin:
@@ -5205,6 +6622,8 @@ fairyConversation:
 	lda #>msgFairyGive
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp fairyConversation
 
 @f_trade:
@@ -5227,6 +6646,8 @@ fairyConversation:
 	lda #>msgFairyTradeSuccess
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp fairyConversation
 
 @f_nocoin:
@@ -5235,6 +6656,8 @@ fairyConversation:
 	lda #>msgBartenderNoCoin
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp fairyConversation
 
 @f_leave:
@@ -5248,6 +6671,8 @@ fairyJumpHi:
 // Pixie-specific conversation tree. Expects X = npc index.
 pixieConversation:
 	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
 	lda #<msgPixieMenuHeader
 	sta ZP_PTR
 	lda #>msgPixieMenuHeader
@@ -5281,6 +6706,8 @@ pixieConversation:
 	sbc #'0'
 	tay
 	tya
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
 	lda pixieJumpLo,y
 	sta ZP_PTR
 	lda pixieJumpHi,y
@@ -5304,6 +6731,8 @@ pixieConversation:
 	lda #>msgPixieStole
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pixieConversation
 
 @p_notlan:
@@ -5312,6 +6741,8 @@ pixieConversation:
 	lda #>msgPixieNoLan
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pixieConversation
 
 @p_play:
@@ -5329,6 +6760,8 @@ pixieConversation:
 	lda #>msgPixiePlay
 	sta lastMsgHi
 	jsr render
+	jsr setCursorPrompt
+	jsr readLine
 	jmp pixieConversation
 
 @p_leave:
@@ -5399,7 +6832,6 @@ pixieJumpHi:
 
 @cq_render:
 	jsr render
-	jsr waitAnyKey
 	jmp conv_loop
 
 @conv_noquest:
@@ -5408,7 +6840,6 @@ pixieJumpHi:
 	lda #>msgNoQuestNpc
 	sta lastMsgHi
 	jsr render
-	jsr waitAnyKey
 	jmp conv_loop
 
 @conv_do_qinfo:
@@ -6017,12 +7448,15 @@ cmdChart:
 	jsr chartPrintRow
 	jsr newline
 
-	lda #<msgChart3
-	sta ZP_PTR
-	lda #>msgChart3
-	sta ZP_PTR+1
-	jsr printZ
-	jsr waitAnyKey
+    
+	rts
+
+cmdHelp:
+	// Refresh help HUD (always shown) and set a friendly message
+	lda #<msgHelp
+	sta lastMsgLo
+	lda #>msgHelp
+	sta lastMsgHi
 	rts
 
 @status_none:
@@ -6251,7 +7685,137 @@ printExits:
 @w:
 	lda exitW,x
 	cmp #$FF
+	beq @diag
+	lda #'W'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+
+@diag:
+	// Print diagonal possibilities if reachable via two-step paths
+	// NE
+	ldx currentLoc
+	lda exitN,x
+	cmp #$FF
+	beq @ne_e
+	tax
+	lda exitE,x
+	cmp #$FF
+	beq @ne_e
+	lda #'N'
+	jsr CHROUT
+	lda #'E'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	jmp @nw
+@ne_e:
+	ldx currentLoc
+	lda exitE,x
+	cmp #$FF
+	beq @nw
+	tax
+	lda exitN,x
+	cmp #$FF
+	beq @nw
+	lda #'N'
+	jsr CHROUT
+	lda #'E'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+@nw:
+	// NW
+	ldx currentLoc
+	lda exitN,x
+	cmp #$FF
+	beq @nw_w
+	tax
+	lda exitW,x
+	cmp #$FF
+	beq @nw_w
+	lda #'N'
+	jsr CHROUT
+	lda #'W'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	jmp @se
+@nw_w:
+	ldx currentLoc
+	lda exitW,x
+	cmp #$FF
+	beq @se
+	tax
+	lda exitN,x
+	cmp #$FF
+	beq @se
+	lda #'N'
+	jsr CHROUT
+	lda #'W'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+@se:
+	// SE
+	ldx currentLoc
+	lda exitS,x
+	cmp #$FF
+	beq @se_e
+	tax
+	lda exitE,x
+	cmp #$FF
+	beq @se_e
+	lda #'S'
+	jsr CHROUT
+	lda #'E'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	jmp @sw
+@se_e:
+	ldx currentLoc
+	lda exitE,x
+	cmp #$FF
+	beq @sw
+	tax
+	lda exitS,x
+	cmp #$FF
+	beq @sw
+	lda #'S'
+	jsr CHROUT
+	lda #'E'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+@sw:
+	// SW
+	ldx currentLoc
+	lda exitS,x
+	cmp #$FF
+	beq @sw_w
+	tax
+	lda exitW,x
+	cmp #$FF
+	beq @sw_w
+	lda #'S'
+	jsr CHROUT
+	lda #'W'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	jmp @pe_done
+@sw_w:
+	ldx currentLoc
+	lda exitW,x
+	cmp #$FF
 	beq @pe_done
+	tax
+	lda exitS,x
+	cmp #$FF
+	beq @pe_done
+	lda #'S'
+	jsr CHROUT
 	lda #'W'
 	jsr CHROUT
 	lda #' '
@@ -6323,7 +7887,7 @@ locName7: .text "FAIRY GARDENS"
 	.byte 0
 locName8: .text "TIPSEY MAIDEN TAVERN"
 	.byte 0
-locName9: .text "LOUDEN'S REST"
+locName9: .text "DRAGON HAVEN"
 	.byte 0
 locName10: .text "CATACOMBS"
 	.byte 0
@@ -6433,20 +7997,20 @@ npcMaskByLocHi:
 	.byte %00000000 // MYSTICWOOD
 	.byte %00000000 // FAIRY GARDENS
 	.byte %00000000 // TAVERN
-	.byte %00000000 // LOUDEN'S REST
+	.byte %00001000 // DRAGON HAVEN: ALYSTER (high bit3)
 	.byte %00000000 // CATACOMBS
-	.byte %00000000 // PIGGLYWEED INN
+	.byte %00000100 // PIGGLYWEED INN: APOLLONIA (high bit2)
 	.byte %00000010 // TEMPLE (UNSEELY_FAE -> index9 -> high bit1)
 
 // Default NPC to address in a location when only one is present
 npcDefaultByLoc:
-	.byte NPC_CONDUCTOR, $FF, NPC_KNIGHT, $FF, NPC_SPIDER_PRINCESS, NPC_PIRATE_CAPTAIN, NPC_MYSTIC, NPC_FAIRY, NPC_BARTENDER, $FF, $FF, $FF, NPC_UNSEELY_FAE
+	.byte NPC_CONDUCTOR, $FF, NPC_KNIGHT, $FF, NPC_SPIDER_PRINCESS, NPC_PIRATE_CAPTAIN, NPC_MYSTIC, NPC_FAIRY, NPC_BARTENDER, NPC_ALYSTER, $FF, NPC_APOLLONIA, NPC_UNSEELY_FAE
 
 // One-line talk per location (MVP)
 npcTalkLoByLoc:
-	.byte <talkConductor,<msgNoOne,<talkKnight,<msgNoOne,<msgNoOne,<talkPirateCaptain,<talkMystic,<talkFairy,<talkBartender,<msgNoOne,<msgNoOne,<msgNoOne,<msgNoOne
+	.byte <talkConductor,<msgNoOne,<talkKnight,<msgNoOne,<msgNoOne,<talkPirateCaptain,<talkMystic,<talkFairy,<talkBartender,<talkAlyster,<msgNoOne,<talkApollonia,<msgNoOne
 npcTalkHiByLoc:
-	.byte >talkConductor,>msgNoOne,>talkKnight,>msgNoOne,>msgNoOne,>talkPirateCaptain,>talkMystic,>talkFairy,>talkBartender,>msgNoOne,>msgNoOne,>msgNoOne,>msgNoOne
+	.byte >talkConductor,>msgNoOne,>talkKnight,>msgNoOne,>msgNoOne,>talkPirateCaptain,>talkMystic,>talkFairy,>talkBartender,>talkAlyster,>msgNoOne,>talkApollonia,>msgNoOne
 
 talkConductor: .text "THE CONDUCTOR SAYS: ALL ABOARD THE IMAGINATION EXPRESS!"
 	.byte 0
@@ -6470,16 +8034,90 @@ talkPirateFirstMate: .text "FIRST MATE: WE SWEAR BY WIND AND WHEEL, STRANGER."
 talkUnseelyFae: .text "AN UNSEELY FAE WHISPERS: THE RUINS REMEMBER BLOOMS THAT NEVER WERE."
 	.byte 0
 
+talkApollonia: .text "A STATUE OF SAINT APOLLONIA STANDS SILENTLY."
+
+talkAlyster: .text "ALYSTER SAYS: STRENGTH WITH KINDNESS; DRAGONS TRUST THE STEADFAST."
+	.byte 0
+// Apollonia conversation strings
+msgApolloniaMenuHeader: .text "SAINT APOLLONIA"
+msgApolloniaOpt0: .text "0. HEAR OF THE MARTYRS"
+	.byte 0
+msgApolloniaOpt1: .text "1. HEAR OF HER TEETH"
+	.byte 0
+msgApolloniaOpt2: .text "2. HEAR OF THE FLAMES"
+	.byte 0
+msgApolloniaOpt3: .text "3. LEAVE AN OFFERING"
+	.byte 0
+msgApolloniaOpt4: .text "4. LEAVE"
+	.byte 0
+msgApolloniaMartyrs:
+	.text "SHE WAS ARRESTED FOR HER FAITH,"
+	.byte $0D
+	.text "FORCED TO WATCH AS HER FELLOW"
+	.byte $0D
+	.text "CHRISTIAN MARTYRS WERE BRUTALLY KILLED."
+	.byte 0
+msgApolloniaTeeth:
+	.text "THEY THREATENED TO PULL OUT ALL HER TEETH"
+	.byte $0D
+	.text "UNLESS SHE RENOUNCED CHRISTIANITY."
+	.byte $0D
+	.text "SHE CHOSE TO SUFFER RATHER THAN BETRAY HER BELIEF."
+	.byte 0
+msgApolloniaFire:
+	.text "AFTER HER TORTURE, SHE WAS ULTIMATELY"
+	.byte $0D
+	.text "BURNED AT THE STAKE FOR HER FAITH."
+	.byte 0
+msgApolloniaOfferDone: .text "YOU LEAVE AN OFFERING AT THE STATUE."
+	.byte 0
+msgApolloniaNoOffer: .text "YOU HAVE NOTHING TO OFFER."
+	.byte 0
+msgApolloniaCurse: .text "A SHIVER RUNS THROUGH YOU. A CURSE LINGERS."
+	.byte 0
+
+// Alyster conversation strings
+msgAlysterMenuHeader: .text "DRAGON TRAINER ALYSTER"
+	.byte 0
+msgAlysterOpt0: .text "0. LEARN THE BASICS"
+	.byte 0
+msgAlysterOpt1: .text "1. HEAR DRAGON CARE TIPS"
+	.byte 0
+msgAlysterOpt2: .text "2. PRACTICE A STANCE"
+	.byte 0
+msgAlysterOpt3: .text "3. ADVANCED TRAINING"
+	.byte 0
+msgAlysterOpt4: .text "4. LEAVE"
+	.byte 0
+msgAlysterBasics: .text "STRENGTH WITH KINDNESS. DISCIPLINE EARNED, NEVER FORCED."
+	.byte $0D
+	.text "DRAGONS TRUST THE STEADFAST AND THE TRUE."
+	.byte 0
+msgAlysterCare: .text "A CALM VOICE, A STEADY HAND. FEED WELL, TRAIN FAIR."
+	.byte $0D
+	.text "RESPECT BREEDS LOYALTY; LOYALTY BREEDS COURAGE."
+	.byte 0
+msgAlysterPractice: .text "YOU CENTER YOURSELF. YOU FEEL STEADIER."
+	.byte 0
+msgAlysterAdvanced: .text "YOU BREATHE DEEPLY AND SET YOUR STANCE."
+	.byte $0D
+	.text "YOUR RESOLVE HARDENS; YOUR VITALITY INCREASES."
+	.byte 0
+msgAlysterNotReady: .text "ALYSTER SAYS: MASTER THE BASICS FIRST."
+	.byte 0
+msgAlysterAdvancedDone: .text "ALYSTER NODS: YOU'VE LEARNED THIS LESSON."
+	.byte 0
+
 npcTalkLo:
-	.byte <talkConductor,<talkBartender,<talkKnight,<talkMystic,<talkFairy,<talkPixie,<talkSpiderPrincess,<talkPirateCaptain,<talkPirateFirstMate,<talkUnseelyFae
+	.byte <talkConductor,<talkBartender,<talkKnight,<talkMystic,<talkFairy,<talkPixie,<talkSpiderPrincess,<talkPirateCaptain,<talkPirateFirstMate,<talkUnseelyFae,<talkApollonia,<talkAlyster
 npcTalkHi:
-	.byte >talkConductor,>talkBartender,>talkKnight,>talkMystic,>talkFairy,>talkPixie,>talkSpiderPrincess,>talkPirateCaptain,>talkPirateFirstMate,>talkUnseelyFae
+	.byte >talkConductor,>talkBartender,>talkKnight,>talkMystic,>talkFairy,>talkPixie,>talkSpiderPrincess,>talkPirateCaptain,>talkPirateFirstMate,>talkUnseelyFae,>talkApollonia,>talkAlyster
 
 // Which quest (if any) each NPC can offer
 // Which quest (if any) each NPC can offer
 // Which quest (if any) each NPC can offer
 npcOffersQuest:
-	.byte QUEST_COIN_BARTENDER, QUEST_NONE, QUEST_BLACK_ROSE, QUEST_LANTERN_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_LURE_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_UNSEELY_NAME
+	.byte QUEST_COIN_BARTENDER, QUEST_NONE, QUEST_BLACK_ROSE, QUEST_LANTERN_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_LURE_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_UNSEELY_NAME, QUEST_APOLLONIA_OFFERING, QUEST_NONE
 
 // Conversation strings
 msgAskWeather: .text "THE SKY LOOKS LIKE IT'LL HOLD FOR NOW."
@@ -6506,6 +8144,14 @@ msgPirateOpt3: .text "3. LEAVE"
 	.byte 0
 msgPirateOpt4: .text "4. OFFER TREASURE"
 	.byte 0
+msgPirateOpt5: .text "5. SWORDPLAY: STANCE"
+	.byte 0
+msgPirateOpt6: .text "6. SWORDPLAY: FOOTWORK"
+	.byte 0
+msgPirateOpt7: .text "7. PRACTICE PARRY"
+	.byte 0
+msgPirateOpt8: .text "8. PRACTICE LUNGE"
+	.byte 0
 msgPirateTaleCapt: .text "CAPTAIN: A STORM, A RIDDLE, AND A CUP OF RUM."
 	.byte 0
 msgPirateTaleMate: .text "MATE: WE SING OF WIND AND WHEEL, BUT WE SHARE OUR GOLD."
@@ -6521,6 +8167,14 @@ msgPirateNoTreasure: .text "YOU HAVE NO TREASURE TO OFFER."
 msgPirateNoQuest: .text "CAPTAIN: I HAVE NO NEED FOR THIS, NOT NOW."
 	.byte 0
 msgPirateOfferYes: .text "THE CREW CHEERS; YOUR DEED IS REWARDED."
+	.byte 0
+msgPirateStance: .text "CAPTAIN: SQUARE YOUR SHOULDERS; BALANCE YOUR WEIGHT."
+	.byte 0
+msgPirateFootwork: .text "MATE: SMALL STEPS; NEVER CROSS. LET THE BLADE DO LESS."
+	.byte 0
+msgPirateParry: .text "YOU PRACTICE THE PARRY; YOUR TIMING IMPROVES."
+	.byte 0
+msgPirateLunge: .text "YOU PRACTICE A QUICK LUNGE; YOUR FORM SHARPENS."
 	.byte 0
 msgBartenderMenuHeader: .text "BARTENDER"
 	.byte 0
@@ -6572,6 +8226,14 @@ msgKnightOpt2: .text "2. JOIN THE ORDER"
 	.byte 0
 msgKnightOpt3: .text "3. LEAVE"
 	.byte 0
+msgKnightOpt4: .text "4. ARENA: GUARD STANCE"
+	.byte 0
+msgKnightOpt5: .text "5. ARENA: FOOTWORK DRILL"
+	.byte 0
+msgKnightOpt6: .text "6. ARENA: PRACTICE PARRY"
+	.byte 0
+msgKnightOpt7: .text "7. ARENA: PRACTICE LUNGE"
+	.byte 0
 msgKnightAbout: .text "KNIGHT: HONOR OPENS MORE DOORS THAN KEYS."
 	.byte 0
 msgKnightNoKey: .text "YOU DO NOT HAVE THE KEY."
@@ -6579,6 +8241,14 @@ msgKnightNoKey: .text "YOU DO NOT HAVE THE KEY."
 msgKnightNoQuest: .text "THE KNIGHT DOESN'T NEED THIS NOW."
 	.byte 0
 msgKnightThanks: .text "THE KNIGHT BLESSES YOU FOR YOUR SERVICE."
+	.byte 0
+msgKnightGuard: .text "KNIGHT: RAISE YOUR GUARD; LET YOUR SHOULDERS RELAX."
+	.byte 0
+msgKnightFootwork: .text "KNIGHT: SMALL STEPS; HEELS LIGHT. NEVER CROSS YOUR FEET."
+	.byte 0
+msgKnightParry: .text "YOU PRACTICE THE PARRY; YOUR TIMING IMPROVES."
+	.byte 0
+msgKnightLunge: .text "YOU PRACTICE A FIRM LUNGE; YOUR FORM SHARPENS."
 	.byte 0
 
 msgFairyMenuHeader: .text "FAIRY"
@@ -6716,16 +8386,16 @@ classHpPerLevel:
 
 // NPC static attributes per NPC index
 npcClassIdx:
-	.byte 0,1,2,3,4,5,4,6,6,4
+	.byte 0,1,2,3,4,5,4,6,6,4,3
 npcLevel:
-	.byte 1,1,2,3,1,1,1,2,1,1
+	.byte 1,1,2,3,1,1,1,2,1,1,1
 npcScoreLo:
-	.byte 0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0
 npcScoreHi:
-	.byte 0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0
 // NPC current HP (persisted across saves)
 npcCurHp:
-	.byte 0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0
 
 // Playable classes (for player)
 playClass0: .text "MAGE"
@@ -6769,6 +8439,11 @@ computePlayerMaxHp:
 	dec tmpCnt
 	jmp @pc_hp_loop
 @pc_hp_done:
+	// Apply any session-only bonus to max HP
+	lda tmpHp
+	clc
+	adc playerHpBonus
+	sta tmpHp
 	rts
 
 // --- Data: Objects ---
@@ -6808,6 +8483,14 @@ kwSouth:      .text "SOUTH"
 kwEast:       .text "EAST"
 	.byte 0
 kwWest:       .text "WEST"
+	.byte 0
+kwNortheast:  .text "NORTHEAST"
+	.byte 0
+kwNorthwest:  .text "NORTHWEST"
+	.byte 0
+kwSoutheast:  .text "SOUTHEAST"
+	.byte 0
+kwSouthwest:  .text "SOUTHWEST"
 	.byte 0
 kwInspect:    .text "INSPECT"
 	.byte 0
@@ -6866,6 +8549,14 @@ kwFairy:     .text "FAIRY"
 	.byte 0
 kwPixie:     .text "PIXIE"
 	.byte 0
+kwApollonia: .text "APOLLONIA"
+	.byte 0
+kwStatue:    .text "STATUE"
+	.byte 0
+kwAlyster:   .text "ALYSTER"
+	.byte 0
+kwDragonTrainer: .text "DRAGON TRAINER"
+	.byte 0
 
 kwStall:     .text "STALL"
 	.byte 0
@@ -6892,6 +8583,9 @@ kwQuest:     .text "QUEST"
 kwChart:     .text "CHART"
 	.byte 0
 
+kwHelp:      .text "HELP"
+	.byte 0
+
 // --- UI Strings / Messages ---
 strExits:  .text "EXITS: "
 	.byte 0
@@ -6914,9 +8608,13 @@ strDisplay: .text "DISPLAY: "
 	.byte 0
 strClass: .text "CLASS: "
 	.byte 0
+strRace:  .text "RACE: "
+	.byte 0
 strLevel: .text "LEVEL "
 	.byte 0
 strQuest: .text "  QUEST "
+	.byte 0
+strHP:   .text "HP: "
 	.byte 0
 
 strCharacters: .text "CHARACTERS: "
@@ -6929,14 +8627,18 @@ strEmpty:      .text "(EMPTY)"
 	.byte 0
 strSpace:      .text " "
 	.byte 0
+strPlus:       .text "+"
+	.byte 0
+strMaxHpSession: .text " MAX HP (SESSION)"
+	.byte 0
 strNoData: .text "(no data)"
 	.byte 0
 
 // npcBit split into low/high bytes to support up to 16 NPCs
 npcBitLo:
-	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000,%00000000,%00000000
+	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000,%00000000,%00000000,%00000000,%00000000
 npcBitHi:
-	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000001,%00000010
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000001,%00000010,%00000100,%00001000
 
 npcName0: .text "CONDUCTOR"
 	.byte 0
@@ -6958,11 +8660,15 @@ npcName8: .text "PIRATE FIRST MATE"
 	.byte 0
 npcName9: .text "UNSEELY FAE"
 	.byte 0
+npcName10: .text "STATUE OF SAINT APOLLONIA"
+	.byte 0
+npcName11: .text "DRAGON TRAINER ALYSTER"
+	.byte 0
 
 npcNameLo:
-	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5,<npcName6,<npcName7,<npcName8,<npcName9
+	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5,<npcName6,<npcName7,<npcName8,<npcName9,<npcName10,<npcName11
 npcNameHi:
-	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9
+	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9,>npcName10,>npcName11
 
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
@@ -6980,6 +8686,8 @@ msgChartRange2: .text "RANGE $A0-$FF:"
 msgChart3: .text "PRESS ANY KEY TO RETURN"
 	.byte 0
 msgUnknown:    .text "I DIDN'T UNDERSTAND. TRY: N E S W, INSPECT <OBJ>, TAKE <OBJ>."
+	.byte 0
+msgHelp:       .text "HELP: N/E/S/W MOVE, T TALK, I INV, LOOK"
 	.byte 0
 msgNoWay:      .text "YOU CAN'T GO THAT WAY."
 	.byte 0
@@ -7054,6 +8762,8 @@ msgAskDisplay:  .text "DISPLAY NAME?"
 	.byte 0
 msgAskClass:    .text "CLASS (KNIGHT, PALADIN, MAGE, BARD, HEALER, CLERIC):"
 	.byte 0
+msgAskRace:     .text "RACE (HUMAN, TROLL, ELF, DRAGON):"
+	.byte 0
 msgAskPin:      .text "SET PIN (NUMBERS)"
 	.byte 0
 msgAskPinLogin: .text "PIN?"
@@ -7119,11 +8829,13 @@ questName1: .text "BRING KEY TO KNIGHT"
 			.byte 0
 			questName5: .text "RECOVER STOLEN NAME"
 				.byte 0
+questNameApollonia: .text "LEAVE AN OFFERING"
+	.byte 0
 
 questNameLo:
-	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5
+	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName5,<questNameApollonia
 questNameHi:
-	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5
+	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName5,>questNameApollonia
 
 questDetail0: .text "QUEST: GIVE COIN TO THE BARTENDER."
 	.byte 0
@@ -7137,8 +8849,10 @@ questDetail1: .text "QUEST: GIVE KEY TO THE KNIGHT."
 		.byte 0
 		questDetail5: .text "QUEST: RETRIEVE THE NAME STOLEN BY THE FAIRY IN THE FAIRY GARDENS AND RETURN IT TO THE UNSEELY FAE."
 			.byte 0
+questDetailApollonia: .text "QUEST: LEAVE ANY ITEM AS AN OFFERING AT SAINT APOLLONIA'S STATUE IN THE INN."
+	.byte 0
 
 questDetailLo:
-	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5
+	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5,<questDetail5,<questDetailApollonia
 questDetailHi:
-	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5
+	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5,>questDetail5,>questDetailApollonia

@@ -40,13 +40,10 @@ Troubleshooting:
  - If `wkhtmltopdf` fails to load local images, include `--enable-local-file-access`.
 
 Operational tips (C64 runtime)
-------------------------------
-- Wildcard LOAD and lowercase: When launching from a D64, prefer lowercase commands and wildcard load to avoid PETSCII filename mismatches:
+-------------------------------
+- Wildcard LOAD and lowercase: When launching from a D64, prefer lowercase commands and wildcard load if needed to avoid PETSCII filename mismatches:
 
 ```basic
 load"*",8,1
 run
 ```
-
-- VICE `-keybuf`: Use lowercase sequences in `-keybuf` for reliability (e.g., `load"*",8,1` then `run`). This avoids case-conversion surprises in PETSCII.
-- EVLOG device 8: Game logging writes to device 8. To observe logs when running PRG directly, enable virtual device traps in VICE or run with `-autostartprgmode 0` so filesystem writes map to host.

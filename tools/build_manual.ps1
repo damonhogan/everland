@@ -45,13 +45,77 @@ if ($pdflatex) {
 }
 
 if ($wkhtmltopdf) {
-    Write-Host "Building HTML then converting via wkhtmltopdf..." -ForegroundColor Green
-    & $pandoc $ManualMd -o $OutHtml --standalone --toc
-    if ($LASTEXITCODE -ne 0) { Write-Host "pandoc->HTML failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
-    # Allow wkhtmltopdf to access local image files when converting HTML -> PDF
-    & $wkhtmltopdf --enable-local-file-access $OutHtml $OutPdf
-    if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf via wkhtmltopdf" -ForegroundColor Green; exit 0 }
-    else { Write-Host "wkhtmltopdf failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+        Write-Host "Building HTML then converting via wkhtmltopdf..." -ForegroundColor Green
+        & $pandoc $ManualMd -o $OutHtml --standalone --toc
+        if ($LASTEXITCODE -ne 0) { Write-Host "pandoc->HTML failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
+
+        # Optional cover: images/SpiderPrincess1Up.png
+        $coverPng = Join-Path (Split-Path -Parent $PSCommandPath) "..\images\SpiderPrincess1Up.png"
+        $coverHtml = "MANUAL.cover.html"
+        $useCover = Test-Path $coverPng
+        if ($useCover) {
+                Write-Host "Found cover image: $coverPng" -ForegroundColor Cyan
+                $coverDoc = @'
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <style>
+        html,body{margin:0;padding:0;height:100%;}
+        .full{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
+        img{max-width:100%;max-height:100%;}
+    </style>
+    <title>Everland — Manual Cover</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="supported-color-schemes" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="HandheldFriendly" content="true" />
+    <meta http-equiv="cleartype" content="on" />
+    <meta http-equiv="imagetoolbar" content="no" />
+    <meta http-equiv="msthemecompatible" content="no" />
+    <meta name="build" content="wkhtmltopdf cover" />
+    <meta name="generator" content="Everland tools/build_manual.ps1" />
+    <meta name="application-name" content="Everland Manual" />
+    <meta name="description" content="Cover image for Everland Manual" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: 'unsafe-inline'; img-src 'self' data:;" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <base href="./" />
+    <link rel="icon" href="data:," />
+    <meta name="prefers-color-scheme" content="dark light" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="supported-color-schemes" content="dark light" />
+</head>
+<body>
+    <div class="full">
+        <img src="images/SpiderPrincess1Up.png" alt="Everland Manual Cover" />
+    </div>
+</body>
+</html>
+'@
+                Set-Content -Path $coverHtml -Value $coverDoc -Encoding UTF8
+        }
+
+        # Allow wkhtmltopdf to access local image files when converting HTML -> PDF
+        if ($useCover) {
+                & $wkhtmltopdf --enable-local-file-access cover $coverHtml $OutHtml $OutPdf
+        }
+        else {
+                & $wkhtmltopdf --enable-local-file-access $OutHtml $OutPdf
+        }
+        if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf via wkhtmltopdf" -ForegroundColor Green; exit 0 }
+        else { Write-Host "wkhtmltopdf failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
 }
 
 # Fallback: produce HTML and inform user

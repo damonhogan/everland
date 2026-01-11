@@ -1,27 +1,14 @@
 Tools README
 
-- Screenshot capture: `tools\vice_tests.ps1` supports `-CaptureScreenshots`. It will:
-  - Prefer `nircmd.exe` if present (recommended for reliable capture).
-  - Fall back to a built-in PowerShell capture routine if `nircmd` is not available (Windows only).
+This folder contains helper scripts for building and running the game normally.
 
-- To enable screenshots when running tests:
+- `build_prg.bat` and `build_prg_simple.bat`: Assemble `everland.asm` with KickAssembler and write `bin/everland.prg`.
+- `make_d64.bat`: Create or refresh `bin/everland.d64` and add the PRG.
+- `run_from_d64.bat`: Launch VICE with the disk image and perform a simple `LOAD/RUN` to start the game.
 
-```powershell
-.\tools\vice_tests.ps1 -Scenario conv -CaptureScreenshots
-```
-
-- Installing `nircmd`:
-  - Download from: https://www.nirsoft.net/utils/nircmd.html and place `nircmd.exe` on your PATH.
-  - Alternatively, install via Chocolatey: `choco install nircmd` (requires elevated prompt).
-
-- Notes:
-  - The PowerShell fallback uses `System.Windows.Forms` and `System.Drawing`; it works on Windows PowerShell and may require compatibility libraries on PowerShell 7+.
-  - If you prefer ImageMagick or other tools, you can replace the capture block in `tools\vice_tests.ps1` with a call to `magick`/`convert` or any other screenshot utility.
-  - ImageMagick: If `magick.exe` is installed, `tools\vice_tests.ps1` will use `magick screenshot: output.png` as a fallback before using the PowerShell capture. Install via:
-    - Chocolatey (elevated): `choco install imagemagick`
-    - Scoop (user): `scoop install imagemagick`
-  - Example: to run the `conv` scenario and save screenshots:
+Typical workflow on Windows:
 
 ```powershell
-.\tools\vice_tests.ps1 -Scenario conv -CaptureScreenshots
+C:\commodore\everland\tools\build_prg_simple.bat "C:\commodore\KickAssembler\KickAss.jar"
+C:\commodore\everland\tools\run_from_d64.bat "C:\commodore\GTK3VICE-3.10-win64\bin\x64sc.exe" "C:\commodore\everland\bin\everland.d64"
 ```

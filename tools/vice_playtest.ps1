@@ -10,6 +10,7 @@ param(
     [switch]$NoPause,
     [switch]$PrepCleanup,
     [switch]$Minimal,
+    [string]$ScreenshotPath = "$PWD\\playtest.png",
     # Send lowercase to avoid PETSCII/graphics issues in some keymap modes
     [string[]]$Sequence = @("north{ENTER}", "talk conductor{ENTER}", "3{ENTER}", "{ENTER}", "i{ENTER}")
 )
@@ -138,6 +139,41 @@ if (-not $NoPause) {
     Read-Host | Out-Null
 } else {
     Write-Host "Playtest sequence sent (no-pause)." -ForegroundColor Cyan
+}
+
+# Optional screenshot capture of the emulator window
+try {
+    if ($proc.MainWindowHandle -ne 0 -and -not [string]::IsNullOrEmpty($ScreenshotPath)) {
+        # Add GetWindowRect
+        $src = @'
+using System;
+using System.Runtime.InteropServices;
+public static class WinCap {
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+}
+'@
+        Add-Type -TypeDefinition $src -Language CSharp -ErrorAction SilentlyContinue | Out-Null
+        $rect = New-Object WinCap+RECT
+        [WinCap]::GetWindowRect([IntPtr]$proc.MainWindowHandle, [ref]$rect) | Out-Null
+        $width = $rect.Right - $rect.Left
+        $height = $rect.Bottom - $rect.Top
+        if ($width -gt 0 -and $height -gt 0) {
+            Add-Type -AssemblyName System.Drawing
+            $bmp = New-Object System.Drawing.Bitmap($width, $height)
+            $gfx = [System.Drawing.Graphics]::FromImage($bmp)
+            $gfx.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bmp.Size)
+            $dir = Split-Path -Path $ScreenshotPath -Parent
+            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+            $bmp.Save($ScreenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+            $gfx.Dispose()
+            $bmp.Dispose()
+            Write-Host "Saved screenshot: $ScreenshotPath" -ForegroundColor Green
+        }
+    }
+} catch {
+    Write-Host "Screenshot capture failed: $_" -ForegroundColor Yellow
 }
 
 # Attempt to read EVLOG from the PRG directory (FS device 8 maps here)

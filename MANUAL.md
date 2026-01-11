@@ -14,41 +14,52 @@ The following screenshots are included from the `images/` folder.
 
 Fully Working Features
 ----------------------
-- Save/Load (Disk I/O): Persistent profile save/load using a custom binary format.
-- Login/Profile: Username/display and class selection at first login.
-- Class & Level System: Player class, level, and score; class base HP and HP-per-level.
-- HP Tracking & Persistence: Player and NPC current HP tracked and saved.
-- Inventory Screen: Full-screen Inventory accessible with `I`.
-- Characters Menu & Sheets: `C` opens character menu; view player or NPC sheet.
-- Talk/NPC Selection: `T` opens talk screen; select NPCs and begin conversations.
-- Conversation Menu: Options implemented (speak, ask weather, comment temp, request quest, quest info, end).
-- NPC Data & Stats: Arrays for NPC name, class, level, score, current HP.
-- PETSCII Helpers & Rendering: Message buffer rendering and PETSCII helpers.
-- KERNAL Routines: File handling and console I/O routines used.
-- IRQ / Music Hook: Music IRQ handler and safe IRQ stub scaffold present.
+- Save/Load (EV3): Per-username profile saved to device 8. EV3 stores username, display, class, race, pin, score, level, current HP, class/race indices, max HP (for reference), calendar, location, object locations, and quest state. Backward-compatible loader accepts EV1/EV2.
+- Login/Profile: Username, display name, class, and race are selected at first login.
+- Class & Level System: Class base HP and HP-per-level; new profiles start at Level 1.
+- HP System: Character sheet shows current and max HP; max HP is based on class, level, and session bonuses. Current HP is saved; max HP is recomputed and also persisted in EV3.
+- Idle Regeneration: While idle at prompts (i.e., not in a fight), HP regenerates at 1 HP per real-time minute (uses KERNAL jiffy clock; handles midnight wrap).
+- Inventory: Full-screen Inventory with `I`.
+- Characters & Sheets: `C` opens character menu; view player or NPC sheets with stats and HP.
+- Talk/NPC Selection: `T` opens talk screen; select any present NPC.
+- Direct TALK: `TALK <NPCNAME>` jumps straight to that NPC if present.
+- Conversation Menu: Options like speak/ask/comment/quests/end; many branches apply effects (heals, score, quests).
+- Movement: Cardinal plus diagonal movement (`NE/NW/SE/SW` and full words) with diagonals shown in the exits line when reachable.
+- Rendering & I/O: PETSCII message-buffer rendering; KERNAL file and console I/O; music IRQ scaffolding.
 
 Recent Additions (confirmed working)
-- Multi-slot save/load: multiple save slots with validation and slot prompt.
-- Multi-stage quests: quest stage persistence and `questCheckGive`/`questComplete` integration.
-- Conversation variants: per-NPC/ per-quest message tables and deterministic selection rules.
-- Playtest automation: `tools/vice_playtest.ps1` and `tools/vice_playtest.bat` present and usable.
-- Docker PDF build: `tools/Dockerfile` builds `MANUAL.pdf` inside a container.
-- MANUAL.pdf: Generated locally using `pandoc` + `wkhtmltopdf` (see Appendix C for details).
+- Direct TALK: `TALK <NPCNAME>` parsing and dispatch.
+- Diagonal movement: `NE/NW/SE/SW` (and full words) plus exits display updates.
+- New NPC content:
+	- Saint Apollonia (Inn): Multi-step stories; offering quest that heals to max and grants +score; leaving without offering may penalize score.
+	- Dragon Trainer Alyster (Dragon Haven): Basics, care, practice; Advanced training grants a session-only +2 Max HP bonus, heals to the new max, and +2 score.
+	- Pirate Swordplay (Clockwork Alley): Stance/footwork guidance; practice parry/lunge grants +1 HP (capped) and +1 score.
+	- Knight Arena Training (Gate): Guard stance/footwork; practice parry/lunge grants +1 HP (capped) and +1 score.
+- Character Sheet: Displays “HP: current / max” and shows “+N MAX HP (SESSION)” when a temporary bonus is active.
+- Save Format EV3: Saves current HP and the computed max HP; compatible with older EV1/EV2 saves.
+- Idle HP regen: 1 HP per minute at prompts; persists when HP changes.
+- Manual build helpers: PDF via pandoc/TeX or pandoc+wkhtmltopdf; Dockerfile available.
 
 What's New In This Release
 ---------------------------
-- Added NPCs: `SPIDER PRINCESS`, `PIRATE CAPTAIN`, `PIRATE FIRST MATE`, and `UNSEELY FAE`.
-- New quest & item: `QUEST_UNSEELY_NAME` and `OBJ_STOLEN_NAME` (trade flows between Fairy and Unseely Fae).
-- Conversation side-effects: choice selections can now start/complete quests, give/take items, set NPC stages, and add score.
-- Talk menus and character lists support multiple NPCs per location (e.g., Alley now shows Captain + First Mate).
+- TALK improvements: Case-insensitive parsing and direct `TALK <NPCNAME>`.
+- Character sheet HP line: Labeled “HP: current / max”; session HP bonus note.
+- HP regeneration: 1 HP/min while idle, auto-saves on change.
+- EV3 saves: Persist current HP and max HP; EV1/EV2 remain readable.
+- New/updated NPC content: Saint Apollonia, Alyster, Pirate Captain/First Mate, Knight (training).
+- Diagonal movement and exits display.
 
-Latest Operational Updates
---------------------------
-- Build helper: `tools/build_prg_simple.bat` compiles `everland.asm` with your KickAssembler JAR, then auto-refreshes a D64 via `tools/make_d64.bat`.
-- Disk runner: `tools/run_from_d64.bat` mounts `bin/everland.d64` on drive 8 and auto-types `load"*",8,1` then `run` (lowercase) to avoid PETSCII issues.
-- Lowercase automation: All `-keybuf` sequences are lowercase for safety; wildcard `load"*"` reliably loads the first PRG on the disk.
-- TALK flow: Command parsing is case-insensitive; `TALK <NPCNAME>` opens that NPC if present. Menu indices are 0–5.
-- Conductor quest: Selecting "3. Any quests?" at Train starts `QUEST_COIN_BARTENDER` and grants a coin with confirmation.
+ Latest Operational Updates
+---------------------------
+- Build helper: `tools/build_prg_simple.bat` compiles `everland.asm` with your KickAssembler JAR, then refreshes a D64 via `tools/make_d64.bat`.
+- Disk runner: `tools/run_from_d64.bat` mounts `bin/everland.d64` on drive 8 and performs a simple `load"*",8,1` then `run`.
+- TALK flow: Case-insensitive; `TALK <NPCNAME>` opens that NPC if present. Menu indices start at 0 on the list.
+- HELP: Type `HELP` (or `?`) anytime to show controls.
+- Conductor quest: Train Station option “3. Any quests?” starts the coin quest and grants a coin.
+- Apollonia: “Leave an offering” — heals to max and grants +score; leaving without offering may reduce score.
+- Alyster: “Advanced training” (after basics) — session-only +2 Max HP, full heal, +2 score.
+- Diagonals: `NE/NW/SE/SW` movement and exits display.
+- Pirate/Knight practice: Each practice grants +1 HP (capped) and +1 score.
 
 Coin / Bartender Quest (player walkthrough)
 -------------------------------------------
@@ -124,36 +135,45 @@ First Run / Profiles
 
 Core Controls
 
-- Movement: N, S, E, W (note: `S` is South only).
+- Movement: N, S, E, W and NE, NW, SE, SW. Full words `NORTHEAST`, `NORTHWEST`, `SOUTHEAST`, `SOUTHWEST` also work. Diagonal exits appear in the exits line when reachable.
 - `C`: Characters menu — view player or NPC sheets.
 - `I`: Inventory (full screen).
 - `T`: Talk — select NPC and start conversation.
+ - Direct talk: `TALK <NPCNAME>` (e.g., `TALK CONDUCTOR`).
+ - Help: `HELP` or `?`.
  - `ATTACK` / `FIGHT`: Melee attack an NPC at your current location. Use `ATTACK <npc>` or `FIGHT <npc>` to target someone.
 - Conversation: Type menu number and press Enter; choose "End" to exit.
 
 Gameplay Loop
 
-- Explore map, talk to NPCs (`T`), check `C`haracter sheet and `I`nventory, accept quests, gain score/levels. Progress and HP changes are auto-saved on key events.
- - Combat: Use `ATTACK <NPC>` to perform a simple melee attack. NPC and player HP are tracked and persisted to your profile; defeats remove NPCs from the location and update save state.
- - Combat: Use `ATTACK <NPC>` to perform a simple melee attack. NPC and player HP are tracked and persisted to your profile; defeats remove NPCs from the location and update save state. Defeating foes now grants small XP rewards (every 10 XP increases your level) and increments your score.
+- Explore, talk to NPCs (`T`/`TALK <NPC>`), check `C`haracter sheet and `I`nventory, accept quests, gain score/levels. Progress and HP updates are auto-saved on key events. HP passively regenerates while idle.
+
+HP & Regeneration
+-----------------
+- Max HP: Determined by your class and level, plus any session-only bonus.
+	- Formula: MaxHP = BaseHP(class) + PerLevel(class) × Level + SessionBonus.
+	- New profiles start at Level 1, so initial MaxHP includes one per-level step.
+- Session bonus: Some training (e.g., Alyster’s Advanced Training) grants a temporary +Max HP for the current session only. The character sheet shows “+N MAX HP (SESSION)” beneath your HP line when active.
+- Viewing HP: Press `C` to open the character sheet and see “HP: current / max”.
+- Regeneration: While idle at prompts (not actively performing actions), you recover 1 HP per real-time minute. Regeneration is capped at Max HP and is saved automatically when HP changes.
 
 Saving & Loading
 
-- Saves use KERNAL file routines; the game auto-loads profile on startup and auto-saves on key changes.
+- Per-username save file (device 8). On startup the game loads your profile; it auto-saves on key changes (e.g., HP regen, quests, training).
+- Save format: EV3. The loader remains compatible with EV1/EV2 saves created by earlier builds; EV3 adds race indices and max HP reference.
 
 Troubleshooting
 
 - If KickAssembler reports branch/label errors, re-run and paste the build log; I can patch `everland.asm` to fix trampolines.
 - If VICE hangs, try restarting the emulator or ensure the IRQ safe stub is enabled in code.
- - If LOAD reports `?FILE NOT FOUND` in BASIC, use wildcard and lowercase:
+- If LOAD reports `?FILE NOT FOUND` in BASIC, use wildcard and lowercase:
 
 ```basic
 load"*",8,1
 run
 ```
 
- - If conversations show uppercase/PETSCII weirdness, ensure any scripted inputs use lowercase `-keybuf`.
- - EVLOG device 8 writes may require virtual filesystem mode in VICE; when testing logs, prefer running PRG with `-autostartprgmode 0` and device traps enabled.
+ 
 
 Upcoming / Recommended Features
 -------------------------------
