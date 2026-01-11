@@ -3,11 +3,17 @@ REM Simple VICE launcher for Everland
 REM Usage: vice_playtest.bat [C:\path\to\x64sc.exe] [C:\path\to\everland.prg] [keybuf]
 
 SETLOCAL
-SET DEFAULT_VICE="C:\Program Files (x86)\VICE\x64sc.exe"
-IF "%~1"=="" (
-  SET VICE=%DEFAULT_VICE%
-) ELSE (
+REM Resolve x64sc path: arg > env > common defaults
+SET DEFAULT_VICE_X86="C:\Program Files (x86)\VICE\x64sc.exe"
+SET DEFAULT_VICE_X64="C:\Program Files\VICE\x64sc.exe"
+IF NOT "%~1"=="" (
   SET VICE=%~1
+) ELSE IF NOT "%VICE_X64SC%"=="" (
+  SET VICE=%VICE_X64SC%
+) ELSE IF EXIST %DEFAULT_VICE_X64% (
+  SET VICE=%DEFAULT_VICE_X64%
+) ELSE (
+  SET VICE=%DEFAULT_VICE_X86%
 )
 IF "%~2"=="" (
   SET PRG=%~dp0\..\bin\everland.prg
@@ -25,7 +31,10 @@ IF "%~3"=="" (
 
 IF NOT EXIST %VICE% (
   ECHO x64sc not found at %VICE%
-  ECHO Please pass the path to x64sc.exe as first argument.
+  ECHO Pass the path to x64sc.exe as first argument, or set env var VICE_X64SC.
+  ECHO Example:
+  ECHO   %~nx0 "C:\Program Files\VICE\x64sc.exe"
+  ECHO   set VICE_X64SC="C:\Program Files\VICE\x64sc.exe" ^&^& %~nx0
   PAUSE
   EXIT /B 1
 )

@@ -35,6 +35,7 @@ Recent Additions (confirmed working)
 	- Dragon Trainer Alyster (Dragon Haven): Basics, care, practice; Advanced training grants a session-only +2 Max HP bonus, heals to the new max, and +2 score.
 	- Pirate Swordplay (Clockwork Alley): Stance/footwork guidance; practice parry/lunge grants +1 HP (capped) and +1 score.
 	- Knight Arena Training (Gate): Guard stance/footwork; practice parry/lunge grants +1 HP (capped) and +1 score.
+	- Mermaid (Clockwork Alley): Trade a land-based item (pinecone) for a sea-based item (sparkly shell); starts a themed trade quest and grants the shell upon completion.
 - Character Sheet: Displays “HP: current / max” and shows “+N MAX HP (SESSION)” when a temporary bonus is active.
 - Save Format EV3: Saves current HP and the computed max HP; compatible with older EV1/EV2 saves.
 - Idle HP regen: 1 HP per minute at prompts; persists when HP changes.
@@ -47,6 +48,7 @@ What's New In This Release
 - HP regeneration: 1 HP/min while idle, auto-saves on change.
 - EV3 saves: Persist current HP and max HP; EV1/EV2 remain readable.
 - New/updated NPC content: Saint Apollonia, Alyster, Pirate Captain/First Mate, Knight (training).
+ - New/updated NPC content: Saint Apollonia, Alyster, Pirate Captain/First Mate, Knight (training), Mermaid (trade quest).
 - Diagonal movement and exits display.
 
  Latest Operational Updates
@@ -489,4 +491,69 @@ powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
 ```
 
 If the script reports missing `xelatex`/`pdflatex`/`wkhtmltopdf`, either install one of those or use the Docker method above.
+
+Appendix D: Artwork
+-------------------
+
+This appendix catalogs curated artwork used in Everland. These are included in the repository under `images/` and can be embedded in the manual or used as cover art.
+
+- Spider Princess (cover candidate)
+
+![Spider Princess](images/SpiderPrincess1Up.png)
+
+- Mermaid at Medieval Theme Park (NPC quest ambiance)
+
+![Mermaid Sitting in Wicker Chair](images/mermaid_sitting_in_a_wicker_chair_at_a_medieval_theme_park_she_will_tend_to_quests_with_patrons_blo_arttzoc89ruq0s6vmraj_2.png)
+
+- Bridge the Troll & Kevin (Market NPC ambience)
+
+![Bridge and Kevin](images/BridgeAndKevin1.png)
+
+- Damian (portrait / cover variant)
+
+![Damian 1Up](images/Damian1Up.png)
+
+- Lezule the Fairy (Fairy Gardens ambiance)
+
+![Lezule Fairy](images/fairy_named_lezule_lezule_colored_in_the_fairy_gardens_sweet_and_tender_shy_mouth_open_waiting_to_m_mthcye2lh1va3w5b8vtv_2.png)
+
+- Mage Damon (portrait / mage variant)
+
+![Mage Damon 3Up](images/MageDamon3Up.png)
+
+
+
+Mermaid Trade Quest (player walkthrough)
+----------------------------------------
+This release adds a themed trade quest offered by the Mermaid in Clockwork Alley. Exchange a land-based item (pinecone) for a sea-based item (sparkly shell).
+
+1) Accept the quest from the Mermaid
+	- `TALK MERMAID` at Clockwork Alley and choose the conversation option to ask about a trade. This starts `QUEST_MERMAID_TRADE` (shown in the quest list as “TRADE LAND FOR SEA”).
+
+2) Get a pinecone (land coral)
+	- Travel to the Grove and run:
+
+```
+TAKE PINECONE
+```
+
+	- Verify with `I` (Inventory) that `PINECONE` is now in your inventory. You can also run `INSPECT PINECONE` for flavor text.
+
+3) Offer the pinecone to the Mermaid
+	- Return to Clockwork Alley and either:
+	  - `GIVE PINECONE TO MERMAID`, or
+	  - `TALK MERMAID` and choose the conversation option to offer land coral.
+
+	- If `QUEST_MERMAID_TRADE` is active and you have the pinecone, the Mermaid will take the pinecone, give you a sparkly shell, and complete the quest.
+
+4) Verify
+	- `I` should show the pinecone removed and `SHELL` added. You can `INSPECT SHELL` to view its description.
+
+Developer pointers (where to look in the source)
+- See [everland.asm](everland.asm) for:
+	- Objects: `OBJ_PINECONE` and `OBJ_SHELL` enumerations; `objLoc` sets initial pinecone spawn in the Grove and the shell is granted by the Mermaid.
+	- Quest: `QUEST_MERMAID_TRADE` enumeration and completion flow; current reward handler uses the default completion path.
+	- Conversation: `mermaidConversation` and its dispatch via `@conv_mermaid` in `convSpeakHandler`.
+	- Parser: `kwMermaid`, `kwPinecone`, `kwShell` keywords mapped in `parseNpcNoun` and `parseObjectNoun`.
+	- Location/NPC mask: `npcMaskByLocHi` updates include the Mermaid’s presence at Clockwork Alley.
 

@@ -289,6 +289,11 @@ execution policy</a></li>
 <li><a href="#what-we-did-locally-full-summary"
 id="toc-what-we-did-locally-full-summary">What we did locally (full
 summary)</a></li>
+<li><a href="#appendix-d-artwork" id="toc-appendix-d-artwork">Appendix
+D: Artwork</a></li>
+<li><a href="#mermaid-trade-quest-player-walkthrough"
+id="toc-mermaid-trade-quest-player-walkthrough">Mermaid Trade Quest
+(player walkthrough)</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -345,12 +350,14 @@ HP bonus, heals to the new max, and +2 score. - Pirate Swordplay
 (Clockwork Alley): Stance/footwork guidance; practice parry/lunge grants
 +1 HP (capped) and +1 score. - Knight Arena Training (Gate): Guard
 stance/footwork; practice parry/lunge grants +1 HP (capped) and +1
-score. - Character Sheet: Displays “HP: current / max” and shows “+N MAX
-HP (SESSION)” when a temporary bonus is active. - Save Format EV3: Saves
-current HP and the computed max HP; compatible with older EV1/EV2 saves.
-- Idle HP regen: 1 HP per minute at prompts; persists when HP changes. -
-Manual build helpers: PDF via pandoc/TeX or pandoc+wkhtmltopdf;
-Dockerfile available.</p>
+score. - Mermaid (Clockwork Alley): Trade a land-based item (pinecone)
+for a sea-based item (sparkly shell); starts a themed trade quest and
+grants the shell upon completion. - Character Sheet: Displays “HP:
+current / max” and shows “+N MAX HP (SESSION)” when a temporary bonus is
+active. - Save Format EV3: Saves current HP and the computed max HP;
+compatible with older EV1/EV2 saves. - Idle HP regen: 1 HP per minute at
+prompts; persists when HP changes. - Manual build helpers: PDF via
+pandoc/TeX or pandoc+wkhtmltopdf; Dockerfile available.</p>
 <h2 id="whats-new-in-this-release">What’s New In This Release</h2>
 <ul>
 <li>TALK improvements: Case-insensitive parsing and direct
@@ -362,6 +369,8 @@ bonus note.</li>
 readable.</li>
 <li>New/updated NPC content: Saint Apollonia, Alyster, Pirate
 Captain/First Mate, Knight (training).</li>
+<li>New/updated NPC content: Saint Apollonia, Alyster, Pirate
+Captain/First Mate, Knight (training), Mermaid (trade quest).</li>
 <li>Diagonal movement and exits display.</li>
 </ul>
 <h2 id="latest-operational-updates">Latest Operational Updates</h2>
@@ -933,5 +942,110 @@ class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb21
 <p>If the script reports missing
 <code>xelatex</code>/<code>pdflatex</code>/<code>wkhtmltopdf</code>,
 either install one of those or use the Docker method above.</p>
+<h2 id="appendix-d-artwork">Appendix D: Artwork</h2>
+<p>This appendix catalogs curated artwork used in Everland. These are
+included in the repository under <code>images/</code> and can be
+embedded in the manual or used as cover art.</p>
+<ul>
+<li>Spider Princess (cover candidate)</li>
+</ul>
+<figure>
+<img src="images/SpiderPrincess1Up.png" alt="Spider Princess" />
+<figcaption aria-hidden="true">Spider Princess</figcaption>
+</figure>
+<ul>
+<li>Mermaid at Medieval Theme Park (NPC quest ambiance)</li>
+</ul>
+<figure>
+<img
+src="images/mermaid_sitting_in_a_wicker_chair_at_a_medieval_theme_park_she_will_tend_to_quests_with_patrons_blo_arttzoc89ruq0s6vmraj_2.png"
+alt="Mermaid Sitting in Wicker Chair" />
+<figcaption aria-hidden="true">Mermaid Sitting in Wicker
+Chair</figcaption>
+</figure>
+<ul>
+<li>Bridge the Troll &amp; Kevin (Market NPC ambience)</li>
+</ul>
+<figure>
+<img src="images/BridgeAndKevin1.png" alt="Bridge and Kevin" />
+<figcaption aria-hidden="true">Bridge and Kevin</figcaption>
+</figure>
+<ul>
+<li>Damian (portrait / cover variant)</li>
+</ul>
+<figure>
+<img src="images/Damian1Up.png" alt="Damian 1Up" />
+<figcaption aria-hidden="true">Damian 1Up</figcaption>
+</figure>
+<ul>
+<li>Lezule the Fairy (Fairy Gardens ambiance)</li>
+</ul>
+<figure>
+<img
+src="images/fairy_named_lezule_lezule_colored_in_the_fairy_gardens_sweet_and_tender_shy_mouth_open_waiting_to_m_mthcye2lh1va3w5b8vtv_2.png"
+alt="Lezule Fairy" />
+<figcaption aria-hidden="true">Lezule Fairy</figcaption>
+</figure>
+<ul>
+<li>Mage Damon (portrait / mage variant)</li>
+</ul>
+<figure>
+<img src="images/MageDamon3Up.png" alt="Mage Damon 3Up" />
+<figcaption aria-hidden="true">Mage Damon 3Up</figcaption>
+</figure>
+<h2 id="mermaid-trade-quest-player-walkthrough">Mermaid Trade Quest
+(player walkthrough)</h2>
+<p>This release adds a themed trade quest offered by the Mermaid in
+Clockwork Alley. Exchange a land-based item (pinecone) for a sea-based
+item (sparkly shell).</p>
+<ol type="1">
+<li>Accept the quest from the Mermaid
+<ul>
+<li><code>TALK MERMAID</code> at Clockwork Alley and choose the
+conversation option to ask about a trade. This starts
+<code>QUEST_MERMAID_TRADE</code> (shown in the quest list as “TRADE LAND
+FOR SEA”).</li>
+</ul></li>
+<li>Get a pinecone (land coral)
+<ul>
+<li>Travel to the Grove and run:</li>
+</ul></li>
+</ol>
+<pre><code>TAKE PINECONE</code></pre>
+<pre><code>- Verify with `I` (Inventory) that `PINECONE` is now in your inventory. You can also run `INSPECT PINECONE` for flavor text.</code></pre>
+<ol start="3" type="1">
+<li>Offer the pinecone to the Mermaid
+<ul>
+<li>Return to Clockwork Alley and either:
+<ul>
+<li><code>GIVE PINECONE TO MERMAID</code>, or</li>
+<li><code>TALK MERMAID</code> and choose the conversation option to
+offer land coral.</li>
+</ul></li>
+<li>If <code>QUEST_MERMAID_TRADE</code> is active and you have the
+pinecone, the Mermaid will take the pinecone, give you a sparkly shell,
+and complete the quest.</li>
+</ul></li>
+<li>Verify
+<ul>
+<li><code>I</code> should show the pinecone removed and
+<code>SHELL</code> added. You can <code>INSPECT SHELL</code> to view its
+description.</li>
+</ul></li>
+</ol>
+<p>Developer pointers (where to look in the source) - See <a
+href="everland.asm">everland.asm</a> for: - Objects:
+<code>OBJ_PINECONE</code> and <code>OBJ_SHELL</code> enumerations;
+<code>objLoc</code> sets initial pinecone spawn in the Grove and the
+shell is granted by the Mermaid. - Quest:
+<code>QUEST_MERMAID_TRADE</code> enumeration and completion flow;
+current reward handler uses the default completion path. - Conversation:
+<code>mermaidConversation</code> and its dispatch via
+<code>@conv_mermaid</code> in <code>convSpeakHandler</code>. - Parser:
+<code>kwMermaid</code>, <code>kwPinecone</code>, <code>kwShell</code>
+keywords mapped in <code>parseNpcNoun</code> and
+<code>parseObjectNoun</code>. - Location/NPC mask:
+<code>npcMaskByLocHi</code> updates include the Mermaid’s presence at
+Clockwork Alley.</p>
 </body>
 </html>
