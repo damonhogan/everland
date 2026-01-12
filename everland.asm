@@ -64,6 +64,22 @@
 .const LFN    = 1
 .const SA     = 2
 
+// Regen timing zero-page variables (KERNAL RDTIM jiffies)
+lastRegen0: .byte 0
+lastRegen1: .byte 0
+lastRegen2: .byte 0
+nowRegen0:  .byte 0
+nowRegen1:  .byte 0
+nowRegen2:  .byte 0
+deltaReg0:  .byte 0
+deltaReg1:  .byte 0
+deltaReg2:  .byte 0
+regenInit:  .byte 0
+regenMinutes: .byte 0
+regenTotal: .byte 0
+hpChangedFlag: .byte 0
+healLeft: .byte 0
+
 // Location constants (Gate → Portal)
 .const LOC_TRAIN     = 0
 .const LOC_MARKET    = 1
@@ -115,6 +131,10 @@
 .const NPC_MERMAID          = 15
 .const NPC_CANDY_WITCH      = 16
 .const NPC_KORA             = 17
+	.const NPC_ALPHA_WOLFRIC   = 18
+	.const NPC_VASHTEE         = 19
+	.const NPC_TRADING_OWNER  = 20
+	.const NPC_FROST_WEAVERS_QUEEN = 21
 // Legacy alias (maps PIXIE to FAIRY slot)
 .const NPC_PIXIE            = NPC_FAIRY
 // First mate alias; currently share captain slot
@@ -122,6 +142,10 @@
 .const NPC_COUNT            = 32
 
 .encoding "petscii_upper"
+
+// Given name storage for NPCs (per-NPC editable given/generic names)
+.const NPC_GIVEN_NAME_LEN = 16
+
 
 .const ROW_MAP_LAST   = 11
 .const ROW_DIVIDER    = 12
@@ -160,7 +184,8 @@
 .const QUEST_CANDY_WITCH_DISABLE_WARD = 12
 .const QUEST_KORA_JAPE      = 13
 .const QUEST_ALYSTER_OATH   = 14
-.const QUEST_COUNT          = 15
+.const QUEST_ALPHA_WOLFRIC  = 15
+.const QUEST_COUNT          = 16
 
 // --- Core constants (local fallback to satisfy early references) ---
 // Note: These mirror top-level definitions to resolve symbol order issues.
@@ -276,42 +301,14 @@ wardDisabledFlag: .byte 0
 tmpCnt: .byte 0
 
 // Input buffer (PETSCII)
+prefetchedHas: .byte 0
+prefetchedKey: .byte 0
 inputLen: .byte 0
 inputBuf:
 	.fill 48, 0
-// Prefetched key handling to avoid double-enter swallowing next keystroke
-prefetchedHas: .byte 0
-prefetchedKey: .byte 0
-
-// HP regen timing (1 HP per minute while not in combat)
-regenInit: .byte 0
-lastRegen0: .byte 0
-lastRegen1: .byte 0
-lastRegen2: .byte 0
-nowRegen0: .byte 0
-nowRegen1: .byte 0
-nowRegen2: .byte 0
-deltaReg0: .byte 0
-deltaReg1: .byte 0
-deltaReg2: .byte 0
-regenMinutes: .byte 0
-hpChangedFlag: .byte 0
-regenTotal: .byte 0
-healLeft: .byte 0
-
 // Object locations (location id, $FE=inventory, $FF=nowhere)
 objLoc:
-	.byte LOC_TRAIN   // LANTERN
-	.byte LOC_MARKET  // COIN
-	.byte LOC_PLAZA   // MUG (moved so Kendrick keeps a bottle in the plaza)
-	.byte LOC_PORTAL  // KEY
-	.byte LOC_CATACOMBS // TREASURE (starts hidden in catacombs)
-	.byte OBJ_NOWHERE // STOLEN NAME (starts nowhere; given by Fairy on trade)
-	.byte LOC_CATACOMBS // HEART (hidden deep in the Catacombs)
-	.byte LOC_GROVE    // PINECONE (land coral) starts in the Grove
-	.byte OBJ_NOWHERE  // SPARKLY SHELL (sea gift) starts nowhere
-	.byte LOC_TAVERN   // SCOTCH (bottle sits in the Tiptsey Maiden tavern)
-	.byte OBJ_NOWHERE  // WARD (starts nowhere; given by Warlock)
+	.fill OBJ_COUNT, 0
 
 // --- Program entry ---
 start:
@@ -347,31 +344,8 @@ loginOrCreate:
 	jmp @loaded
 
 @loc_create:
-
-	// Prompt DISPLAY NAME
-	lda #<msgAskDisplay
-	sta lastMsgLo
-	lda #>msgAskDisplay
-	sta lastMsgHi
-	jsr render
-	jsr readLine
-	jsr copyInputToDisplay
-
-	// Prompt CLASS (e.g. KNIGHT, PALADIN, MAGE)
-	lda #<msgAskClass
-	sta lastMsgLo
-	lda #>msgAskClass
-	sta lastMsgHi
-	jsr render
-	jsr readLine
-	jsr copyInputToClass
-	jsr mapPlayerClass
-	// Start new characters at level 1
-	lda #1
-	sta currentLevel
-	// initialize player HP to max if empty (based on class+level)
-	jsr computePlayerMaxHp
-	lda tmpHp
+	jsr printNpcEntry
+	jmp @cc_npc_next
 	beq @lc_skip_init
 	lda playerCurHp
 	beq @lc_set_hp
@@ -445,6 +419,7 @@ loginOrCreate:
 	lda #OBJ_NOWHERE
 	sta objLoc+OBJ_SHELL
 
+	jsr setupNpcGivenNames
 	jsr saveGame
 	lda #<msgCreated
 	sta lastMsgLo
@@ -564,6 +539,14 @@ commit_c4:
 	// restore player race idx
 	lda loadedRaceIdx
 	sta playerRaceIdx
+	// copy loaded given names into runtime buffer
+	ldx #0
+@cln_copy:
+	lda loadedGivenNames,x
+	sta npcGivenNames,x
+	inx
+	cpx #(NPC_COUNT * NPC_GIVEN_NAME_LEN)
+	bne @cln_copy
 	rts
 
 // Copy inputBuf to username (max 12)
@@ -773,6 +756,79 @@ copyInputToDisplay:
 
 @cd_pdone:
 	rts
+
+// Copy inputBuf to given-name slot for NPC index in X (0..NPC_COUNT-1)
+copyInputToGivenName:
+	// set pointer to the NPC's given-name slot
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+@cign_loop:
+	lda inputBuf,y
+	beq @cign_done
+	cpy #NPC_GIVEN_NAME_LEN
+	bcs @cign_done
+	sta (ZP_PTR),y
+	iny
+	jmp @cign_loop
+@cign_done:
+	// pad remaining bytes with 0
+	cpy #NPC_GIVEN_NAME_LEN
+	beq @cign_pad_done
+	lda #0
+@cign_pad:
+	sta (ZP_PTR),y
+	iny
+	cpy #NPC_GIVEN_NAME_LEN
+	bcc @cign_pad
+@cign_pad_done:
+	rts
+
+// Interactive setup: ask the player for a given name for each known NPC
+setupNpcGivenNames:
+	// linear loop index stored in givenNameLoopIndex
+	lda #0
+	sta givenNameLoopIndex
+@sn_loop:
+	lda givenNameLoopIndex
+	cmp #NPC_COUNT
+	bcs @sn_continue
+	rts
+@sn_continue:
+	tax
+	// skip unknown named NPC slots
+	lda npcNameLo,x
+	cmp #<npcNameUnknown
+	bne @sn_hasname
+	lda npcNameHi,x
+	cmp #>npcNameUnknown
+	beq @sn_inc
+@sn_hasname:
+	// Prompt: "ENTER A GIVEN NAME FOR:" then print NPC title
+	lda #<msgAskNpcName
+	sta lastMsgLo
+	lda #>msgAskNpcName
+	sta lastMsgHi
+	jsr render
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	// Read player's input and store into the slot
+	jsr readLine
+	lda givenNameLoopIndex
+	tax
+	jsr copyInputToGivenName
+@sn_inc:
+	// increment index
+	lda givenNameLoopIndex
+	clc
+	adc #1
+	sta givenNameLoopIndex
+	jmp @sn_loop
 
 // Parse 0-65535 from inputBuf into pinLo/pinHi
 parsePinFromInput:
@@ -1108,6 +1164,18 @@ tryLoadGame:
 	sta loadedActiveQuest
 	jsr CHRIN
 	sta loadedQuestStatus
+	// Read given names (fixed-length slots) only for EV3 saves
+	lda loadedFileVer
+	cmp #2
+	bne @rln_skip
+	ldx #0
+@rln_read:
+	jsr CHRIN
+	sta loadedGivenNames,x
+	inx
+	cpx #(NPC_COUNT * NPC_GIVEN_NAME_LEN)
+	bne @rln_read
+@rln_skip:
 	jsr CLRCHN
 	lda #LFN
 	jsr CLOSE
@@ -1226,6 +1294,14 @@ saveGame:
 	jsr CHROUT
 	lda questStatus
 	jsr CHROUT
+	// Write given names (fixed-length slots)
+	ldx #0
+@wgn_write:
+	lda npcGivenNames,x
+	jsr CHROUT
+	inx
+	cpx #(NPC_COUNT * NPC_GIVEN_NAME_LEN)
+	bne @wgn_write
 	jsr CLRCHN
 	lda #LFN
 	jsr CLOSE
@@ -1402,6 +1478,39 @@ applyRegenIfDue:
 	sta hpChangedFlag
 	dec healLeft
 	jmp @ard_heal_loop
+
+	// NPC healing: for each NPC, heal up to regenTotal (one HP per minute), capped at its max
+	ldx #0
+	lda regenTotal
+	sta ZP_PTR2      // reuse ZP_PTR2 as global heal count template
+@npc_heal_outer:
+	lda ZP_PTR2
+	beq @npc_heal_done
+	// compute NPC max HP for index X
+	jsr computeNpcMaxHp   // returns tmpHp
+	lda npcCurHp,x
+	cmp tmpHp
+	beq @npc_heal_next
+	// per-NPC heal loop
+	lda ZP_PTR2
+	sta healLeft
+@npc_heal_inner:
+	lda healLeft
+	beq @npc_heal_next
+	lda npcCurHp,x
+	cmp tmpHp
+	bcs @npc_heal_next
+	inc npcCurHp,x
+	lda #1
+	sta hpChangedFlag
+	dec healLeft
+	jmp @npc_heal_inner
+
+@npc_heal_next:
+	inx
+	cpx #NPC_COUNT
+	bne @npc_heal_outer
+@npc_heal_done:
 
 @ard_advance_baseline:
 	// Advance lastRegen by the total elapsed full minutes we computed
@@ -1661,9 +1770,9 @@ questComplete:
 
 // Reward dispatch table (low/high pointers) - indexed by quest id
 questRewardLo:
-	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely, <@qc_reward_apollonia, <@qc_done_after, <@qc_done_after, <@qc_reward_kendrick, <@qc_reward_warlock, <@qc_reward_candywitch, <@qc_reward_kora
+	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely, <@qc_reward_apollonia, <@qc_done_after, <@qc_done_after, <@qc_reward_kendrick, <@qc_reward_warlock, <@qc_reward_candywitch, <@qc_reward_kora, <@qc_done_after, <@qc_reward_warlock
 questRewardHi:
-	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely, >@qc_reward_apollonia, >@qc_done_after, >@qc_done_after, >@qc_reward_kendrick, >@qc_reward_warlock, >@qc_reward_candywitch, >@qc_reward_kora
+	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely, >@qc_reward_apollonia, >@qc_done_after, >@qc_done_after, >@qc_reward_kendrick, >@qc_reward_warlock, >@qc_reward_candywitch, >@qc_reward_kora, >@qc_done_after, >@qc_reward_warlock
 
 @qc_reward_unseely:
 	// Reward for retrieving the stolen name: +4 score and progress Unseely Fae
@@ -2726,6 +2835,94 @@ printZ:
 	bne @pz_loop
 
 @pz_done:
+	rts
+
+// Print NPC entry for current X index; expects X=index, uses selCount to number entries
+printNpcEntry:
+	// Prefer given name if present
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
+	beq @pne_use_title
+	// given name present — print numbered entry
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	jsr printZ
+	jsr newline
+	inc selCount
+	rts
+
+@pne_use_title:
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	// skip unknown entries
+	lda ZP_PTR
+	cmp #<npcNameUnknown
+	bne @pne_print_title
+	lda ZP_PTR+1
+	cmp #>npcNameUnknown
+	beq @pne_skip
+@pne_print_title:
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	jsr printZ
+	// After printing name/title, append level and HP info
+	// Print space + "LV " + level (single digit assumed)
+	lda #' '
+	jsr CHROUT
+	lda #'L'
+	jsr CHROUT
+	lda #'V'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda npcLevel,x
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #'H'
+	jsr CHROUT
+	lda #'P'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	// Build hp string: current/max into msgBuf and print
+	jsr clearMsgBuf
+	lda npcCurHp,x
+	jsr appendByteAsDec
+	lda #'/'
+	jsr appendCharA
+	jsr computeNpcMaxHp
+	lda tmpHp
+	jsr appendByteAsDec
+	lda #<msgBuf
+	sta ZP_PTR
+	lda #>msgBuf
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	inc selCount
+	rts
+@pne_skip:
 	rts
 
 // conv_apply_effect: expects A = effectType (at call), effect value saved at tmpPer+1
@@ -4688,8 +4885,22 @@ cmdCharactersMenu:
 @cc_npc_loop:
 	lda ZP_PTR2
 	and npcBitLo,x
-	beq @cc_check_hi_1
-	// load npc name pointer
+	bne @cc_present_lo_tramp
+	jmp @cc_check_hi_1
+@cc_present_lo_tramp:
+	// Prefer given name if present; otherwise use title
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
+	beq @cc_use_title_low
+	// given name present — print it
+	jsr printZ
+	jsr newline
+	jmp @cc_npc_next
+@cc_use_title_low:
 	lda npcNameLo,x
 	sta ZP_PTR
 	lda npcNameHi,x
@@ -4717,7 +4928,19 @@ cmdCharactersMenu:
 	jmp @cc_npc_next
 
 @cc_present_1:
-	// load npc name pointer
+	// Prefer given name if present; otherwise use title
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
+	beq @cc_use_title_hi
+	// given name present — print it
+	jsr printZ
+	jsr newline
+	jmp @cc_npc_next
+@cc_use_title_hi:
 	lda npcNameLo,x
 	sta ZP_PTR
 	lda npcNameHi,x
@@ -4746,27 +4969,38 @@ cmdCharactersMenu:
 @cc_npc_next:
 	inx
 	cpx #NPC_COUNT
-	bne @cc_npc_loop
+	bne @cc_npc_loop_tramp
+	jmp @cc_npc_after_tramp_skip
+@cc_npc_loop_tramp:
+	jmp @cc_npc_loop
+@cc_npc_after_tramp_skip:
 
 	jmp @cc_npc_after
 
 @cc_check_hi_1:
 	lda npcMaskHiTemp
 	and npcBitHi,x
-	beq @cc_check_b2
-	jmp @cc_present_1
+	bne @cc_present_hi_tramp
+	jmp @cc_check_b2
+@cc_present_hi_tramp:
+	jsr printNpcEntry
+	jmp @cc_npc_next
 
 @cc_check_b2:
 	lda npcMaskB2Temp
 	and npcBitB2,x
-	beq @cc_check_b3
-	jmp @cc_present_1
+	bne @cc_present_b2_tramp
+	jmp @cc_check_b3
+@cc_present_b2_tramp:
+	jsr printNpcEntry
+	jmp @cc_npc_next
 
 @cc_check_b3:
 	lda npcMaskB3Temp
 	and npcBitB3,x
 	beq @cc_npc_next
-	jmp @cc_present_1
+	jsr printNpcEntry
+	jmp @cc_npc_next
 
 @cc_npc_after:
 
@@ -5146,10 +5380,19 @@ cmdTalk:
 	lda ZP_PTR2
 	and npcBitLo,x
 	beq @tt_check_hi_2
-	jmp @tt_present_2
+	jsr printNpcEntry
+	jmp @tt_npc_next
 
 @tt_present_2:
-	// load npc name pointer
+	// Prefer given name if present; otherwise use title
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
+	bne @tt_print
+	// No given name, fall back to title
 	lda npcNameLo,x
 	sta ZP_PTR
 	lda npcNameHi,x
@@ -5185,19 +5428,22 @@ cmdTalk:
 	lda npcMaskHiTemp
 	and npcBitHi,x
 	beq @tt_check_b2
-	jmp @tt_present_2
+	jsr printNpcEntry
+	jmp @tt_npc_next
 
 @tt_check_b2:
 	lda npcMaskB2Temp
 	and npcBitB2,x
 	beq @tt_check_b3
-	jmp @tt_present_2
+	jsr printNpcEntry
+	jmp @tt_npc_next
 
 @tt_check_b3:
 	lda npcMaskB3Temp
 	and npcBitB3,x
 	beq @tt_npc_next
-	jmp @tt_present_2
+	jsr printNpcEntry
+	jmp @tt_npc_next
 
 @tt_npc_done:
 
@@ -7047,6 +7293,30 @@ bartenderConversation:
 		.byte >@b_job, >@b_buy, >@b_tip, >@b_quest, >@b_leave
 
 @b_job:
+	// If this is the Trading Company Owner and alpha wolfric quest active, complete it
+	cpx #NPC_TRADING_OWNER
+	bne @b_job_normal
+	lda activeQuest
+	cmp #QUEST_ALPHA_WOLFRIC
+	bne @b_job_normal
+	lda questStatus
+	cmp #1
+	bne @b_job_normal
+	// Complete the Alpha Wolfric quest
+	lda #QUEST_ALPHA_WOLFRIC
+	sta tmpPer+1
+	lda #2
+	jsr conv_apply_effect
+	lda #<msgTradingOwnerDone
+	sta lastMsgLo
+	lda #>msgTradingOwnerDone
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bartenderConversation
+
+@b_job_normal:
 	lda #<msgBartenderJob
 	sta lastMsgLo
 	lda #>msgBartenderJob
@@ -9380,8 +9650,8 @@ npcMaskByLocLo:
 	.byte %00000010 // TAVERN: BARTENDER
 	.byte %00000000 // DRAGON HAVEN
 	.byte %00000000 // CATACOMBS
-	.byte %00000000 // PIGGLYWEED INN
-	.byte %00000000 // TEMPLE RUINS
+	.byte %00100000 // PIGGLYWEED INN: FROST WEAVERS QUEEN (index21 -> b2 bit5)
+	.byte %00001000 // TEMPLE RUINS: VASHTEE (index19 -> b2 bit3)
 
 npcMaskByLocHi:
 	.byte %00000000 // TRAIN
@@ -9392,7 +9662,7 @@ npcMaskByLocHi:
 	.byte %00000000 // ALLEY
 	.byte %00000000 // MYSTICWOOD
 	.byte %00000000 // FAIRY GARDENS
-	.byte %00000000 // TAVERN
+	.byte %00010000 // TAVERN: TRADING COMPANY OWNER (index20 -> b2 bit4)
 	.byte %00001000 // DRAGON HAVEN: ALYSTER (index11 -> high bit3)
 	.byte %01000000 // CATACOMBS: SPIRIT OF LOUDEN (index14 -> high bit6)
 	.byte %00000100 // PIGGLYWEED INN: APOLLONIA (index10 -> high bit2)
@@ -9402,7 +9672,7 @@ npcMaskByLocHi:
 npcMaskByLocB2:
 	.byte %00000000 // TRAIN
 	.byte %00000000 // MARKET
-	.byte %00000000 // PORTAL
+	.byte %00000100 // PORTAL: ALPHA WOLFRIC (index18 -> b2 bit2)
 	.byte %00000000 // GOLEM
 	.byte %00000010 // PLAZA: KORA (index17 -> b2 bit1)
 	.byte %00000001 // ALLEY: CANDY WITCH (index16 -> b2 bit0)
@@ -9502,6 +9772,27 @@ msgKoraJapeDone:
 talkKora: .text "KORA WINKS: A JEST FIT FOR COURT CAN UNHORSE A KNIGHT."
 	.byte 0
 talkUnknown: .text "(THE FIGURE SAYS NOTHING.)"
+	.byte 0
+
+// Alpha Wolfric & related NPC talk lines
+talkAlphaWolfric: .text "ALPHA WOLFRIC: THE PACK MUST BE FED. WE WILL GUARD THE TOWN IF YOU SECURE SUPPLIES."
+	.byte 0
+msgAlphaMenuHeader: .text "ALPHA WOLFRIC"
+	.byte 0
+msgAlphaOpt0: .text "0. ASK ABOUT THE WOLVES"
+	.byte 0
+msgAlphaOpt1: .text "1. REQUEST HELP: SEEK SUPPLIES"
+	.byte 0
+
+talkVashtee: .text "VASHTEE: THE DRAGONS HAVE THEIR WAYS. I TRAIN THEM WITH FIRM HANDS."
+	.byte 0
+
+talkTradingOwner: .text "VAN BEAULER: I RUN THE TRADING COMPANY. SUPPLIES COME AT A PRICE."
+	.byte 0
+msgTradingOwnerDone: .text "VAN BEAULER: VERY WELL. THE SUPPLIES ARE YOURS. THE WOLVES WILL WATCH THE TOWN."
+	.byte 0
+
+talkFrostWeaversQueen: .text "FROST WEAVERS QUEEN: WINTER WEAVES ITS SONG; LISTEN." 
 	.byte 0
 
 talkUnseelyFae: .text "AN UNSEELY FAE WHISPERS: THE RUINS REMEMBER BLOOMS THAT NEVER WERE."
@@ -9702,17 +9993,17 @@ msgMermaidTradeNone: .text "YOU HAVE NO LAND CORAL TO OFFER."
 	.byte 0
 npcTalkLo:
 	.byte <talkConductor,<talkBartender,<talkKnight,<talkMystic,<talkFairy,<talkKendrick,<talkSpiderPrincess,<talkPirateCaptain,<talkWarlock,<talkUnseelyFae,<talkApollonia,<talkAlyster,<talkTroll,<talkTosh,<talkLouden,<talkMermaid
-	.byte <talkCandyWitch,<talkKora,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown
+	.byte <talkCandyWitch,<talkKora,<talkAlphaWolfric,<talkVashtee,<talkTradingOwner,<talkFrostWeaversQueen,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown
 npcTalkHi:
 	.byte >talkConductor,>talkBartender,>talkKnight,>talkMystic,>talkFairy,>talkKendrick,>talkSpiderPrincess,>talkPirateCaptain,>talkWarlock,>talkUnseelyFae,>talkApollonia,>talkAlyster,>talkTroll,>talkTosh,>talkLouden,>talkMermaid
-	.byte >talkCandyWitch,>talkKora,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown
+	.byte >talkCandyWitch,>talkKora,>talkAlphaWolfric,>talkVashtee,>talkTradingOwner,>talkFrostWeaversQueen,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown
 
 // Which quest (if any) each NPC can offer
 // Which quest (if any) each NPC can offer
 // Which quest (if any) each NPC can offer
 npcOffersQuest:
 	.byte QUEST_COIN_BARTENDER, QUEST_NONE, QUEST_BLACK_ROSE, QUEST_LANTERN_MYSTIC, QUEST_NONE, QUEST_KENDRICK_SCOTCH, QUEST_LURE_MYSTIC, QUEST_NONE, QUEST_WARLOCK_WARD, QUEST_UNSEELY_NAME, QUEST_APOLLONIA_OFFERING, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_LOUDEN_HEART, QUEST_MERMAID_TRADE
-	.byte QUEST_CANDY_WITCH_DISABLE_WARD, QUEST_KORA_JAPE, QUEST_ALYSTER_OATH, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE
+	.byte QUEST_CANDY_WITCH_DISABLE_WARD, QUEST_KORA_JAPE, QUEST_ALPHA_WOLFRIC, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE
 
 // Conversation strings
 msgAskWeather: .text "THE SKY LOOKS LIKE IT'LL HOLD FOR NOW."
@@ -10009,16 +10300,20 @@ classHpPerLevel:
 
 // NPC static attributes per NPC index
 npcClassIdx:
-	.byte 0,1,2,3,4,2,4,6,6,4,3,2,2,1,3,4
+	.byte 0,1,2,3,4,2,4,6,6,4,3,2,2,1,3,4,  
+	.byte 4,3,2,2,1,4,0,0,0,0,0,0,0,0,0,0
 npcLevel:
-	.byte 1,1,2,3,1,1,1,2,1,1,1,2,2,1,1,2
+	.byte 1,1,2,3,1,1,1,2,1,1,1,2,2,1,1,2, 
+	.byte 3,2,4,3,2,4,1,1,1,1,1,1,1,1,1,1
 npcScoreLo:
 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 npcScoreHi:
 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 // NPC current HP (persisted across saves)
+// NPC current HP (persisted across saves) - initialized to max per-class/level guesses
 npcCurHp:
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.byte 25,19,36,24,12,30,12,28,23,12,16,36,36,19,16,14, 
+	.byte 16,20,48,42,22,18,10,10,10,10,10,10,10,10,10,10
 
 // Playable classes (for player)
 playClass0: .text "MAGE"
@@ -10067,6 +10362,30 @@ computePlayerMaxHp:
 	clc
 	adc playerHpBonus
 	sta tmpHp
+	rts
+
+// computeNpcMaxHp: expects X = npc index; returns max HP in tmpHp
+computeNpcMaxHp:
+	// load npc's class index
+	lda npcClassIdx,x
+	tay
+	lda classBaseHp,y
+	sta tmpHp
+	lda classHpPerLevel,y
+	sta tmpPer
+	// load npc's level
+	lda npcLevel,x
+	sta tmpCnt
+@npc_hp_loop:
+	lda tmpCnt
+	beq @npc_hp_done
+	lda tmpHp
+	clc
+	adc tmpPer
+	sta tmpHp
+	dec tmpCnt
+	jmp @npc_hp_loop
+@npc_hp_done:
 	rts
 
 // --- Data: Objects ---
@@ -10377,15 +10696,23 @@ npcName16: .text "CANDY WITCH"
 	.byte 0
 npcName17: .text "KORA"
 	.byte 0
+npcName18: .text "ALPHA WOLFRIC"
+	.byte 0
+npcName19: .text "DRAGON TRAINER VASHTEE"
+	.byte 0
+npcName20: .text "TRADING COMPANY OWNER"
+	.byte 0
+npcName21: .text "FROST WEAVERS QUEEN"
+	.byte 0
 npcNameUnknown: .text "(UNKNOWN)"
 	.byte 0
 
 npcNameLo:
 	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5,<npcName6,<npcName7,<npcName8,<npcName9,<npcName10,<npcName11,<npcName12,<npcName13,<npcName14,<npcName15
-	.byte <npcName16,<npcName17,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown
+	.byte <npcName16,<npcName17,<npcName18,<npcName19,<npcName20,<npcName21,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown
 npcNameHi:
 	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9,>npcName10,>npcName11,>npcName12,>npcName13,>npcName14,>npcName15
-	.byte >npcName16,>npcName17,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown
+	.byte >npcName16,>npcName17,>npcName18,>npcName19,>npcName20,>npcName21,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown
 
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
@@ -10406,6 +10733,102 @@ msgUnknown:    .text "I DIDN'T UNDERSTAND. TRY: N E S W, INSPECT <OBJ>, TAKE <OB
 	.byte 0
 msgHelp:       .text "HELP: N/E/S/W MOVE, T TALK, I INV, LOOK"
 	.byte 0
+
+// Prompt for given name entry
+msgAskNpcName: .text "ENTER A GIVEN NAME FOR:" 
+	.byte 0
+
+// Runtime buffer: flat block of NPC_COUNT * NPC_GIVEN_NAME_LEN bytes
+npcGivenNames:
+	// NPC 0 (CONDUCTOR)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 1 (BARTENDER)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 2 (KNIGHT) - given name set to "Damian"
+	.text "Damian"
+	.fill (NPC_GIVEN_NAME_LEN - 6), 0
+	// NPC 3 (MYSTIC) - given name set to "mela"
+	.text "mela"
+	.fill (NPC_GIVEN_NAME_LEN - 4), 0
+	// NPC 4 (FAIRY)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 5 (KENDRICK)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 6 (SPIDER_PRINCESS)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 7 (PIRATE_CAPTAIN) - given name set to "Bonnie Red Boots"
+	.text "Bonnie Red Boots"
+	// NPC 8 (WARLOCK) - given name set to "Dorian"
+	.text "Dorian"
+	.fill (NPC_GIVEN_NAME_LEN - 6), 0
+	// NPC 9 (UNSEELY_FAE) - given name set to "Tamara"
+	.text "Tamara"
+	.fill (NPC_GIVEN_NAME_LEN - 6), 0
+	// NPC 10 (APOLLONIA)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 11 (ALYSTER)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 12 (TROLL)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 13 (TOSH) - given name set to "tosh"
+	.text "tosh"
+	.fill (NPC_GIVEN_NAME_LEN - 4), 0
+	// NPC 14 (LOUDEN)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 15 (MERMAID)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 16 (CANDY_WITCH)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 17 (KORA)
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 18 (ALPHA WOLFRIC) - given name set to "vassa"
+	.text "vassa"
+	.fill (NPC_GIVEN_NAME_LEN - 5), 0
+	// NPC 19 (VASHTEE) - given name set to "Vashtee"
+	.text "Vashtee"
+	.fill (NPC_GIVEN_NAME_LEN - 7), 0
+	// NPC 20 (TRADING COMPANY OWNER) - given name set to "Van Beauler"
+	.text "Van Beauler"
+	.fill (NPC_GIVEN_NAME_LEN - 11), 0
+	// NPC 20
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 21
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 22
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 23
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 24
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 25
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 26
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 27
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 28
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 29
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 30
+	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 31
+	.fill NPC_GIVEN_NAME_LEN, 0
+
+// Pointer tables for each NPC's given-name slot (low/high)
+npcGivenNamePtrLo:
+	.byte <npcGivenNames+0,<npcGivenNames+16,<npcGivenNames+32,<npcGivenNames+48,<npcGivenNames+64,<npcGivenNames+80,<npcGivenNames+96,<npcGivenNames+112,<npcGivenNames+128,<npcGivenNames+144,<npcGivenNames+160,<npcGivenNames+176,<npcGivenNames+192,<npcGivenNames+208,<npcGivenNames+224,<npcGivenNames+240
+	.byte <npcGivenNames+256,<npcGivenNames+272,<npcGivenNames+288,<npcGivenNames+304,<npcGivenNames+320,<npcGivenNames+336,<npcGivenNames+352,<npcGivenNames+368,<npcGivenNames+384,<npcGivenNames+400,<npcGivenNames+416,<npcGivenNames+432,<npcGivenNames+448,<npcGivenNames+464,<npcGivenNames+480,<npcGivenNames+496
+npcGivenNamePtrHi:
+	.byte >npcGivenNames+0,>npcGivenNames+16,>npcGivenNames+32,>npcGivenNames+48,>npcGivenNames+64,>npcGivenNames+80,>npcGivenNames+96,>npcGivenNames+112,>npcGivenNames+128,>npcGivenNames+144,>npcGivenNames+160,>npcGivenNames+176,>npcGivenNames+192,>npcGivenNames+208,>npcGivenNames+224,>npcGivenNames+240
+	.byte >npcGivenNames+256,>npcGivenNames+272,>npcGivenNames+288,>npcGivenNames+304,>npcGivenNames+320,>npcGivenNames+336,>npcGivenNames+352,>npcGivenNames+368,>npcGivenNames+384,>npcGivenNames+400,>npcGivenNames+416,>npcGivenNames+432,>npcGivenNames+448,>npcGivenNames+464,>npcGivenNames+480,>npcGivenNames+496
+
+// Loaded staging area for given names (used during tryLoadGame/commitLoadedState)
+loadedGivenNames:
+	.fill NPC_COUNT * NPC_GIVEN_NAME_LEN, 0
+
+// Temp linear index used during interactive setup
+givenNameLoopIndex: .byte 0
 msgNoWay:      .text "YOU CAN'T GO THAT WAY."
 	.byte 0
 msgMoved:      .text "YOU MOVE."

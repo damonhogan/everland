@@ -67,6 +67,8 @@ This Update — New Features
 - Input improvements: username and other prompts now accept multi-character input until Enter and echo typed characters (previous single-char prompt behavior fixed).
 - UI fixes: the Characters/Talk lists no longer show a stray "(UNKNOWN)" entry and the Conductor menu option text was restored.
 
+- NPC Hitpoints & Levels: NPCs now have level and current/max HP like players. NPC level is used with the same class base/level HP formula to compute an NPC's max HP; current HP is stored in saves (EV3). NPCs heal passively at the same rate as players (1 HP per real minute while idle) and their current HP is auto-saved when it changes. The Characters/Talk lists now display each NPC as "LV <n> HP <cur>/<max>" where applicable.
+
 
  Latest Operational Updates
 ---------------------------
@@ -111,6 +113,10 @@ Developer pointers (where to look in the source)
 - `objLoc` (initial item locations) contains the coin spawn location.
 - `cmdTake` and `cmdGive` implement TAKE/GIVE parsing and behavior.
 - `questCheckGive` looks up (object,npc) pairs for active quests and calls `questComplete` when matched.
+ - NPC HP/level and regen:
+	 - `npcLevel`, `npcCurHp`, and `npcClassIdx` tables define NPC level, current HP and class.
+	 - `computeNpcMaxHp` computes NPC max HP from class & level (same formula as players).
+	 - `applyRegenIfDue` now heals NPCs the same way as players; look for the NPC-healing loop.
 
 
 Partially Working / Needs Attention
@@ -175,6 +181,8 @@ HP & Regeneration
 - Session bonus: Some training (e.g., Alyster’s Advanced Training) grants a temporary +Max HP for the current session only. The character sheet shows “+N MAX HP (SESSION)” beneath your HP line when active.
 - Viewing HP: Press `C` to open the character sheet and see “HP: current / max”.
 - Regeneration: While idle at prompts (not actively performing actions), you recover 1 HP per real-time minute. Regeneration is capped at Max HP and is saved automatically when HP changes.
+  
+	- NPCs: Non-player characters now use the same regeneration rules. NPCs have `LV` and `HP` values; they recover 1 HP per real minute (capped at their computed max) and their current HP is persisted in EV3 saves.
 
 Saving & Loading
 
