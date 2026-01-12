@@ -248,6 +248,8 @@ Manual</a>
 id="toc-fully-working-features">Fully Working Features</a></li>
 <li><a href="#whats-new-in-this-release"
 id="toc-whats-new-in-this-release">What’s New In This Release</a></li>
+<li><a href="#this-update-new-features"
+id="toc-this-update-new-features">This Update — New Features</a></li>
 <li><a href="#latest-operational-updates"
 id="toc-latest-operational-updates">Latest Operational Updates</a></li>
 <li><a href="#coin-bartender-quest-player-walkthrough"
@@ -372,6 +374,45 @@ Captain/First Mate, Knight (training).</li>
 <li>New/updated NPC content: Saint Apollonia, Alyster, Pirate
 Captain/First Mate, Knight (training), Mermaid (trade quest).</li>
 <li>Diagonal movement and exits display.</li>
+</ul>
+<h2 id="this-update-new-features">This Update — New Features</h2>
+<ul>
+<li>NPC cap increased to 32: the NPC tables and presence masks were
+expanded so more characters can be present at once.</li>
+<li>New NPCs and quests:
+<ul>
+<li>Knight Kendrick (Plaza): a jovial, Scottish knight who keeps a
+bottle of scotch. Kendrick offers a fetch quest — bring him a bottle of
+scotch (from the Tiptsey Maiden tavern) to complete the quest and
+receive a small reward.</li>
+<li>Warlock (Plaza): gives the player a protective ward and requests it
+be placed at the Portal fracture (the location formerly called the Gate;
+the game now uses “Portal”).</li>
+<li>Candy Witch (Alley): an opposing quest to the Warlock — she can
+disable a ward; returning a disabled ward to the Warlock is a separate
+flow and ties into a shared backstory.</li>
+<li>Kora (Plaza): offers a playful jape quest — she asks the player to
+SAY a phrase to Knight Kendrick. Use the new <code>SAY</code> command to
+deliver the phrase and complete the quest.</li>
+<li>Alyster oath (Order of the Emerald Sky): Alyster now offers an oath
+quest with an explicit Y/N acceptance flow; accepting sets a
+guild-membership flag in your profile.</li>
+</ul></li>
+<li>New command: <code>SAY &lt;phrase&gt; TO &lt;NPC&gt;</code> — a
+text-say parser was added to validate phrases for specific NPC quests
+(example: the Kora jape requires the phrase “SCOTCH ON THE KNIGHT” said
+to Kendrick).</li>
+<li>Portal rename: all references to the old “Gate” location were
+renamed to “Portal” in the game and manual.</li>
+<li>EVLOG quest logging: quest completions are recorded to an
+<code>EVLOG</code> file (device 8 / PRG directory when virtual device
+traps are enabled). Use the helper scripts in <code>tools/</code> to
+extract/view <code>EVLOG</code> from the D64 or PRG directory.</li>
+<li>Input improvements: username and other prompts now accept
+multi-character input until Enter and echo typed characters (previous
+single-char prompt behavior fixed).</li>
+<li>UI fixes: the Characters/Talk lists no longer show a stray
+“(UNKNOWN)” entry and the Conductor menu option text was restored.</li>
 </ul>
 <h2 id="latest-operational-updates">Latest Operational Updates</h2>
 <ul>

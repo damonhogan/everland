@@ -2,8 +2,6 @@
 // Enhanced with location descriptions, extended commands, and NPCs
 :BasicUpstart2(start)
 
-.encoding "petscii_upper"
-
 // KERNAL routines
 .label CHROUT = $FFD2
 .label SCNKEY = $FF9F
@@ -18,11 +16,9 @@
 .label CLRCHN = $FFCC
 .label CHRIN  = $FFCF
 .label READST = $FFB7
-// KERNAL real-time clock read
 .label RDTIM  = $FFDE
 
-// SID
-.label SID_BASE = $D400
+// SID registers
 .label SID_V1_FREQLO = $D400
 .label SID_V1_FREQHI = $D401
 .label SID_V1_PWLO   = $D402
@@ -60,60 +56,72 @@
 .label SCREEN = $0400
 
 // Zero page
-.label ZP_PTR     = $FB // $FB/$FC
-.label ZP_PTR2    = $FD // $FD/$FE
+.label ZP_PTR  = $FB // $FB/$FC
+.label ZP_PTR2 = $FD // $FD/$FE
 
+// IEC/device constants
 .const DEVICE = 8
 .const LFN    = 1
 .const SA     = 2
 
-// Constants
-.const LOC_TRAIN  = 0
-.const LOC_MARKET = 1
-.const LOC_GATE   = 2
-.const LOC_GOLEM  = 3
-.const LOC_PLAZA  = 4
-.const LOC_ALLEY  = 5
-.const LOC_MYSTIC  = 6
-.const LOC_GROVE  = 7
-.const LOC_TAVERN = 8
-.const LOC_GRAVE  = 9
+// Location constants (Gate → Portal)
+.const LOC_TRAIN     = 0
+.const LOC_MARKET    = 1
+.const LOC_PORTAL    = 2
+.const LOC_GOLEM     = 3
+.const LOC_PLAZA     = 4
+.const LOC_ALLEY     = 5
+.const LOC_MYSTIC    = 6
+.const LOC_GROVE     = 7
+.const LOC_TAVERN    = 8
+.const LOC_GRAVE     = 9
 .const LOC_CATACOMBS = 10
-.const LOC_INN    = 11
-.const LOC_TEMPLE = 12
-.const LOC_COUNT  = 13
+.const LOC_INN       = 11
+.const LOC_TEMPLE    = 12
+.const LOC_COUNT     = 13
 
-.const OBJ_LANTERN = 0
-.const OBJ_COIN    = 1
-.const OBJ_MUG     = 2
-.const OBJ_KEY     = 3
-.const OBJ_TREASURE= 4
+// Object constants
+.const OBJ_LANTERN     = 0
+.const OBJ_COIN        = 1
+.const OBJ_MUG         = 2
+.const OBJ_KEY         = 3
+.const OBJ_TREASURE    = 4
 .const OBJ_STOLEN_NAME = 5
-.const OBJ_HEART   = 6
-.const OBJ_PINECONE= 7
-.const OBJ_SHELL   = 8
-.const OBJ_COUNT   = 9
+.const OBJ_HEART       = 6
+.const OBJ_PINECONE    = 7
+.const OBJ_SHELL       = 8
+.const OBJ_SCOTCH      = 9
+.const OBJ_WARD        = 10
+.const OBJ_COUNT       = 11
+.const OBJ_INVENTORY   = $FE
+.const OBJ_NOWHERE     = $FF
 
-.const OBJ_INVENTORY = $FE
-.const OBJ_NOWHERE   = $FF
+// NPC constants
+.const NPC_CONDUCTOR        = 0
+.const NPC_BARTENDER        = 1
+.const NPC_KNIGHT           = 2
+.const NPC_MYSTIC           = 3
+.const NPC_FAIRY            = 4
+.const NPC_KENDRICK         = 5
+.const NPC_SPIDER_PRINCESS  = 6
+.const NPC_PIRATE_CAPTAIN   = 7
+.const NPC_WARLOCK          = 8
+.const NPC_UNSEELY_FAE      = 9
+.const NPC_APOLLONIA        = 10
+.const NPC_ALYSTER          = 11
+.const NPC_TROLL            = 12
+.const NPC_TOSH             = 13
+.const NPC_LOUDEN           = 14
+.const NPC_MERMAID          = 15
+.const NPC_CANDY_WITCH      = 16
+.const NPC_KORA             = 17
+// Legacy alias (maps PIXIE to FAIRY slot)
+.const NPC_PIXIE            = NPC_FAIRY
+// First mate alias; currently share captain slot
+.const NPC_PIRATE_FIRSTMATE = NPC_PIRATE_CAPTAIN
+.const NPC_COUNT            = 32
 
-.const NPC_CONDUCTOR = 0
-.const NPC_BARTENDER = 1
-.const NPC_KNIGHT    = 2
-.const NPC_MYSTIC     = 3
-.const NPC_FAIRY     = 4
-.const NPC_PIXIE     = 5
-.const NPC_SPIDER_PRINCESS = 6
-.const NPC_PIRATE_CAPTAIN = 7
-.const NPC_PIRATE_FIRSTMATE = 8
-.const NPC_UNSEELY_FAE = 9
-.const NPC_APOLLONIA = 10
-.const NPC_ALYSTER   = 11
-.const NPC_TROLL     = 12
-.const NPC_TOSH      = 13
-.const NPC_LOUDEN    = 14
-.const NPC_MERMAID   = 15
-.const NPC_COUNT     = 16
+.encoding "petscii_upper"
 
 .const ROW_MAP_LAST   = 11
 .const ROW_DIVIDER    = 12
@@ -147,7 +155,16 @@
 .const QUEST_APOLLONIA_OFFERING = 7
 .const QUEST_LOUDEN_HEART   = 8
 .const QUEST_MERMAID_TRADE  = 9
-.const QUEST_COUNT          = 10
+.const QUEST_KENDRICK_SCOTCH = 10
+.const QUEST_WARLOCK_WARD    = 11
+.const QUEST_CANDY_WITCH_DISABLE_WARD = 12
+.const QUEST_KORA_JAPE      = 13
+.const QUEST_ALYSTER_OATH   = 14
+.const QUEST_COUNT          = 15
+
+// --- Core constants (local fallback to satisfy early references) ---
+// Note: These mirror top-level definitions to resolve symbol order issues.
+// Remove local fallbacks; constants are defined above
 
 // Game state
 currentLoc: .byte LOC_PLAZA
@@ -181,6 +198,8 @@ playerClassIdx: .byte 0
 playerCurHp: .byte 0
 // Temporary bonus to max HP from training (session-only)
 playerHpBonus: .byte 0
+// Player guild membership flags
+playerGuildMember: .byte 0	// 1 = member of Order of the Emerald Sky
 // Player race (e.g. HUMAN, TROLL, ELF, DRAGON) - fixed 12-byte, 0-padded
 raceLen: .byte 0
 raceName:
@@ -250,6 +269,10 @@ tmpPer: .byte 0,0
 npcConvStage:
 	.fill NPC_COUNT, 0
 npcMaskHiTemp: .byte 0
+npcMaskB2Temp: .byte 0
+npcMaskB3Temp: .byte 0
+// Ward disable flag used by Candy Witch
+wardDisabledFlag: .byte 0
 tmpCnt: .byte 0
 
 // Input buffer (PETSCII)
@@ -280,13 +303,15 @@ healLeft: .byte 0
 objLoc:
 	.byte LOC_TRAIN   // LANTERN
 	.byte LOC_MARKET  // COIN
-	.byte LOC_TAVERN  // MUG
-	.byte LOC_GATE    // KEY
+	.byte LOC_PLAZA   // MUG (moved so Kendrick keeps a bottle in the plaza)
+	.byte LOC_PORTAL  // KEY
 	.byte LOC_CATACOMBS // TREASURE (starts hidden in catacombs)
 	.byte OBJ_NOWHERE // STOLEN NAME (starts nowhere; given by Fairy on trade)
 	.byte LOC_CATACOMBS // HEART (hidden deep in the Catacombs)
 	.byte LOC_GROVE    // PINECONE (land coral) starts in the Grove
 	.byte OBJ_NOWHERE  // SPARKLY SHELL (sea gift) starts nowhere
+	.byte LOC_TAVERN   // SCOTCH (bottle sits in the Tiptsey Maiden tavern)
+	.byte OBJ_NOWHERE  // WARD (starts nowhere; given by Warlock)
 
 // --- Program entry ---
 start:
@@ -413,7 +438,7 @@ loginOrCreate:
 	sta objLoc+OBJ_COIN
 	lda #LOC_TAVERN
 	sta objLoc+OBJ_MUG
-	lda #LOC_GATE
+	lda #LOC_PORTAL
 	sta objLoc+OBJ_KEY
 	lda #LOC_GROVE
 	sta objLoc+OBJ_PINECONE
@@ -986,18 +1011,7 @@ tryLoadGame:
 	ldx #0
 @ru:
 	jsr CHRIN
-	inx
-	cpx #12
-	bne @ru
-	// Read display
-	ldx #0
-@rd:
-	jsr CHRIN
-	sta loadedDisplay,x
-	inx
-	cpx #16
-	bne @rd
-	// Read class (12 bytes)
+	sta ZP_PTR
 	ldx #0
 @rcl:
 	jsr CHRIN
@@ -1602,6 +1616,9 @@ questComplete:
 	sta lastMsgHi
 	jsr saveGame
 
+	// Log quest completion to EVLOG (device 8)
+	jsr log_quest_complete
+
 	// Grant quest-specific rewards via table-dispatch (indexed by quest id)
 	lda activeQuest
 	tay
@@ -1644,9 +1661,9 @@ questComplete:
 
 // Reward dispatch table (low/high pointers) - indexed by quest id
 questRewardLo:
-	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely, <@qc_reward_apollonia, <@qc_done_after, <@qc_done_after
+	.byte <@qc_reward_bartender, <@qc_done_after, <@qc_done_after, <@qc_reward_treasure, <@qc_reward_lure, <@qc_done_after, <@qc_reward_unseely, <@qc_reward_apollonia, <@qc_done_after, <@qc_done_after, <@qc_reward_kendrick, <@qc_reward_warlock, <@qc_reward_candywitch, <@qc_reward_kora
 questRewardHi:
-	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely, >@qc_reward_apollonia, >@qc_done_after, >@qc_done_after
+	.byte >@qc_reward_bartender, >@qc_done_after, >@qc_done_after, >@qc_reward_treasure, >@qc_reward_lure, >@qc_done_after, >@qc_reward_unseely, >@qc_reward_apollonia, >@qc_done_after, >@qc_done_after, >@qc_reward_kendrick, >@qc_reward_warlock, >@qc_reward_candywitch, >@qc_reward_kora
 
 @qc_reward_unseely:
 	// Reward for retrieving the stolen name: +4 score and progress Unseely Fae
@@ -1669,6 +1686,60 @@ questRewardHi:
 	jsr computePlayerMaxHp
 	lda tmpHp
 	sta playerCurHp
+	lda scoreLo
+	clc
+	adc #2
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	jmp @qc_done_after
+
+@qc_reward_kendrick:
+	// Kendrick quest reward: +2 score and a mug souvenir
+	lda scoreLo
+	clc
+	adc #2
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	// give player a mug (OBJ_MUG)
+	lda #OBJ_MUG
+	tax
+	lda #OBJ_INVENTORY
+	sta objLoc,x
+	// mark Kendrick's conv stage progressed
+	lda #NPC_KENDRICK
+	sta tmpPer+1
+	lda #6
+	jsr conv_apply_effect
+	jmp @qc_done_after
+
+@qc_reward_warlock:
+	// Warlock ward quest reward: +3 score
+	lda scoreLo
+	clc
+	adc #3
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	jmp @qc_done_after
+
+@qc_reward_candywitch:
+	// Candy Witch quest reward: +2 score, and a sly grin
+	lda scoreLo
+	clc
+	adc #2
+	sta scoreLo
+	lda scoreHi
+	adc #0
+	sta scoreHi
+	jmp @qc_done_after
+
+@qc_reward_kora:
+	// Kora jape quest: +2 score for clever wordplay
 	lda scoreLo
 	clc
 	adc #2
@@ -2102,13 +2173,13 @@ musicAdvanceSparkle:
 
 // Scary locations (spooky music)
 locScary:
-	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// TRAIN, MARKET, PORTAL, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	// Extra (non-map) locations reuse nearby marker positions.
 	.byte 0,0,0,1,0,0,1,0,0,1,1,0,0
 
 // Indoor/location music override ($FF = none). Theme ids match musicTheme.
 locMusicOverride:
-	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// TRAIN, MARKET, PORTAL, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	.byte $FF,$FF,$FF,$FF,$FF,$FF,$FF,8,5,$FF,$FF,6,7
 
 // Notes table (indices used in sequences):
@@ -2838,9 +2909,13 @@ readLine:
 	beq @poll
 
 	cmp #$0D // RETURN
-	beq @maybeFinish
+	bne @notReturn
+	jmp @maybeFinish
+@notReturn:
 	cmp #$14 // DEL/BACKSPACE
-	beq @back
+	bne @noBack
+	jmp @back
+@noBack:
 
 	// Limit length
 	ldx inputLen
@@ -2852,14 +2927,76 @@ readLine:
 	inx
 	stx inputLen
 	jsr CHROUT
-	ldx inputLen
-	dex
-	lda inputBuf,x
 	cmp #$20
 	bne @poll
 	jsr flushKeys
 	jmp @poll
 
+// log_quest_complete: write a short record for quest completion to EVLOG
+// Format: 'C ' <questId> ' L ' <loc>
+log_quest_complete:
+	// set filename EVLOG
+	lda #5
+	ldx #<logName
+	ldy #>logName
+	jsr SETNAM
+	// set LFN/DEVICE/SA
+	lda #LFN
+	ldx #DEVICE
+	ldy #SA
+	jsr SETLFS
+	jsr OPEN
+	jsr CHKOUT
+	// write: 'C ' <questId> ' L ' <loc>
+	lda #'C'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda activeQuest
+	cmp #10
+	bcc @lqc_q_low
+	// >=10: write '1' then ones digit
+	lda #'1'
+	jsr CHROUT
+	lda activeQuest
+	sec
+	sbc #10
+	clc
+	adc #$30
+	jsr CHROUT
+	jmp @lqc_q_done
+@lqc_q_low:
+	lda activeQuest
+	clc
+	adc #$30
+	jsr CHROUT
+@lqc_q_done:
+	lda #' '
+	jsr CHROUT
+	lda #'L'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda currentLoc
+	cmp #10
+	bcc @lqc_loc_low
+	// >=10: write '1' then ones digit
+	lda #'1'
+	jsr CHROUT
+	lda currentLoc
+	sec
+	sbc #10
+	clc
+	adc #$30
+	jsr CHROUT
+	jmp @lqc_done
+@lqc_loc_low:
+	lda currentLoc
+	clc
+	adc #$30
+	jsr CHROUT
+@lqc_done:
+	rts
 @maybeFinish:
 	// Finish on RETURN (empty input allowed) — avoid double-enter at prompts.
 	ldx inputLen
@@ -2868,7 +3005,9 @@ readLine:
 
 @back:
 	ldx inputLen
-	beq @poll
+	bne @back_has
+	jmp @poll
+@back_has:
 	dex
 	stx inputLen
 	lda #$14
@@ -3892,11 +4031,69 @@ parseObjectNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @key
+	bcc @mug_no_match
 	lda #OBJ_MUG
 	sec
 	rts
+@mug_no_match:
+	// check for SCOTCH or BOTTLE keywords
+	txa
+	pha
+	lda #<kwScotch
+	sta ZP_PTR2
+	lda #>kwScotch
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @mug_check_bottle
+	lda #OBJ_SCOTCH
+	sec
+	rts
+@mug_check_bottle:
+	txa
+	pha
+	lda #<kwBottle
+	sta ZP_PTR2
+	lda #>kwBottle
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @key
+	lda #OBJ_SCOTCH
+	sec
+	rts
 @key:
+	// also support WARD / PROTECTION keywords
+	txa
+	pha
+	lda #<kwWard
+	sta ZP_PTR2
+	lda #>kwWard
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @key_check_protection
+	lda #OBJ_WARD
+	sec
+	rts
+@key_check_protection:
+	txa
+	pha
+	lda #<kwProtection
+	sta ZP_PTR2
+	lda #>kwProtection
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @key_real
+	lda #OBJ_WARD
+	sec
+	rts
+@key_real:
 	txa
 	pha
 	lda #<kwKey
@@ -4155,7 +4352,9 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @nf
+	bcs @tosher_match
+	jmp @nf
+@tosher_match:
 	lda #NPC_TOSH
 	sec
 	rts
@@ -4197,16 +4396,65 @@ parseNpcNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @nf
+	bcs @mermaid_match
+	jmp @nf
+@mermaid_match:
 	lda #NPC_MERMAID
+	sec
+	rts
+@kora:
+	txa
+	pha
+	lda #<kwKora
+	sta ZP_PTR2
+	lda #>kwKora
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcs @kora_match
+	jmp @nf
+@kora_match:
+	lda #NPC_KORA
+	sec
+	rts
+@warlock:
+	txa
+	pha
+	lda #<kwWarlock
+	sta ZP_PTR2
+	lda #>kwWarlock
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcs @warlock_match
+	jmp @nf
+@warlock_match:
+	lda #NPC_WARLOCK
+	sec
+	rts
+@candywitch:
+	txa
+	pha
+	lda #<kwCandyWitch
+	sta ZP_PTR2
+	lda #>kwCandyWitch
+	sta ZP_PTR2+1
+	pla
+	 tax
+	jsr matchKeywordAtX
+	bcs @candywitch_match
+	jmp @nf
+@candywitch_match:
+	lda #NPC_CANDY_WITCH
 	sec
 	rts
 @nf:
 	clc
-	rts
 
 // Parse simple scenery noun starting at X. Returns A=sceneryId, carry set if found.
-// 0=STALL, 1=SIGN, 2=GATE
+// 0=STALL, 1=SIGN, 2=PORTAL
 parseSceneryNoun:
 	jsr skipFillers
 	// STALL
@@ -4235,18 +4483,18 @@ parseSceneryNoun:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @pscn_gate
+	bcc @pscn_portal
 	lda #1
 	sec
 	rts
 
-@pscn_gate:
-	// GATE
+@pscn_portal:
+	// PORTAL
 	txa
 	pha
-	lda #<kwGate
+	lda #<kwPortal
 	sta ZP_PTR2
-	lda #>kwGate
+	lda #>kwPortal
 	sta ZP_PTR2+1
 	pla
 	tax
@@ -4430,6 +4678,10 @@ cmdCharactersMenu:
 	sta ZP_PTR2
 	lda npcMaskByLocHi,x
 	sta npcMaskHiTemp
+	lda npcMaskByLocB2,x
+	sta npcMaskB2Temp
+	lda npcMaskByLocB3,x
+	sta npcMaskB3Temp
 	lda #0
 	sta selCount
 	ldx #0
@@ -4437,7 +4689,20 @@ cmdCharactersMenu:
 	lda ZP_PTR2
 	and npcBitLo,x
 	beq @cc_check_hi_1
-	// increment display count
+	// load npc name pointer
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	// skip unknown entries
+	lda ZP_PTR
+	cmp #<npcNameUnknown
+	bne @cc_print_low
+	lda ZP_PTR+1
+	cmp #>npcNameUnknown
+	beq @cc_npc_next
+@cc_print_low:
+	// increment display count and print entry
 	inc selCount
 	lda selCount
 	clc
@@ -4447,17 +4712,25 @@ cmdCharactersMenu:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	// print npc name
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
 	jmp @cc_npc_next
 
 @cc_present_1:
-	// increment display count
+	// load npc name pointer
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	// skip unknown entries
+	lda ZP_PTR
+	cmp #<npcNameUnknown
+	bne @cc_print_hi
+	lda ZP_PTR+1
+	cmp #>npcNameUnknown
+	beq @cc_npc_next
+@cc_print_hi:
+	// increment display count and print entry
 	inc selCount
 	lda selCount
 	clc
@@ -4467,11 +4740,6 @@ cmdCharactersMenu:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	// print npc name
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
 
@@ -4485,6 +4753,18 @@ cmdCharactersMenu:
 @cc_check_hi_1:
 	lda npcMaskHiTemp
 	and npcBitHi,x
+	beq @cc_check_b2
+	jmp @cc_present_1
+
+@cc_check_b2:
+	lda npcMaskB2Temp
+	and npcBitB2,x
+	beq @cc_check_b3
+	jmp @cc_present_1
+
+@cc_check_b3:
+	lda npcMaskB3Temp
+	and npcBitB3,x
 	beq @cc_npc_next
 	jmp @cc_present_1
 
@@ -4855,6 +5135,10 @@ cmdTalk:
 	sta ZP_PTR2
 	lda npcMaskByLocHi,x
 	sta npcMaskHiTemp
+	lda npcMaskByLocB2,x
+	sta npcMaskB2Temp
+	lda npcMaskByLocB3,x
+	sta npcMaskB3Temp
 	lda #0
 	sta selCount
 	ldx #0
@@ -4865,6 +5149,19 @@ cmdTalk:
 	jmp @tt_present_2
 
 @tt_present_2:
+	// load npc name pointer
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	// skip unknown entries
+	lda ZP_PTR
+	cmp #<npcNameUnknown
+	bne @tt_print
+	lda ZP_PTR+1
+	cmp #>npcNameUnknown
+	beq @tt_npc_next
+@tt_print:
 	lda selCount
 	clc
 	adc #'0'
@@ -4873,10 +5170,6 @@ cmdTalk:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
 	inc selCount
@@ -4891,6 +5184,18 @@ cmdTalk:
 @tt_check_hi_2:
 	lda npcMaskHiTemp
 	and npcBitHi,x
+	beq @tt_check_b2
+	jmp @tt_present_2
+
+@tt_check_b2:
+	lda npcMaskB2Temp
+	and npcBitB2,x
+	beq @tt_check_b3
+	jmp @tt_present_2
+
+@tt_check_b3:
+	lda npcMaskB3Temp
+	and npcBitB3,x
 	beq @tt_npc_next
 	jmp @tt_present_2
 
@@ -4919,6 +5224,24 @@ cmdTalk:
 @tt_find_check_hi:
 	lda npcMaskHiTemp
 	and npcBitHi,x
+	beq @tt_find_check_b2
+	iny
+	tya
+	cmp selChoice
+	beq @tt_selected
+
+@tt_find_check_b2:
+	lda npcMaskB2Temp
+	and npcBitB2,x
+	beq @tt_find_check_b3
+	iny
+	tya
+	cmp selChoice
+	beq @tt_selected
+
+@tt_find_check_b3:
+	lda npcMaskB3Temp
+	and npcBitB3,x
 	beq @tt_find_next
 	iny
 	tya
@@ -4963,6 +5286,10 @@ cmdTalkWord:
 	sta ZP_PTR2
 	lda npcMaskByLocHi,y
 	sta npcMaskHiTemp
+	lda npcMaskByLocB2,y
+	sta npcMaskB2Temp
+	lda npcMaskByLocB3,y
+	sta npcMaskB3Temp
 	lda ZP_PTR2
 	and npcBitLo,x
 	bne @ctw_present
@@ -4974,6 +5301,47 @@ cmdTalkWord:
 @ctw_present:
 	// Open conversation with this NPC
 	jsr conversationMenu
+	rts
+
+// SAY command: SAY <PHRASE> TO <NPC>
+cmdSay:
+	// X currently points just after the matched SAY keyword
+	jsr skipFillers
+	// Expect Kora's jape phrase
+	txa
+	pha
+	lda #<kwKoraPhrase
+	sta ZP_PTR2
+	lda #>kwKoraPhrase
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @say_fail
+	// advance past phrase and parse target after fillers
+	jsr skipFillers
+	jsr parseNpcNoun
+	bcc @say_fail
+	// A = npcId; target must be Kendrick
+	cmp #NPC_KENDRICK
+	bne @say_fail
+	// Require Kora's quest active
+	lda activeQuest
+	cmp #QUEST_KORA_JAPE
+	bne @say_fail
+	// Complete quest
+	jsr questComplete
+	lda #<msgKoraJapeDone
+	sta lastMsgLo
+	lda #>msgKoraJapeDone
+	sta lastMsgHi
+	rts
+
+@say_fail:
+	lda #<msgDontKnow
+	sta lastMsgLo
+	lda #>msgDontKnow
+	sta lastMsgHi
 	rts
 
 // Conversation menu for an NPC. Expects X = npc index
@@ -6307,9 +6675,23 @@ spiderJumpHi:
 
 // Conversation handler table indexed by NPC index (X)
 convSpeakHandlerLo:
-	.byte <@conv_conductor, <@conv_bartender, <@conv_knight, <@conv_speak_default, <@conv_fairy, <@conv_pixie, <@conv_spider, <@conv_pirate, <@conv_pirate, <@conv_unseely, <@conv_apollonia, <@conv_alyster, <@conv_troll, <@conv_tosh, <@conv_louden, <@conv_mermaid
+	.byte <@conv_conductor, <@conv_bartender, <@conv_knight, <@conv_speak_default, <@conv_fairy, <@conv_kendrick, <@conv_spider, <@conv_pirate, <@conv_warlock, <@conv_unseely, <@conv_apollonia, <@conv_alyster, <@conv_troll, <@conv_tosh, <@conv_louden, <@conv_mermaid
+	.byte <@conv_candywitch, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default
 convSpeakHandlerHi:
-	.byte >@conv_conductor, >@conv_bartender, >@conv_knight, >@conv_speak_default, >@conv_fairy, >@conv_pixie, >@conv_spider, >@conv_pirate, >@conv_pirate, >@conv_unseely, >@conv_apollonia, >@conv_alyster, >@conv_troll, >@conv_tosh, >@conv_louden, >@conv_mermaid
+	.byte >@conv_conductor, >@conv_bartender, >@conv_knight, >@conv_speak_default, >@conv_fairy, >@conv_kendrick, >@conv_spider, >@conv_pirate, >@conv_warlock, >@conv_unseely, >@conv_apollonia, >@conv_alyster, >@conv_troll, >@conv_tosh, >@conv_louden, >@conv_mermaid
+	.byte >@conv_candywitch, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default
+
+@conv_kendrick:
+	jsr kendrickConversation
+	jmp conv_loop
+
+@conv_warlock:
+	// For now use default speak
+	jmp @conv_speak_default
+
+@conv_candywitch:
+	// Use default conversation menu with Candy Witch talk
+	jmp @conv_speak_default
 
 // Pirate-specific conversation tree. Expects X = npc index.
 pirateConversation:
@@ -6813,6 +7195,12 @@ conductorConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	lda #<msgConductorOpt4
+	sta ZP_PTR
+	lda #>msgConductorOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -7085,6 +7473,129 @@ knightConversation:
 
 @k_leave:
 	rts
+
+// Kendrick-specific conversation tree. Expects X = npc index.
+kendrickConversation:
+	jsr clearScreen
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
+	lda #<msgKendrickMenuHeader
+	sta ZP_PTR
+	lda #>msgKendrickMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKendrickOpt0
+	sta ZP_PTR
+	lda #>msgKendrickOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKendrickOpt1
+	sta ZP_PTR
+	lda #>msgKendrickOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKendrickOpt2
+	sta ZP_PTR
+	lda #>msgKendrickOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKendrickOpt3
+	sta ZP_PTR
+	lda #>msgKendrickOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgKendrickOpt4
+	sta ZP_PTR
+	lda #>msgKendrickOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @knd_noinput
+	sec
+	sbc #'0'
+	tay
+	tya
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
+	lda kendrickJumpLo,y
+	sta ZP_PTR
+	lda kendrickJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@knd_noinput:
+	jmp kendrickConversation
+
+@knd_about:
+	lda #<msgKendrickAbout
+	sta lastMsgLo
+	lda #>msgKendrickAbout
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp kendrickConversation
+
+@knd_spider:
+	lda #<msgSpiderWhisper
+	sta lastMsgLo
+	lda #>msgSpiderWhisper
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp kendrickConversation
+
+@knd_request:
+	// start Kendrick's scotch quest if available
+	lda npcOffersQuest,x
+	cmp #QUEST_NONE
+	beq @knd_noquest
+	lda npcOffersQuest,x
+	sta tmpPer+1
+	lda #1
+	jsr conv_apply_effect
+	lda #1
+	sta npcConvStage,x
+	lda #<msgKendrickOfferStart
+	sta lastMsgLo
+	lda #>msgKendrickOfferStart
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp kendrickConversation
+
+@knd_noquest:
+	lda #<msgKendrickOfferAlready
+	sta lastMsgLo
+	lda #>msgKendrickOfferAlready
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp kendrickConversation
+
+@knd_give:
+	// Handled by generic GIVE path; just return
+	rts
+
+@knd_leave:
+	rts
+
+kendrickJumpLo:
+	.byte <@knd_about,<@knd_spider,<@knd_request,<@knd_give,<@knd_leave
+kendrickJumpHi:
+	.byte >@knd_about,>@knd_spider,>@knd_request,>@knd_give,>@knd_leave
 
 @k_guard:
 	lda #<msgKnightGuard
@@ -7452,7 +7963,9 @@ pixieJumpHi:
 @conv_do_quest:
 	lda npcOffersQuest,x
 	cmp #QUEST_NONE
-	beq @conv_noquest
+	bne @conv_do_quest_continue
+	jmp @conv_noquest
+@conv_do_quest_continue:
 	// start quest via conv_apply_effect: A=1 (startQuest), tmpPer+1=quest id
 	sta tmpPer+1
 	lda #1
@@ -7462,7 +7975,23 @@ pixieJumpHi:
 	sta npcConvStage,x
 	// Spider Princess has a custom offer message
 	cpx #NPC_SPIDER_PRINCESS
-	beq @cq_spider
+	bne @conv_do_quest_chk_spider
+	jmp @cq_spider
+@conv_do_quest_chk_spider:
+	// Warlock: give the ward and show a custom offer
+	cpx #NPC_WARLOCK
+	bne @conv_do_quest_chk_warlock
+	jmp @cq_warlock
+@conv_do_quest_chk_warlock:
+	// Candy Witch: custom offer message
+	cpx #NPC_CANDY_WITCH
+	bne @conv_do_quest_chk_candy
+	jmp @cq_candywitch
+@conv_do_quest_chk_candy:
+	cpx #NPC_ALYSTER
+	bne @conv_do_quest_chk_alyster
+	jmp @cq_alyster
+@conv_do_quest_chk_alyster:
 	lda #<msgQuestOfferGeneric
 	sta lastMsgLo
 	lda #>msgQuestOfferGeneric
@@ -7473,6 +8002,71 @@ pixieJumpHi:
 	lda #<msgSpiderQuestOffer
 	sta lastMsgLo
 	lda #>msgSpiderQuestOffer
+	sta lastMsgHi
+
+@cq_warlock:
+	lda #OBJ_INVENTORY
+	sta objLoc+OBJ_WARD
+	lda #<msgWarlockQuestOffer
+	sta lastMsgLo
+	lda #>msgWarlockQuestOffer
+	sta lastMsgHi
+
+	// Kora: custom offer instructing the jape
+	cpx #NPC_KORA
+	bne @cq_candywitch
+	lda #<msgKoraQuestOffer
+	sta lastMsgLo
+	lda #>msgKoraQuestOffer
+	sta lastMsgHi
+
+@cq_alyster:
+	lda #<msgAlysterOathOffer
+	sta lastMsgLo
+	lda #>msgAlysterOathOffer
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @cq_alyster_noinput
+	// Accept on Y, y
+	cmp #'Y'
+	beq @cq_alyster_accept
+	cmp #'y'
+	beq @cq_alyster_accept
+	// Refuse otherwise
+	jmp @cq_alyster_refuse
+
+@cq_alyster_noinput:
+	jmp conv_loop
+
+@cq_alyster_accept:
+	lda #1
+	sta playerGuildMember
+	lda #<msgAlysterOathAccepted
+	sta lastMsgLo
+	lda #>msgAlysterOathAccepted
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp conv_loop
+
+@cq_alyster_refuse:
+	lda #<msgAlysterOathRefused
+	sta lastMsgLo
+	lda #>msgAlysterOathRefused
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp conv_loop
+
+@cq_candywitch:
+	lda #<msgCandyWitchQuestOffer
+	sta lastMsgLo
+	lda #>msgCandyWitchQuestOffer
 	sta lastMsgHi
 
 @cq_render:
@@ -7554,8 +8148,8 @@ cmdInspect:
 	beq @stall
 	cmp #1
 	beq @insp_sign
-	// else 2=GATE
-	jmp @insp_gate
+	// else 2=PORTAL
+	jmp @insp_portal
 
 @stall:
 	lda currentLoc
@@ -7577,13 +8171,13 @@ cmdInspect:
 	sta lastMsgHi
 	rts
 
-@insp_gate:
+@insp_portal:
 	lda currentLoc
-	cmp #LOC_GATE
+	cmp #LOC_PORTAL
 	bne @scnNo
-	lda #<msgGate
+	lda #<msgPortal
 	sta lastMsgLo
-	lda #>msgGate
+	lda #>msgPortal
 	sta lastMsgHi
 	rts
 @scnNo:
@@ -7659,13 +8253,48 @@ cmdTakeFromX:
 	lda objLoc,x
 	cmp currentLoc
 	bne @tfx_notHere
+	// Special: buying SCOTCH at the tavern requires a coin
+	txa
+	cmp #OBJ_SCOTCH
+	bne @tfx_normal_take
+	// We're trying to take the scotch; ensure we're in the tavern
+	lda currentLoc
+	cmp #LOC_TAVERN
+	beq @tfx_scotch_tavern_check
+	jmp @tfx_normal_take
+
+@tfx_scotch_tavern_check:
+	// Check if player has a coin in inventory
+	lda objLoc+OBJ_COIN
+	cmp #OBJ_INVENTORY
+	beq @tfx_scotch_buy
+	// no coin
+	lda #<msgNeedCoinForScotch
+	sta lastMsgLo
+	lda #>msgNeedCoinForScotch
+	sta lastMsgHi
+	jsr render
+	rts
+
+@tfx_scotch_buy:
+	// consume coin
+	lda #OBJ_NOWHERE
+	sta objLoc+OBJ_COIN
+	lda #<msgBoughtScotch
+	sta lastMsgLo
+	lda #>msgBoughtScotch
+	sta lastMsgHi
+	jsr saveGame
+	// fall through to normal take
+
+@tfx_normal_take:
 	lda #OBJ_INVENTORY
 	sta objLoc,x
 	lda #<msgTook
 	sta lastMsgLo
 	lda #>msgTook
 	sta lastMsgHi
-    jsr saveGame
+	jsr saveGame
 	rts
 
 @tfx_notHere:
@@ -7747,6 +8376,7 @@ cmdDropFromX:
 	lda #>msgDropped
 	sta lastMsgHi
 	jsr saveGame
+	jsr questCheckDrop
 	rts
 
 @dfx_notHave:
@@ -7797,7 +8427,9 @@ cmdGive:
 	ldx #0
 @scanObj:
 	lda inputBuf,x
-	beq @noTarget
+	bne @scan_has_input
+	jmp @noTarget
+@scan_has_input:
 	cmp #' '
 	beq @afterObj
 	inx
@@ -7840,12 +8472,21 @@ cmdGive:
 	tax
 	ldy currentLoc
 	lda npcMaskByLocLo,y
+		lda npcMaskByLocB2,y
+		sta npcMaskB2Temp
+		lda npcMaskByLocB3,y
+		sta npcMaskB3Temp
 	sta ZP_PTR2
 	lda npcMaskByLocHi,y
 	sta npcMaskHiTemp
 	lda ZP_PTR2
 	and npcBitLo,x
-	bne @give_npcHere
+		bne @give_npcHere
+		lda npcMaskB2Temp
+		and npcBitB2,x
+		bne @give_npcHere
+		lda npcMaskB3Temp
+		and npcBitB3,x
 	lda npcMaskHiTemp
 	and npcBitHi,x
 	bne @give_npcHere
@@ -7872,6 +8513,8 @@ cmdGive:
 	ldy currentLoc
 	lda npcMaskByLocLo,y
 	ora npcMaskByLocHi,y
+	ora npcMaskByLocB2,y
+	ora npcMaskByLocB3,y
 	bne @give_nt_someone
 	jmp @noone
 
@@ -7900,23 +8543,37 @@ cmdGive:
 //  ZP_PTR2+1 = npcId or $FF (use default npc for location)
 // Returns C=1 if quest completed (lastMsg set)
 questCheckGive:
+	// must have an active quest
 	lda questStatus
 	cmp #1
-	bne @qcg_no
+	beq @qcg_active
+	clc
+	rts
+@qcg_active:
 	lda activeQuest
 	cmp #QUEST_NONE
-	beq @qcg_no
-	// Determine npcId
+	bne @qcg_haveQuest
+	clc
+	rts
+@qcg_haveQuest:
+	// ensure npcId present
 	lda ZP_PTR2+1
 	cmp #$FF
-	bne @haveNpc
+	bne @qcg_haveNpc
 	ldx currentLoc
 	lda npcDefaultByLoc,x
 	sta ZP_PTR2+1
-@haveNpc:
-	lda activeQuest
-	cmp #QUEST_COIN_BARTENDER
-	bne @q1
+@qcg_haveNpc:
+	// dispatch to per-quest give checks
+	ldy activeQuest
+	lda questGiveCheckLo,y
+	sta ZP_PTR
+	lda questGiveCheckHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+// Per-quest GIVE check routines
+@qcg_bartender:
 	lda ZP_PTR2
 	cmp #OBJ_COIN
 	bne @qcg_no
@@ -7926,9 +8583,8 @@ questCheckGive:
 	jsr questComplete
 	sec
 	rts
-@q1:
-	cmp #QUEST_KEY_KNIGHT
-	bne @q2
+
+@qcg_knight:
 	lda ZP_PTR2
 	cmp #OBJ_KEY
 	bne @qcg_no
@@ -7938,8 +8594,8 @@ questCheckGive:
 	jsr questComplete
 	sec
 	rts
-@q2:
-	// QUEST_LANTERN_MYSTIC
+
+@qcg_mystic:
 	lda ZP_PTR2
 	cmp #OBJ_LANTERN
 	bne @qcg_no
@@ -7950,8 +8606,20 @@ questCheckGive:
 	sec
 	rts
 
-@q3:
-	// QUEST_LURE_MYSTIC: player gives TREASURE to SPIDER PRINCESS
+@qcg_kendrick:
+	// Kendrick: giving SCOTCH to Kendrick completes his quest
+	lda ZP_PTR2
+	cmp #OBJ_SCOTCH
+	bne @qcg_no
+	lda ZP_PTR2+1
+	cmp #NPC_KENDRICK
+	bne @qcg_no
+	jsr questComplete
+	sec
+	rts
+
+@qcg_lure:
+	// Lure quest: TREASURE to Spider Princess
 	lda ZP_PTR2
 	cmp #OBJ_TREASURE
 	bne @qcg_no
@@ -7962,8 +8630,54 @@ questCheckGive:
 	sec
 	rts
 
+@qcg_candywitch:
+	// Candy Witch: if giving WARD to Warlock and disabled, complete
+	lda ZP_PTR2
+	cmp #OBJ_WARD
+	bne @qcg_no
+	lda ZP_PTR2+1
+	cmp #NPC_WARLOCK
+	bne @qcg_no
+	lda wardDisabledFlag
+	beq @qcg_no
+	jsr questComplete
+	lda #0
+	sta wardDisabledFlag
+	sec
+	rts
+
 @qcg_no:
 	clc
+	rts
+
+// Quest GIVE dispatch table (indexed by quest id)
+questGiveCheckLo:
+	.byte <@qcg_bartender, <@qcg_knight, <@qcg_mystic, <@qcg_no, <@qcg_lure, <@qcg_no, <@qcg_no, <@qcg_no, <@qcg_no, <@qcg_no, <@qcg_kendrick, <@qcg_no, <@qcg_candywitch
+questGiveCheckHi:
+	.byte >@qcg_bartender, >@qcg_knight, >@qcg_mystic, >@qcg_no, >@qcg_lure, >@qcg_no, >@qcg_no, >@qcg_no, >@qcg_no, >@qcg_no, >@qcg_kendrick, >@qcg_no, >@qcg_candywitch
+
+// (questCheckGive moved to jump-table implementation earlier)
+
+// Check drop-based quest completions (expects X = objId just dropped)
+questCheckDrop:
+	// must have an active quest
+	lda questStatus
+	cmp #1
+	bne @qcd_no
+	lda activeQuest
+	cmp #QUEST_WARLOCK_WARD
+	bne @qcd_no
+	// dropped object must be the ward
+	txa
+	cmp #OBJ_WARD
+	bne @qcd_no
+	// and at the fracture location (use the Portal)
+	lda currentLoc
+	cmp #LOC_PORTAL
+	bne @qcd_no
+	jsr questComplete
+	rts
+@qcd_no:
 	rts
 
 cmdSave:
@@ -8207,6 +8921,10 @@ buildCharactersMessage:
 	sta ZP_PTR2 // reuse low byte as mask temp
 	lda npcMaskByLocHi,x
 	sta npcMaskHiTemp
+	lda npcMaskByLocB2,x
+	sta npcMaskB2Temp
+	lda npcMaskByLocB3,x
+	sta npcMaskB3Temp
 	ldx #0
 @npcLoop:
 	lda ZP_PTR2
@@ -8227,6 +8945,38 @@ buildCharactersMessage:
 @bcm_check_hi:
 	lda npcMaskHiTemp
 	and npcBitHi,x
+	beq @bcm_check_b2
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	jmp @bcm_next
+
+@bcm_check_b2:
+	lda npcMaskB2Temp
+	and npcBitB2,x
+	beq @bcm_check_b3
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	jmp @bcm_next
+
+@bcm_check_b3:
+	lda npcMaskB3Temp
+	and npcBitB3,x
 	beq @bcm_next
 	lda npcNameLo,x
 	sta ZP_PTR
@@ -8242,7 +8992,9 @@ buildCharactersMessage:
 @bcm_next:
 	inx
 	cpx #NPC_COUNT
-	bne @npcLoop
+	beq @bcm_done
+	jmp @npcLoop
+@bcm_done:
 	rts
 
 @bcm_none:
@@ -8507,7 +9259,7 @@ strDivider: .text "----------------------------------------"
 
 // Player marker coordinates (col 0-39, row 0-24)
 locMarkX:
-	// LOC order: TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
+	// LOC order: TRAIN, MARKET, PORTAL, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
 	// Extra (non-map) locations reuse nearby marker positions.
 	.byte 19, 27,  9, 10, 18, 28, 11, 28, 18, 13, 10, 22, 18
 locMarkY:
@@ -8518,7 +9270,7 @@ locName0: .text "TRAIN STATION"
 	.byte 0
 locName1: .text "MARKET GREEN"
 	.byte 0
-locName2: .text "KNIGHT'S GATE"
+locName2: .text "FRACTURED PORTAL"
 	.byte 0
 locName3: .text "DRAGON HAVEN"
 	.byte 0
@@ -8607,49 +9359,80 @@ locDescHi:
 // Exits by cardinal direction ($FF = none)
 exitN:
 	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
-	.byte $FF,  $FF,  LOC_GOLEM, $FF,  LOC_TRAIN, LOC_MARKET, LOC_GATE, LOC_TEMPLE, LOC_ALLEY, $FF,  LOC_GRAVE, $FF,  LOC_PLAZA
+	.byte $FF,  $FF,  LOC_GOLEM, $FF,  LOC_TRAIN, LOC_MARKET, LOC_PORTAL, LOC_TEMPLE, LOC_ALLEY, $FF,  LOC_GRAVE, $FF,  LOC_PLAZA
 exitE:
 	.byte LOC_MARKET, $FF,       LOC_PLAZA, LOC_TRAIN, LOC_ALLEY, $FF,       LOC_GROVE, LOC_TAVERN, LOC_INN, LOC_MYSTIC, $FF, $FF, LOC_GOLEM
 exitS:
-	.byte LOC_PLAZA, LOC_ALLEY,  LOC_MYSTIC, LOC_GATE,  LOC_TEMPLE, LOC_TAVERN, $FF, $FF, $FF, LOC_CATACOMBS, $FF, $FF, LOC_GROVE
+	.byte LOC_PLAZA, LOC_ALLEY,  LOC_MYSTIC, LOC_PORTAL,  LOC_TEMPLE, LOC_TAVERN, $FF, $FF, $FF, LOC_CATACOMBS, $FF, $FF, LOC_GROVE
 exitW:
-	.byte LOC_GOLEM, LOC_TRAIN,  $FF,       LOC_TEMPLE, LOC_GATE, LOC_PLAZA, LOC_GRAVE, LOC_MYSTIC, LOC_GROVE, $FF, $FF, LOC_TAVERN, $FF
+	.byte LOC_GOLEM, LOC_TRAIN,  $FF,       LOC_TEMPLE, LOC_PORTAL, LOC_PLAZA, LOC_GRAVE, LOC_MYSTIC, LOC_GROVE, $FF, $FF, LOC_TAVERN, $FF
 
-// NPC masks by location (bit 0..5)
 // NPC masks by location (two bytes per location: low, high)
 npcMaskByLocLo:
-	.byte %0001 // TRAIN: CONDUCTOR
-	.byte %0000 // MARKET
-	.byte %0100 // GATE: KNIGHT
-	.byte %0000 // GOLEM
-	.byte %01000000 // PLAZA: SPIDER PRINCESS
-	.byte %10000000 // ALLEY: PIRATE_CAPTAIN (bit7)
-	.byte %1000 // MYSTICWOOD: MYSTIC
-	.byte %00110000 // FAIRY GARDENS: FAIRY + PIXIE
-	.byte %0010 // TAVERN: BARTENDER
-	.byte %0000 // LOUDEN'S REST
-	.byte %0000 // CATACOMBS
-	.byte %0000 // PIGGLYWEED INN
-	.byte %0000 // TEMPLE RUINS
+	.byte %00000001 // TRAIN: CONDUCTOR
+	.byte %00000000 // MARKET
+	.byte %00000100 // PORTAL: KNIGHT
+	.byte %00000000 // GOLEM
+	.byte %01100000 // PLAZA: SPIDER PRINCESS + KENDRICK
+	.byte %10000000 // ALLEY: PIRATE CAPTAIN
+	.byte %00001000 // MYSTICWOOD: MYSTIC
+	.byte %00010000 // FAIRY GARDENS: FAIRY
+	.byte %00000010 // TAVERN: BARTENDER
+	.byte %00000000 // DRAGON HAVEN
+	.byte %00000000 // CATACOMBS
+	.byte %00000000 // PIGGLYWEED INN
+	.byte %00000000 // TEMPLE RUINS
 
 npcMaskByLocHi:
 	.byte %00000000 // TRAIN
-	.byte %00010000 // MARKET: BRIDGE THE TROLL (high bit4)
-	.byte %00000000 // GATE
-	.byte %00100000 // GOLEM: TOSH THE TOSHERS (high bit5)
-	.byte %00000000 // PLAZA
-	.byte %10000001 // ALLEY: PIRATE_FIRSTMATE (bit0) + MERMAID (bit7)
+	.byte %00010000 // MARKET: BRIDGE THE TROLL (index12 -> high bit4)
+	.byte %00000000 // PORTAL
+	.byte %00100000 // GOLEM: TOSH THE TOSHER (index13 -> high bit5)
+	.byte %00000001 // PLAZA: WARLOCK (index8 -> high bit0)
+	.byte %00000000 // ALLEY
 	.byte %00000000 // MYSTICWOOD
 	.byte %00000000 // FAIRY GARDENS
 	.byte %00000000 // TAVERN
-	.byte %00001000 // DRAGON HAVEN: ALYSTER (high bit3)
-	.byte %01000000 // CATACOMBS: SPIRIT OF LOUDEN (high bit6)
-	.byte %00000100 // PIGGLYWEED INN: APOLLONIA (high bit2)
-	.byte %00000010 // TEMPLE (UNSEELY_FAE -> index9 -> high bit1)
+	.byte %00001000 // DRAGON HAVEN: ALYSTER (index11 -> high bit3)
+	.byte %01000000 // CATACOMBS: SPIRIT OF LOUDEN (index14 -> high bit6)
+	.byte %00000100 // PIGGLYWEED INN: APOLLONIA (index10 -> high bit2)
+	.byte %00000010 // TEMPLE RUINS: UNSEELY FAE (index9 -> high bit1)
+
+// Additional NPC masks by location for indices 16..31 (bytes 2 and 3)
+npcMaskByLocB2:
+	.byte %00000000 // TRAIN
+	.byte %00000000 // MARKET
+	.byte %00000000 // PORTAL
+	.byte %00000000 // GOLEM
+	.byte %00000010 // PLAZA: KORA (index17 -> b2 bit1)
+	.byte %00000001 // ALLEY: CANDY WITCH (index16 -> b2 bit0)
+	.byte %00000000 // MYSTICWOOD
+	.byte %00000000 // FAIRY GARDENS
+	.byte %00000000 // TAVERN
+	.byte %00000000 // DRAGON HAVEN
+	.byte %00000000 // CATACOMBS
+	.byte %00000000 // PIGGLYWEED INN
+	.byte %00000000 // TEMPLE RUINS
+
+npcMaskByLocB3:
+	.byte %00000000 // TRAIN
+	.byte %00000000 // MARKET
+	.byte %00000000 // PORTAL
+	.byte %00000000 // GOLEM
+	.byte %00000000 // PLAZA
+	.byte %00000000 // ALLEY
+	.byte %00000000 // MYSTICWOOD
+	.byte %00000000 // FAIRY GARDENS
+	.byte %00000000 // TAVERN
+	.byte %00000000 // DRAGON HAVEN
+	.byte %00000000 // CATACOMBS
+	.byte %00000000 // PIGGLYWEED INN
+	.byte %00000000 // TEMPLE RUINS
+
 
 // Default NPC to address in a location when only one is present
 npcDefaultByLoc:
-	.byte NPC_CONDUCTOR, NPC_TROLL, NPC_KNIGHT, NPC_TOSH, NPC_SPIDER_PRINCESS, NPC_PIRATE_CAPTAIN, NPC_MYSTIC, NPC_FAIRY, NPC_BARTENDER, NPC_ALYSTER, NPC_LOUDEN, NPC_APOLLONIA, NPC_UNSEELY_FAE
+	.byte NPC_CONDUCTOR, NPC_TROLL, NPC_KNIGHT, NPC_TOSH, NPC_PIXIE, NPC_PIRATE_CAPTAIN, NPC_MYSTIC, NPC_FAIRY, NPC_BARTENDER, NPC_ALYSTER, NPC_LOUDEN, NPC_APOLLONIA, NPC_UNSEELY_FAE
 
 // One-line talk per location (MVP)
 npcTalkLoByLoc:
@@ -8669,6 +9452,16 @@ talkFairy:     .text "A FAIRY SAYS: LISTEN CLOSELY. THE GARDENS REMEMBER YOUR KI
 	.byte 0
 talkPixie:     .text "A PIXIE CHIMES: TRADE A SECRET FOR A SPARKLE!"
 	.byte 0
+talkWarlock: .text "THE WARLOCK WHISPERS: POWER DEMANDS ITS PRICE, STRANGER."
+	.byte 0
+msgWarlockQuestOffer: .text "WARLOCK: TAKE THIS WARD AND PLANT IT WHERE THE PORTAL FRACTURES—AT THE PORTAL."
+	.byte 0
+msgCandyWitchQuestOffer: .text "CANDY WITCH: BRING ME THE WARLOCK'S WARD. I'LL LACE IT WITH SWEET BITTERNESS UNTIL IT GOES QUIET — THEN RETURN IT TO HIM."
+	.byte 0
+msgCandyWitchDisable: .text "SHE BREATHES A SUGARED CURSE OVER THE WARD. THE RUNIC HUM DIES. SHE PRESSES IT BACK INTO YOUR PALM WITH A SMILE."
+	.byte 0
+talkKendrick:  .text "KENDRICK: AYE, I'M SWORN TAE WATCH O'ER THE SPIDER PRINCESS. AYE'VE A WEE BOTTLE AT MA SIDE -- *HIC* -- AN' I'LL FIGHT FER HER!"
+	.byte 0
 talkSpiderPrincess: .text "THE SPIDER PRINCESS SAYS: I CAME THROUGH A FRACTURED PORTAL; WHO AM I?"
 	.byte 0
 talkPirateCaptain: .text "THE PIRATE CAPTAIN GRINS: GOLD AND TALES MAKE A FINE COCKTAIL."
@@ -8686,6 +9479,29 @@ talkLouden: .text "A SPIRIT WHISPERS: I AM LOUDEN. MY HEART IS LOST."
 	.byte 0
 
 talkMermaid: .text "A MERMAID SINGS: TRADE LAND CORAL FOR A SEA SHELL?"
+	.byte 0
+talkCandyWitch: .text "CANDY WITCH: SUGAR TURNS TO ASH NEAR HIS WARDS. BRING ME HIS WARD AND I'LL SWEETEN IT DEAD—THEN GIVE IT BACK TO HIM. OLD LOVE MAKES BITTER MAGIC."
+	.byte 0
+msgKoraQuestOffer:
+	.text "KORA: FIND KENDRICK IN THE PLAZA AND SAY, "
+	.byte $22
+	.text "SCOTCH ON THE KNIGHT"
+	.byte $22
+	.text " TO HIM. HE'LL LAUGH, THEN BLUSH."
+	.byte 0
+msgKoraJapeDone:
+	.text "KENDRICK BELLOWS A LAUGH, THEN NEARLY DROPS HIS BOTTLE. "
+	.byte $22
+	.text "SCOTCH ON THE KNIGHT!"
+	.byte $22
+	.text " HE REPEATS, WIPING A TEAR. "
+	.byte $22
+	.text "WELL SAID!"
+	.byte $22
+	.byte 0
+talkKora: .text "KORA WINKS: A JEST FIT FOR COURT CAN UNHORSE A KNIGHT."
+	.byte 0
+talkUnknown: .text "(THE FIGURE SAYS NOTHING.)"
 	.byte 0
 
 talkUnseelyFae: .text "AN UNSEELY FAE WHISPERS: THE RUINS REMEMBER BLOOMS THAT NEVER WERE."
@@ -8763,6 +9579,28 @@ msgAlysterAdvanced: .text "YOU BREATHE DEEPLY AND SET YOUR STANCE."
 msgAlysterNotReady: .text "ALYSTER SAYS: MASTER THE BASICS FIRST."
 	.byte 0
 msgAlysterAdvancedDone: .text "ALYSTER NODS: YOU'VE LEARNED THIS LESSON."
+	.byte 0
+
+msgAlysterOathOffer:
+	.text "ALYSTER: THE ORDER OF THE EMERALD SKY SEEKS STEWARDS OF DRAGONS."
+	.byte $0D
+	.text "TO JOIN, SWEAR THESE CONDITIONS:"
+	.byte $0D
+	.text "1) PROTECT ALL DRAGONS."
+	.byte $0D
+	.text "2) INCREASE UNDERSTANDING OF DRAGONS."
+	.byte $0D
+	.text "3) STRENGTHEN THE BOND BETWEEN HUMANS AND DRAGONS."
+	.byte $0D
+	.text "DO YOU SWEAR THESE OATHS? (Y/N)"
+	.byte 0
+
+msgAlysterOathAccepted:
+	.text "ALYSTER: BY THE EMERALD SKY, WELCOME. YOU ARE NOW A MEMBER."
+	.byte 0
+
+msgAlysterOathRefused:
+	.text "ALYSTER: I RESPECT YOUR CHOICE. RETURN WHEN YOUR HEART IS SURE."
 	.byte 0
 
 // Troll conversation strings
@@ -8863,15 +9701,18 @@ msgMermaidTradeDone: .text "SHE TRADES YOUR PINECONE FOR A SPARKLY SHELL."
 msgMermaidTradeNone: .text "YOU HAVE NO LAND CORAL TO OFFER."
 	.byte 0
 npcTalkLo:
-	.byte <talkConductor,<talkBartender,<talkKnight,<talkMystic,<talkFairy,<talkPixie,<talkSpiderPrincess,<talkPirateCaptain,<talkPirateFirstMate,<talkUnseelyFae,<talkApollonia,<talkAlyster,<talkTroll,<talkTosh,<talkLouden,<talkMermaid
+	.byte <talkConductor,<talkBartender,<talkKnight,<talkMystic,<talkFairy,<talkKendrick,<talkSpiderPrincess,<talkPirateCaptain,<talkWarlock,<talkUnseelyFae,<talkApollonia,<talkAlyster,<talkTroll,<talkTosh,<talkLouden,<talkMermaid
+	.byte <talkCandyWitch,<talkKora,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown,<talkUnknown
 npcTalkHi:
-	.byte >talkConductor,>talkBartender,>talkKnight,>talkMystic,>talkFairy,>talkPixie,>talkSpiderPrincess,>talkPirateCaptain,>talkPirateFirstMate,>talkUnseelyFae,>talkApollonia,>talkAlyster,>talkTroll,>talkTosh,>talkLouden,>talkMermaid
+	.byte >talkConductor,>talkBartender,>talkKnight,>talkMystic,>talkFairy,>talkKendrick,>talkSpiderPrincess,>talkPirateCaptain,>talkWarlock,>talkUnseelyFae,>talkApollonia,>talkAlyster,>talkTroll,>talkTosh,>talkLouden,>talkMermaid
+	.byte >talkCandyWitch,>talkKora,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown,>talkUnknown
 
 // Which quest (if any) each NPC can offer
 // Which quest (if any) each NPC can offer
 // Which quest (if any) each NPC can offer
 npcOffersQuest:
-	.byte QUEST_COIN_BARTENDER, QUEST_NONE, QUEST_BLACK_ROSE, QUEST_LANTERN_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_LURE_MYSTIC, QUEST_NONE, QUEST_NONE, QUEST_UNSEELY_NAME, QUEST_APOLLONIA_OFFERING, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_LOUDEN_HEART, QUEST_MERMAID_TRADE
+	.byte QUEST_COIN_BARTENDER, QUEST_NONE, QUEST_BLACK_ROSE, QUEST_LANTERN_MYSTIC, QUEST_NONE, QUEST_KENDRICK_SCOTCH, QUEST_LURE_MYSTIC, QUEST_NONE, QUEST_WARLOCK_WARD, QUEST_UNSEELY_NAME, QUEST_APOLLONIA_OFFERING, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_LOUDEN_HEART, QUEST_MERMAID_TRADE
+	.byte QUEST_CANDY_WITCH_DISABLE_WARD, QUEST_KORA_JAPE, QUEST_ALYSTER_OATH, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE, QUEST_NONE
 
 // Conversation strings
 msgAskWeather: .text "THE SKY LOOKS LIKE IT'LL HOLD FOR NOW."
@@ -8990,6 +9831,32 @@ msgKnightOpt7: .text "7. ARENA: PRACTICE LUNGE"
 	.byte 0
 msgKnightAbout: .text "KNIGHT: HONOR OPENS MORE DOORS THAN KEYS."
 	.byte 0
+
+// Kendrick conversation strings
+msgKendrickMenuHeader: .text "KNIGHT KENDRICK"
+	.byte 0
+msgKendrickOpt0: .text "0. ASK ABOUT KENDRICK"
+	.byte 0
+msgKendrickOpt1: .text "1. ASK ABOUT THE SPIDER PRINCESS"
+	.byte 0
+msgKendrickOpt2: .text "2. REQUEST A BOTTLE OF SCOTCH"
+	.byte 0
+msgKendrickOpt3: .text "3. GIVE SCOTCH"
+	.byte 0
+msgKendrickOpt4: .text "4. LEAVE"
+	.byte 0
+msgKendrickAbout: .text "KENDRICK: AYE, I'M SWORN TAE PROTECT HER. AYE COULD USE ANOTHER WEE DRAM O' SCOTCH."
+	.byte 0
+msgKendrickOfferStart: .text "KENDRICK: BRING ME A BOTTLE O' SCOTCH FROM THE TIPTSEY MAIDEN TAVERN, AN' AYE'LL OWE YE A DRINK."
+	.byte 0
+msgKendrickOfferAlready: .text "KENDRICK: YE'VE ALREADY PROMISED ME A BOTTLE, PAL. DON'T FORGET TA BRING IT."
+	.byte 0
+msgKendrickThanks: .text "KENDRICK: HA! A FINE BOTTLE. AYE'LL RAISE A GLASS TA YE. *HIC* CHEERS!"
+	.byte 0
+msgNeedCoinForScotch: .text "YE NEED A COIN TAE BUY THE SCOTCH AT THE TAVERN."
+	.byte 0
+msgBoughtScotch: .text "YE PAY A COIN AN' THE BOTTLE'S YOURS."
+	.byte 0
 msgKnightNoKey: .text "YOU DO NOT HAVE THE KEY."
 	.byte 0
 msgKnightNoQuest: .text "THE KNIGHT DOESN'T NEED THIS NOW."
@@ -9082,34 +9949,34 @@ msgUnseelyNoName: .text "YOU DO NOT HOLD THE STOLEN NAME."
 // 0=none,1=startQuest,2=completeQuest,3=giveItem,4=takeItem,5=addScore,6=setNpcStage
 // Corresponding value tables hold the effect value (item id, score amount, npc idx, etc.)
 convChoiceType_choice0:
-	.byte 6,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0   // speak: conductor setNpcStage, bartender give MUG, knight give KEY, mystic give LANTERN, fairy give COIN
+	.byte 6,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0   // extend to 32
 convChoiceVal_choice0:
-	.byte 0,OBJ_MUG,OBJ_KEY,OBJ_LANTERN,OBJ_COIN,0,0,0,0,0,0,0,0,0,0,0
+	.byte 0,OBJ_MUG,OBJ_KEY,OBJ_LANTERN,OBJ_COIN,OBJ_MUG,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 convChoiceType_choice1:
-	.byte 5,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0   // ask weather: conductor +2 score, fairy +1 score
+	.byte 5,0,0,0,5,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 convChoiceVal_choice1:
-	.byte 2,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0
+	.byte 2,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 convChoiceType_choice2:
-	.byte 0,0,0,4,0,6,0,0,0,0,0,0,0,0,0,0   // temp comment: mystic may take LANTERN, pixie advances NPC stage
+	.byte 0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 convChoiceVal_choice2:
-	.byte 0,0,0,OBJ_LANTERN,0,1,0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,OBJ_LANTERN,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 convChoiceType_choice3:
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 convChoiceVal_choice3:
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 convChoiceType_choice4:
-	.byte 0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0   // quest info: bartender/knight/mystic can complete their quests
+	.byte 0,2,2,2,0,2,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 convChoiceVal_choice4:
-	.byte 0,QUEST_COIN_BARTENDER,QUEST_KEY_KNIGHT,QUEST_LANTERN_MYSTIC,0,0,0,0,0,QUEST_UNSEELY_NAME,0,0,0,0,QUEST_LOUDEN_HEART,0
+	.byte 0,QUEST_COIN_BARTENDER,QUEST_KEY_KNIGHT,QUEST_LANTERN_MYSTIC,0,QUEST_KENDRICK_SCOTCH,0,0,0,QUEST_UNSEELY_NAME,0,0,0,0,QUEST_LOUDEN_HEART,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 convChoiceType_choice5:
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 convChoiceVal_choice5:
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
 
 
 
@@ -9142,7 +10009,7 @@ classHpPerLevel:
 
 // NPC static attributes per NPC index
 npcClassIdx:
-	.byte 0,1,2,3,4,5,4,6,6,4,3,2,2,1,3,4
+	.byte 0,1,2,3,4,2,4,6,6,4,3,2,2,1,3,4
 npcLevel:
 	.byte 1,1,2,3,1,1,1,2,1,1,1,2,2,1,1,2
 npcScoreLo:
@@ -9221,11 +10088,15 @@ objName7: .text "PINECONE"
 	.byte 0
 objName8: .text "SHELL"
 	.byte 0
+objName9: .text "BOTTLE OF SCOTCH"
+	.byte 0
+objName10: .text "PROTECTION WARD"
+	.byte 0
 
 objNameLo:
-	.byte <objName0,<objName1,<objName2,<objName3,<objName4,<objName5,<objName6,<objName7,<objName8
+	.byte <objName0,<objName1,<objName2,<objName3,<objName4,<objName5,<objName6,<objName7,<objName8,<objName9,<objName10
 objNameHi:
-	.byte >objName0,>objName1,>objName2,>objName3,>objName4,>objName5,>objName6,>objName7,>objName8
+	.byte >objName0,>objName1,>objName2,>objName3,>objName4,>objName5,>objName6,>objName7,>objName8,>objName9,>objName10
 
 objInspect0: .text "A BRASS LANTERN. IT COULD LIGHT DARK PATHS."
 	.byte 0
@@ -9245,11 +10116,15 @@ objInspect7: .text "LANDBOUND CORAL: A DRY, PERFUMED PINECONE."
 	.byte 0
 objInspect8: .text "A SPARKLY SEA SHELL THAT CATCHES THE LIGHT."
 	.byte 0
+objInspect9: .text "A WELL-SEALED BOTTLE OF SCOTCH. SMELLS STRONG."
+	.byte 0
+objInspect10: .text "A RUNED TALISMAN THAT THRUMS WITH QUIET POWER."
+	.byte 0
 
 objInspectLo:
-	.byte <objInspect0,<objInspect1,<objInspect2,<objInspect3,<objInspect4,<objInspect5,<objInspect6,<objInspect7,<objInspect8
+	.byte <objInspect0,<objInspect1,<objInspect2,<objInspect3,<objInspect4,<objInspect5,<objInspect6,<objInspect7,<objInspect8,<objInspect9,<objInspect10
 objInspectHi:
-	.byte >objInspect0,>objInspect1,>objInspect2,>objInspect3,>objInspect4,>objInspect5,>objInspect6,>objInspect7,>objInspect8
+	.byte >objInspect0,>objInspect1,>objInspect2,>objInspect3,>objInspect4,>objInspect5,>objInspect6,>objInspect7,>objInspect8,>objInspect9,>objInspect10
 
 // --- Keywords ---
 kwNorth:      .text "NORTH"
@@ -9310,6 +10185,14 @@ kwCoin:    .text "COIN"
 	.byte 0
 kwMug:     .text "MUG"
 	.byte 0
+kwBottle:  .text "BOTTLE"
+	.byte 0
+kwScotch:  .text "SCOTCH"
+	.byte 0
+kwWard:    .text "WARD"
+	.byte 0
+kwProtection: .text "PROTECTION"
+	.byte 0
 kwKey:     .text "KEY"
 	.byte 0
 kwHeart:   .text "HEART"
@@ -9353,12 +10236,18 @@ kwSpirit:   .text "SPIRIT"
 	.byte 0
 kwMermaid:  .text "MERMAID"
 	.byte 0
+kwWarlock:  .text "WARLOCK"
+	.byte 0
+kwCandyWitch: .text "CANDY WITCH"
+	.byte 0
+kwKora:      .text "KORA"
+	.byte 0
 
 kwStall:     .text "STALL"
 	.byte 0
 kwSign:      .text "SIGN"
 	.byte 0
-kwGate:      .text "GATE"
+kwPortal:    .text "PORTAL"
 	.byte 0
 
 kwSave:      .text "SAVE"
@@ -9380,6 +10269,10 @@ kwChart:     .text "CHART"
 	.byte 0
 
 kwHelp:      .text "HELP"
+	.byte 0
+kwSay:       .text "SAY"
+	.byte 0
+kwKoraPhrase: .text "SCOTCH ON THE KNIGHT"
 	.byte 0
 
 // --- UI Strings / Messages ---
@@ -9436,6 +10329,18 @@ npcBitLo:
 npcBitHi:
 	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000
 
+// Additional bit masks for NPC indices 16..31
+npcBitB2:
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
+	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
+npcBitB3:
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
+	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
+	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000
+
 npcName0: .text "CONDUCTOR"
 	.byte 0
 npcName1: .text "BARTENDER"
@@ -9446,13 +10351,13 @@ npcName3: .text "MYSTIC"
 	.byte 0
 npcName4: .text "FAIRY"
 	.byte 0
-npcName5: .text "PIXIE"
+npcName5: .text "KNIGHT KENDRICK"
 	.byte 0
 npcName6: .text "SPIDER PRINCESS"
 	.byte 0
 npcName7: .text "PIRATE CAPTAIN"
 	.byte 0
-npcName8: .text "PIRATE FIRST MATE"
+npcName8: .text "WARLOCK"
 	.byte 0
 npcName9: .text "UNSEELY FAE"
 	.byte 0
@@ -9468,11 +10373,19 @@ npcName14: .text "SPIRIT OF LOUDEN"
 	.byte 0
 npcName15: .text "MERMAID"
 	.byte 0
+npcName16: .text "CANDY WITCH"
+	.byte 0
+npcName17: .text "KORA"
+	.byte 0
+npcNameUnknown: .text "(UNKNOWN)"
+	.byte 0
 
 npcNameLo:
 	.byte <npcName0,<npcName1,<npcName2,<npcName3,<npcName4,<npcName5,<npcName6,<npcName7,<npcName8,<npcName9,<npcName10,<npcName11,<npcName12,<npcName13,<npcName14,<npcName15
+	.byte <npcName16,<npcName17,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown,<npcNameUnknown
 npcNameHi:
 	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9,>npcName10,>npcName11,>npcName12,>npcName13,>npcName14,>npcName15
+	.byte >npcName16,>npcName17,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown
 
 msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
@@ -9557,7 +10470,7 @@ msgStall:      .text "A BUSY MARKET STALL: BELLS, RIBBONS, AND A NOTE: 'TRADE IN
 	.byte 0
 msgSign:       .text "THE SIGN READS: 'EVERLAND ARRIVALS'. SOMEONE SCRATCHED 'ASK THE CONDUCTOR' BELOW."
 	.byte 0
-msgGate:       .text "THE GATE IS RINGED WITH IRON CHARMS. A SMALL KEYHOLE WAITS, PATIENT AND SILENT."
+msgPortal:     .text "THE PORTAL SHIMMERS WITH FRACTURED LIGHT. A THIN RING HUMS AT ITS EDGE."
 	.byte 0
 
 msgAskUser:     .text "USERNAME?"
@@ -9639,11 +10552,17 @@ questNameLouden: .text "RESTORE LOUDEN'S HEART"
 	.byte 0
 questNameMermaid: .text "TRADE LAND FOR SEA"
 	.byte 0
+questNameKendrickScotch: .text "FETCH SCOTCH FOR KENDRICK"
+    .byte 0
+questNameWarlockWard: .text "PLACE THE WARLOCK'S WARD"
+	.byte 0
+questNameCandyWitch: .text "DISABLE THE WARLOCK'S WARD"
+	.byte 0
 
 questNameLo:
-	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName5,<questNameApollonia,<questNameLouden,<questNameMermaid
+	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName5,<questNameApollonia,<questNameLouden,<questNameMermaid,<questNameKendrickScotch,<questNameWarlockWard,<questNameCandyWitch
 questNameHi:
-	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName5,>questNameApollonia,>questNameLouden,>questNameMermaid
+	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName5,>questNameApollonia,>questNameLouden,>questNameMermaid,>questNameKendrickScotch,>questNameWarlockWard,>questNameCandyWitch
 
 questDetail0: .text "QUEST: GIVE COIN TO THE BARTENDER."
 	.byte 0
@@ -9663,8 +10582,14 @@ questDetailLouden: .text "QUEST: BRING THE HEART FROM THE CATACOMBS TO LOUDEN."
 	.byte 0
 questDetailMermaid: .text "QUEST: TRADE A PINECONE FOR A SPARKLY SHELL WITH THE MERMAID IN THE ALLEY."
 	.byte 0
+questDetailKendrick: .text "QUEST: FETCH A BOTTLE OF SCOTCH FROM THE TIPTSEY MAIDEN TAVERN AND RETURN IT TO KENDRICK IN THE PLAZA."
+    .byte 0
+questDetailWarlock: .text "QUEST: TAKE THE WARLOCK'S WARD AND SET IT DOWN AT THE PORTAL."
+	.byte 0
+questDetailCandyWitch: .text "QUEST: BRING THE WARLOCK'S WARD TO THE CANDY WITCH TO HAVE IT DISABLED, THEN RETURN THE DISABLED WARD TO THE WARLOCK."
+	.byte 0
 
 questDetailLo:
-	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5,<questDetail5,<questDetailApollonia,<questDetailLouden,<questDetailMermaid
+	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5,<questDetail5,<questDetailApollonia,<questDetailLouden,<questDetailMermaid,<questDetailKendrick,<questDetailWarlock,<questDetailCandyWitch
 questDetailHi:
-	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5,>questDetail5,>questDetailApollonia,>questDetailLouden,>questDetailMermaid
+	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5,>questDetail5,>questDetailApollonia,>questDetailLouden,>questDetailMermaid,>questDetailKendrick,>questDetailWarlock,>questDetailCandyWitch

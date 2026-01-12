@@ -51,6 +51,23 @@ What's New In This Release
  - New/updated NPC content: Saint Apollonia, Alyster, Pirate Captain/First Mate, Knight (training), Mermaid (trade quest).
 - Diagonal movement and exits display.
 
+This Update — New Features
+--------------------------
+- NPC cap increased to 32: the NPC tables and presence masks were expanded so more characters can be present at once.
+- New NPCs and quests:
+	- Knight Kendrick (Plaza): a jovial, Scottish knight who keeps a bottle of scotch. Kendrick offers a fetch quest — bring him a bottle of scotch (from the Tiptsey Maiden tavern) to complete the quest and receive a small reward.
+	- Warlock (Plaza): gives the player a protective ward and requests it be placed at the Portal fracture (the location formerly called the Gate; the game now uses "Portal").
+	- Candy Witch (Alley): an opposing quest to the Warlock — she can disable a ward; returning a disabled ward to the Warlock is a separate flow and ties into a shared backstory.
+	- Kora (Plaza): offers a playful jape quest — she asks the player to SAY a phrase to Knight Kendrick. Use the new `SAY` command to deliver the phrase and complete the quest.
+	- Alyster oath (Order of the Emerald Sky): Alyster now offers an oath quest with an explicit Y/N acceptance flow; accepting sets a guild-membership flag in your profile.
+
+- New command: `SAY <phrase> TO <NPC>` — a text-say parser was added to validate phrases for specific NPC quests (example: the Kora jape requires the phrase "SCOTCH ON THE KNIGHT" said to Kendrick).
+- Portal rename: all references to the old "Gate" location were renamed to "Portal" in the game and manual.
+- EVLOG quest logging: quest completions are recorded to an `EVLOG` file (device 8 / PRG directory when virtual device traps are enabled). Use the helper scripts in `tools/` to extract/view `EVLOG` from the D64 or PRG directory.
+- Input improvements: username and other prompts now accept multi-character input until Enter and echo typed characters (previous single-char prompt behavior fixed).
+- UI fixes: the Characters/Talk lists no longer show a stray "(UNKNOWN)" entry and the Conductor menu option text was restored.
+
+
  Latest Operational Updates
 ---------------------------
 - Build helper: `tools/build_prg_simple.bat` compiles `everland.asm` with your KickAssembler JAR, then refreshes a D64 via `tools/make_d64.bat`.

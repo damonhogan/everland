@@ -19,7 +19,7 @@ REM Build key buffer: talk conductor, pick quest, open inventory
 SET "KEYBUF=\n \n talk conductor\n 3\n i\n"
 
 REM Try autostart in PRG mode 0 (virtual device traps); rely on default FS mapping to PRG directory
-"%VICE%" -autostart "%PRG%" -autostartprgmode 0 -virtualdev 1 -driveTrueEmulation 0 -keybuf "%KEYBUF%"
+"%VICE%" -autostart "%PRG%" -autostartprgmode 0 -virtualdevice8 1 -drive8truedrive 0 -keybuf "%KEYBUF%"
 
 REM After emulator exits, check for EVLOG next to PRG
 SET "PRGDIR=%~dp0..\bin"

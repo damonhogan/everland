@@ -22,7 +22,10 @@ IF "%~2"=="" (
 )
 
 REM Default key buffer: move to TRAIN, talk conductor, pick quest, confirm, inventory
-IF "%~3"=="" (
+REM Allow KEYBUF to be provided via environment variable; else use arg3; else default
+IF NOT "%KEYBUF%"=="" (
+  SET KEYBUF=%KEYBUF%
+) ELSE IF "%~3"=="" (
   REM Add initial newlines to ensure clean prompt, then run sequence
   SET KEYBUF=\n \n north\n talk conductor\n 3\n \n i\n i\n
 ) ELSE (
