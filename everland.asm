@@ -2357,102 +2357,102 @@ noteFreqHi:
 	.byte $11,$13,$15,$17,$1A,$1D,$20,$22,$27,$2B,$34,$3A
 
 // --- Music patterns (16 steps each// 0=rest// note index 1..12) ---
-// MYTHOS (soft, major)
-myLead0: .byte 1,3,5,8, 5,3,2,3, 5,8,10,8, 6,5,3,1
-myLead1: .byte 3,5,6,8, 10,8,6,5, 3,5,8,10, 8,6,5,3
-myLead2: .byte 5,6,8,10, 11,10,8,6, 5,3,2,3, 5,6,8,10
-myBass0: .byte 1,0,5,0, 6,0,5,0, 3,0,2,0, 1,0,5,0
-myBass1: .byte 1,0,6,0, 5,0,3,0, 2,0,3,0, 5,0,1,0
-myBass2: .byte 5,0,6,0, 8,0,6,0, 5,0,3,0, 2,0,1,0
+// MYTHOS (soft, major, medieval slow)
+myLead0: .byte 1,0,3,0,5,0,8,0,6,0,5,0,3,0,1,0
+myLead1: .byte 3,0,5,0,8,0,10,0,8,0,6,0,5,0,3,0
+myLead2: .byte 5,0,6,0,8,0,10,0,11,0,10,0,8,0,6,0
+myBass0: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
+myBass1: .byte 1,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+myBass2: .byte 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
 
-// LORE (minor-ish, slower feel)
-loLead0: .byte 6,5,3,2, 3,5,6,5, 3,2,1,2, 3,5,6,0
-loLead1: .byte 5,3,2,1, 2,3,5,6, 5,3,2,0, 2,3,5,0
-loLead2: .byte 6,8,7,6, 5,3,2,1, 2,3,5,6, 5,3,2,1
-loBass0: .byte 6,0,5,0, 3,0,2,0, 1,0,2,0, 3,0,5,0
-loBass1: .byte 5,0,3,0, 2,0,1,0, 2,0,3,0, 2,0,1,0
-loBass2: .byte 6,0,7,0, 5,0,3,0, 2,0,1,0, 2,0,3,0
+// LORE (minor-ish, slower feel, atmospheric)
+loLead0: .byte 6,0,5,0,3,0,2,0,3,0,5,0,6,0,5,0
+loLead1: .byte 5,0,3,0,2,0,1,0,2,0,3,0,5,0,6,0
+loLead2: .byte 6,0,8,0,7,0,6,0,5,0,3,0,2,0,1,0
+loBass0: .byte 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0
+loBass1: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0
+loBass2: .byte 6,0,0,0,7,0,0,0,5,0,0,0,3,0,0,0
 
-// AURORA (sparkly, higher notes)
-auLead0: .byte 8,0,10,0,11,0,12,0,11,0,10,0,9,0,8,0
-auLead1: .byte 10,0,11,0,12,0,11,0,10,0,9,0,8,0,9,0
-auLead2: .byte 8,0,9,0,10,0,11,0,10,0,9,0,8,0,6,0
-auBass0: .byte 1,0,5,0,8,0,5,0,6,0,9,0,6,0,5,0
-auBass1: .byte 3,0,6,0,10,0,6,0,5,0,9,0,5,0,3,0
-auBass2: .byte 1,0,6,0,8,0,6,0,5,0,8,0,5,0,1,0
+// AURORA (sparkly, higher notes, ethereal)
+auLead0: .byte 8,0,0,0,10,0,0,0,11,0,0,0,12,0,0,0
+auLead1: .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
+auLead2: .byte 8,0,0,0,9,0,0,0,10,0,0,0,11,0,0,0
+auBass0: .byte 1,0,0,0,5,0,0,0,8,0,0,0,5,0,0,0
+auBass1: .byte 3,0,0,0,6,0,0,0,10,0,0,0,6,0,0,0
+auBass2: .byte 1,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
 
 auSpk0:  .byte 12,0,11,0,10,0,11,0,12,0,11,0,10,0,11,0
 auSpk1:  .byte 11,0,12,0,11,0,10,0,11,0,10,0,9,0,10,0
 auSpk2:  .byte 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0
 
-// OFF SEASON (simple, airy)
-ofLead0: .byte 1,0,2,0,3,0,2,0,1,0,0,0,1,0,2,0
-ofLead1: .byte 3,0,2,0,1,0,0,0,1,0,2,0,3,0,5,0
-ofLead2: .byte 2,0,1,0,2,0,3,0,2,0,1,0,0,0,1,0
-ofBass0: .byte 1,0,0,0,1,0,0,0,5,0,0,0,3,0,0,0
-ofBass1: .byte 3,0,0,0,2,0,0,0,1,0,0,0,2,0,0,0
-ofBass2: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0
+// OFF SEASON (simple, airy, minimal)
+ofLead0: .byte 1,0,0,0,2,0,0,0,3,0,0,0,2,0,0,0
+ofLead1: .byte 3,0,0,0,2,0,0,0,1,0,0,0,0,0,0,0
+ofLead2: .byte 2,0,0,0,1,0,0,0,2,0,0,0,3,0,0,0
+ofBass0: .byte 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0
+ofBass1: .byte 3,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0
+ofBass2: .byte 5,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0
 
-// SCARY (dissonant steps, sparse)
-scLead0: .byte 7,0,4,0, 7,0,4,0, 6,0,3,0, 6,0,2,0
-scLead1: .byte 4,0,7,0, 4,0,7,0, 3,0,6,0, 2,0,6,0
-scLead2: .byte 7,0,0,0, 4,0,0,0, 6,0,3,0, 2,0,0,0
-scBass0: .byte 1,0,0,0, 1,0,0,0, 2,0,0,0, 1,0,0,0
-scBass1: .byte 2,0,0,0, 1,0,0,0, 3,0,0,0, 2,0,0,0
-scBass2: .byte 1,0,0,0, 5,0,0,0, 2,0,0,0, 1,0,0,0
+// SCARY (dissonant steps, sparse, eerie)
+scLead0: .byte 7,0,0,0,4,0,0,0,7,0,0,0,4,0,0,0
+scLead1: .byte 4,0,0,0,7,0,0,0,4,0,0,0,7,0,0,0
+scLead2: .byte 7,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0
+scBass0: .byte 1,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0
+scBass1: .byte 2,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0
+scBass2: .byte 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0
 
-// TAVERN (indoor, cozy)
-tvLead0: .byte 5,6,5,3, 2,3,5,6, 8,6,5,3, 2,3,5,0
-tvLead1: .byte 6,8,6,5, 3,5,6,8, 10,8,6,5, 3,5,6,0
-tvLead2: .byte 3,5,6,5, 3,2,1,2, 3,5,6,8, 6,5,3,0
-tvBass0: .byte 1,0,3,0, 5,0,6,0, 5,0,3,0, 2,0,1,0
-tvBass1: .byte 3,0,5,0, 6,0,8,0, 6,0,5,0, 3,0,2,0
-tvBass2: .byte 5,0,6,0, 8,0,10,0, 8,0,6,0, 5,0,3,0
+// TAVERN (indoor, cozy, warm)
+tvLead0: .byte 5,0,6,0,5,0,3,0,2,0,3,0,5,0,6,0
+tvLead1: .byte 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0
+tvLead2: .byte 3,0,5,0,6,0,5,0,3,0,2,0,1,0,2,0
+tvBass0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+tvBass1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0
+tvBass2: .byte 5,0,0,0,6,0,0,0,8,0,0,0,10,0,0,0
 
-tvSpk0:  .byte 8,0,0,0,10,0,0,0,11,0,0,0,10,0,0,0
-tvSpk1:  .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
-tvSpk2:  .byte 11,0,0,0,10,0,0,0,9,0,0,0,10,0,0,0
+tvSpk0:  .byte 8,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0
+tvSpk1:  .byte 10,0,0,0,0,0,0,0,11,0,0,0,0,0,0,0
+tvSpk2:  .byte 11,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0
 
-// INN (warm, restful)
-inLead0: .byte 3,0,5,6, 5,0,3,2, 3,0,5,6, 8,0,6,5
-inLead1: .byte 5,0,6,8, 6,0,5,3, 2,0,3,5, 6,0,5,3
-inLead2: .byte 6,0,5,3, 2,0,3,5, 6,0,8,6, 5,0,3,2
-inBass0: .byte 1,0,3,0, 5,0,3,0, 2,0,3,0, 1,0,0,0
-inBass1: .byte 3,0,5,0, 6,0,5,0, 3,0,2,0, 1,0,0,0
-inBass2: .byte 5,0,3,0, 2,0,1,0, 2,0,3,0, 5,0,0,0
+// INN (warm, restful, soothing)
+inLead0: .byte 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
+inLead1: .byte 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
+inLead2: .byte 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0
+inBass0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,3,0,0,0
+inBass1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
+inBass2: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0
 
-// TEMPLE (martial)
-tpLead0: .byte 1,1,0,3,3,0,5,5,0,6,6,0,5,5,0,3
-tpLead1: .byte 3,3,0,5,5,0,6,6,0,8,8,0,6,6,0,5
-tpLead2: .byte 5,5,0,6,6,0,5,5,0,3,3,0,2,2,0,1
-tpBass0: .byte 1,0,1,0,1,0,3,0,3,0,5,0,5,0,3,0
-tpBass1: .byte 3,0,3,0,5,0,5,0,6,0,6,0,5,0,3,0
-tpBass2: .byte 5,0,5,0,6,0,6,0,8,0,8,0,6,0,5,0
+// TEMPLE (martial, grand)
+tpLead0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+tpLead1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0
+tpLead2: .byte 5,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+tpBass0: .byte 1,0,0,0,1,0,0,0,1,0,0,0,3,0,0,0
+tpBass1: .byte 3,0,0,0,3,0,0,0,5,0,0,0,5,0,0,0
+tpBass2: .byte 5,0,0,0,5,0,0,0,6,0,0,0,6,0,0,0
 
-// FAIRY (light, sparkly)
-faLead0: .byte 8,10,12,11, 10,9,8,9, 10,11,12,11, 10,9,8,0
-faLead1: .byte 10,11,12,0, 11,10,9,8, 9,10,11,12, 11,10,9,0
-faLead2: .byte 8,9,10,11, 12,11,10,9, 8,9,10,11, 10,9,8,0
-faBass0: .byte 1,0,5,0, 6,0,5,0, 3,0,2,0, 1,0,0,0
-faBass1: .byte 3,0,6,0, 5,0,3,0, 2,0,1,0, 2,0,0,0
-faBass2: .byte 1,0,6,0, 5,0,3,0, 2,0,3,0, 5,0,0,0
+// FAIRY (light, sparkly, magical)
+faLead0: .byte 8,0,10,0,12,0,11,0,10,0,9,0,8,0,9,0
+faLead1: .byte 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0
+faLead2: .byte 8,0,9,0,10,0,11,0,12,0,11,0,10,0,9,0
+faBass0: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
+faBass1: .byte 3,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+faBass2: .byte 1,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
 
-faSpk0:  .byte 12,0,0,0,11,0,0,0,12,0,0,0,10,0,0,0
-faSpk1:  .byte 11,0,0,0,12,0,0,0,11,0,0,0,10,0,0,0
-faSpk2:  .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
+faSpk0:  .byte 12,0,0,0,0,0,11,0,0,0,0,0,12,0,0,0
+faSpk1:  .byte 11,0,0,0,0,0,12,0,0,0,0,0,11,0,0,0
+faSpk2:  .byte 10,0,0,0,0,0,11,0,0,0,0,0,12,0,0,0
 
-// PIRATE (jaunty)
-piLead0: .byte 5,5,6,5, 3,2,3,5, 6,6,8,6, 5,3,5,0
-piLead1: .byte 6,6,8,6, 5,3,5,6, 8,8,10,8, 6,5,3,0
-piLead2: .byte 8,8,6,5, 3,2,1,2, 3,5,6,8, 6,5,3,0
-piBass0: .byte 1,0,5,0, 1,0,6,0, 5,0,3,0, 2,0,1,0
-piBass1: .byte 3,0,6,0, 3,0,5,0, 6,0,5,0, 3,0,2,0
-piBass2: .byte 5,0,8,0, 5,0,6,0, 8,0,6,0, 5,0,3,0
+// PIRATE (jaunty, sea shanty)
+piLead0: .byte 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0
+piLead1: .byte 6,0,6,0,8,0,6,0,5,0,3,0,5,0,6,0
+piLead2: .byte 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0
+piBass0: .byte 1,0,0,0,5,0,0,0,1,0,0,0,6,0,0,0
+piBass1: .byte 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0
+piBass2: .byte 5,0,0,0,8,0,0,0,5,0,0,0,6,0,0,0
 
 // INN sparkle ornaments (soft trills)
-inSpk0: .byte 0,9,0,0, 0,10,0,0, 0,9,0,0, 0,10,0,0
-inSpk1: .byte 9,0,0,9, 0,10,0,10, 9,0,0,9, 0,10,0,10
-inSpk2: .byte 0,0,9,0, 0,10,0,0, 0,0,9,0, 0,10,0,0
+inSpk0: .byte 0,0,9,0,0,0,10,0,0,0,9,0,0,0,10,0
+inSpk1: .byte 9,0,0,0,10,0,0,0,9,0,0,0,10,0,0,0
+inSpk2: .byte 0,0,10,0,0,0,9,0,0,0,10,0,0,0,9,0
 
 // Theme pointer tables: each theme entry points to 3 patterns
 myLeadPtr: .word myLead0,myLead1,myLead2
@@ -2504,9 +2504,9 @@ themeSparkNotesHi:
 
 // Theme settings (tempo + timbre). 10 entries, indexed by musicTheme.
 // Smaller = faster (ticks per step). Values tuned for atmosphere.
-themeLeadLen:  .byte 9, 8,10, 7,12, 8, 9, 8, 7, 8
-themeBassLen:  .byte 18,16,20,14,24,16,18,16,14,16
-themeSparkLen: .byte 6, 4, 6, 4, 8, 4, 6, 6, 4, 6
+themeLeadLen:  .byte 9,16,18,12,20,14,16,12,10,12
+themeBassLen:  .byte 18,32,36,24,40,28,32,24,20,24
+themeSparkLen: .byte 6, 8, 8, 6, 10,6, 8, 8, 6, 8
 
 // Waveform bits only (gate bit added dynamically): TRI=$10 SAW=$20 PULSE=$40 NOISE=$80
 themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40
@@ -2514,9 +2514,9 @@ themeBassWave: .byte $10,$10,$10,$10,$10,$10,$10,$10,$10,$10
 themeSparkWave:.byte $40,$40,$40,$40,$80,$40,$40,$40,$40,$40
 
 // Release-heavy for scary// otherwise smooth.
-themeV1SR: .byte $A6,$A8,$B7,$A8,$46,$A8,$A8,$88,$78,$A8
-themeV2SR: .byte $A6,$A8,$A8,$A8,$46,$A8,$A8,$A8,$78,$A8
-themeV3SR: .byte $68,$78,$78,$78,$28,$78,$68,$68,$78,$68
+themeV1SR: .byte $C8,$C8,$D8,$C8,$46,$C8,$C8,$A8,$98,$C8
+themeV2SR: .byte $C8,$C8,$C8,$C8,$46,$C8,$C8,$C8,$98,$C8
+themeV3SR: .byte $88,$98,$98,$98,$28,$98,$88,$88,$98,$88
 
 init:
 	// Start music early so the login screen has its own theme.
@@ -10597,23 +10597,23 @@ locMarkY:
 	.byte  1,  3,  5,  3,  5,  5,  7,  7,  9,  8,  4,  9,  4
 
 // --- Data: Locations ---
-locName0: .text "TRAIN STATION"
+locName0: .text "train station"
 	.byte 0
-locName1: .text "MARKET GREEN"
+locName1: .text "market green"
 	.byte 0
-locName2: .text "FRACTURED PORTAL"
+locName2: .text "fractured portal"
 	.byte 0
-locName3: .text "DRAGON HAVEN"
+locName3: .text "dragon haven"
 	.byte 0
-locName4: .text "CENTRAL PLAZA"
+locName4: .text "central plaza"
 	.byte 0
-locName5: .text "CLOCKWORK ALLEY"
+locName5: .text "clockwork alley"
 	.byte 0
-locName6: .text "MYSTICWOOD"
+locName6: .text "mysticwood"
 	.byte 0
-locName7: .text "FAIRY GARDENS"
+locName7: .text "fairy gardens"
 	.byte 0
-locName8: .text "TIPSEY MAIDEN TAVERN"
+locName8: .text "tipsy maiden tavern"
 	.byte 0
 locName9: .text "DRAGON HAVEN"
 	.byte 0
@@ -10775,7 +10775,7 @@ npcTalkLoByLoc:
 npcTalkHiByLoc:
 	.byte >talkConductor,>talkTroll,>talkKnight,>talkTosh,>msgNoOne,>talkPirateCaptain,>talkMystic,>talkFairy,>talkBartender,>talkAlyster,>talkLouden,>talkApollonia,>msgNoOne
 
-talkConductor: .text "THE CONDUCTOR SAYS: ALL ABOARD THE IMAGINATION EXPRESS!"
+talkConductor: .text "the conductor says: all aboard the imagination express!"
 	.byte 0
 talkBartender: .text "THE BARTENDER SAYS: CAREFUL WHAT YOU PROMISE IN HERE."
 	.byte 0
@@ -10842,9 +10842,9 @@ talkUnknown: .text "(THE FIGURE SAYS NOTHING.)"
 // Alpha Wolfric & related NPC talk lines
 talkAlphaWolfric: .text "ALPHA WOLFRIC: THE PACK MUST BE FED. WE WILL GUARD THE TOWN IF YOU SECURE SUPPLIES."
 	.byte 0
-msgAlphaMenuHeader: .text "ALPHA WOLFRIC"
+msgAlphaMenuHeader: .text "alpha wolfric"
 	.byte 0
-msgAlphaOpt0: .text "0. ASK ABOUT THE WOLVES"
+msgAlphaOpt0: .text "0. ask about the wolves"
 	.byte 0
 msgAlphaOpt1: .text "1. REQUEST HELP: SEEK SUPPLIES"
 	.byte 0
@@ -12196,53 +12196,53 @@ npcBitB3:
 	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
 	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000
 
-npcName0: .text "CONDUCTOR"
+npcName0: .text "conductor"
 	.byte 0
-npcName1: .text "BARTENDER"
+npcName1: .text "bartender"
 	.byte 0
-npcName2: .text "KNIGHT"
+npcName2: .text "knight"
 	.byte 0
-npcName3: .text "MYSTIC"
+npcName3: .text "mystic"
 	.byte 0
-npcName4: .text "FAIRY"
+npcName4: .text "fairy"
 	.byte 0
-npcName5: .text "KNIGHT KENDRICK"
+npcName5: .text "knight kendrick"
 	.byte 0
-npcName6: .text "SPIDER PRINCESS"
+npcName6: .text "spider princess"
 	.byte 0
-npcName7: .text "PIRATE CAPTAIN"
+npcName7: .text "pirate captain"
 	.byte 0
-npcName8: .text "WARLOCK"
+npcName8: .text "warlock"
 	.byte 0
-npcName9: .text "UNSEELY FAE"
+npcName9: .text "unseely fae"
 	.byte 0
-npcName10: .text "SAINT APOLLONIA"
+npcName10: .text "saint apollonia"
 	.byte 0
-npcName11: .text "DRAGON TRAINER ALYSTER"
+npcName11: .text "dragon trainer alyster"
 	.byte 0
-npcName12: .text "BRIDGE THE TROLL"
+npcName12: .text "bridge the troll"
 	.byte 0
-npcName13: .text "TOSH THE TOSHER"
+npcName13: .text "tosh the tosher"
 	.byte 0
-npcName14: .text "SPIRIT OF LOUDEN"
+npcName14: .text "spirit of louden"
 	.byte 0
-npcName15: .text "MERMAID"
+npcName15: .text "mermaid"
 	.byte 0
-npcName16: .text "CANDY WITCH"
+npcName16: .text "candy witch"
 	.byte 0
-npcName17: .text "KNIGHT KORA"
+npcName17: .text "knight kora"
 	.byte 0
-npcName18: .text "ALPHA WOLFRIC"
+npcName18: .text "alpha wolfric"
 	.byte 0
-npcName19: .text "DRAGON TRAINER VASHTEE"
+npcName19: .text "dragon trainer vashtee"
 	.byte 0
-npcName20: .text "TRADING COMPANY OWNER"
+npcName20: .text "trading company owner"
 	.byte 0
-npcName21: .text "FROST WEAVERS QUEEN"
+npcName21: .text "frost weavers queen"
 	.byte 0
-npcName22: .text "BANKER"
+npcName22: .text "banker"
 	.byte 0
-npcNameUnknown: .text "(UNKNOWN)"
+npcNameUnknown: .text "(unknown)"
 	.byte 0
 
 npcNameLo:
@@ -12252,7 +12252,7 @@ npcNameHi:
 	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9,>npcName10,>npcName11,>npcName12,>npcName13,>npcName14,>npcName15
 	.byte >npcName16,>npcName17,>npcName18,>npcName19,>npcName20,>npcName21,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown
 
-msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
+msgWelcome:    .text "welcome to everland. type n e s w, or inspect/take/drop/give."
 	.byte 0
 msgOk:         .text ""
 	.byte 0
@@ -12267,9 +12267,9 @@ msgChartRange2: .text "RANGE $A0-$FF:"
 	.byte 0
 msgChart3: .text "PRESS ANY KEY TO RETURN"
 	.byte 0
-msgUnknown:    .text "I DIDN'T UNDERSTAND. TRY: N E S W, INSPECT <OBJ>, TAKE <OBJ>."
+msgUnknown:    .text "i didn't understand. try: n e s w, inspect <obj>, take <obj>."
 	.byte 0
-msgHelp:       .text "HELP: N/E/S/W MOVE, T TALK, I INV, LOOK"
+msgHelp:       .text "help: n/e/s/w move, t talk, i inv, look"
 	.byte 0
 
 // Prompt for given name entry
@@ -12281,17 +12281,17 @@ npcGivenNames:
 	// NPC 0 (CONDUCTOR) - given name set to "bob"
 	.text "bob"
 	.fill (NPC_GIVEN_NAME_LEN - 3), 0
-	// NPC 1 (BARTENDER) - given name set to "Sirus"
-	.text "Sirus"
+	// NPC 1 (BARTENDER) - given name set to "sirus"
+	.text "sirus"
 	.fill (NPC_GIVEN_NAME_LEN - 5), 0
-	// NPC 2 (KNIGHT) - given name set to "Damian"
-	.text "Damian"
+	// NPC 2 (KNIGHT) - given name set to "damian"
+	.text "damian"
 	.fill (NPC_GIVEN_NAME_LEN - 6), 0
 	// NPC 3 (MYSTIC) - given name set to "mela"
 	.text "mela"
 	.fill (NPC_GIVEN_NAME_LEN - 4), 0
 	// NPC 4 (FAIRY) - given name set to "Lezule"
-	.text "Lezule"
+	.text "lezule"
 	.fill (NPC_GIVEN_NAME_LEN - 6), 0
 	// NPC 5 (KENDRICK) - given name set to "kendrick"
 	.text "kendrick"
@@ -12300,16 +12300,16 @@ npcGivenNames:
 	.text "unknown"
 	.fill (NPC_GIVEN_NAME_LEN - 7), 0
 	// NPC 7 (PIRATE_CAPTAIN) - given name set to "Bonnie Red Boots"
-	.text "Bonnie Red Boots"
-	// NPC 8 (WARLOCK) - given name set to "Dorian"
-	.text "Dorian"
+	.text "bonnie red boots"
+	// NPC 8 (WARLOCK) - given name set to "dorian"
+	.text "dorian"
 	.fill (NPC_GIVEN_NAME_LEN - 6), 0
-	// NPC 9 (UNSEELY_FAE) - given name set to "Tamara"
-	.text "Tamara"
+	// NPC 9 (UNSEELY_FAE) - given name set to "tamara"
+	.text "tamara"
 	.fill (NPC_GIVEN_NAME_LEN - 6), 0
 	// NPC 10 (APOLLONIA) - given name set to "apolonia"
 	.text "apolonia"
-	.fill (NPC_GIVEN_NAME_LEN - 8), 0
+	.fill (NPC_GIVEN_NAME_LEN - 9), 0
 	// NPC 11 (ALYSTER) - given name set to "alyster"
 	.text "alyster"
 	.fill (NPC_GIVEN_NAME_LEN - 7), 0
@@ -12326,7 +12326,7 @@ npcGivenNames:
 	.text "talayla"
 	.fill (NPC_GIVEN_NAME_LEN - 7), 0
 	// NPC 16 (CANDY_WITCH) - given name set to "Wen Weaver"
-	.text "Wen Weaver"
+	.text "wen weaver"
 	.fill (NPC_GIVEN_NAME_LEN - 10), 0
 	// NPC 17 (KORA) - given name set to "kora"
 	.text "kora"
@@ -12334,11 +12334,11 @@ npcGivenNames:
 	// NPC 18 (ALPHA WOLFRIC) - given name set to "vassa"
 	.text "vassa"
 	.fill (NPC_GIVEN_NAME_LEN - 5), 0
-	// NPC 19 (VASHTEE) - given name set to "Vashtee"
-	.text "Vashtee"
+	// NPC 19 (VASHTEE) - given name set to "vashtee"
+	.text "vashtee"
 	.fill (NPC_GIVEN_NAME_LEN - 7), 0
-	// NPC 20 (TRADING COMPANY OWNER) - given name set to "Van Beauler"
-	.text "Van Beauler"
+	// NPC 20 (TRADING COMPANY OWNER) - given name set to "van beauler"
+	.text "van beauler"
 	.fill (NPC_GIVEN_NAME_LEN - 11), 0
 	// NPC 20
 	.fill NPC_GIVEN_NAME_LEN, 0
