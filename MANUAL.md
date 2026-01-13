@@ -14,18 +14,23 @@ The following screenshots are included from the `images/` folder.
 
 Fully Working Features
 ----------------------
-- Save/Load (EV3): Per-username profile saved to device 8. EV3 stores username, display, class, race, pin, score, level, current HP, class/race indices, max HP (for reference), calendar, location, object locations, and quest state. Backward-compatible loader accepts EV1/EV2.
-- Login/Profile: Username, display name, class, and race are selected at first login.
+- Save/Load (EV4): Per-username profile saved to device 8. EV4 stores username, display, class, race, pin, score, level, current HP, class/race indices, max HP (for reference), calendar, location, object locations, quest state, and coin balances (gold, silver, copper). Backward-compatible loader accepts EV1/EV2/EV3.
+- Login/Profile: Username, display name, class, and race are selected at first login. New users start with 9 copper.
 - Class & Level System: Class base HP and HP-per-level; new profiles start at Level 1.
 - HP System: Character sheet shows current and max HP; max HP is based on class, level, and session bonuses. Current HP is saved; max HP is recomputed and also persisted in EV3.
+- Coin System: Inventory displays gold, silver, and copper balances. Quest rewards are 1 silver; new users get 9 copper to prevent completing quests without starting them. Balances saved in user record.
 - Idle Regeneration: While idle at prompts (i.e., not in a fight), HP regenerates at 1 HP per real-time minute (uses KERNAL jiffy clock; handles midnight wrap).
 - Inventory: Full-screen Inventory with `I`.
 - Characters & Sheets: `C` opens character menu; view player or NPC sheets with stats and HP.
 - Talk/NPC Selection: `T` opens talk screen; select any present NPC.
 - Direct TALK: `TALK <NPCNAME>` jumps straight to that NPC if present.
 - Conversation Menu: Options like speak/ask/comment/quests/end; many branches apply effects (heals, score, quests).
-- Movement: Cardinal plus diagonal movement (`NE/NW/SE/SW` and full words) with diagonals shown in the exits line when reachable.
+- Movement: Cardinal (`N/S/E/W`) and diagonal (`NE/NW/SE/SW`) movement, with full words supported. Cardinal directions work even if not directly shown in exits, using reverse connections.
 - Rendering & I/O: PETSCII message-buffer rendering; KERNAL file and console I/O; music IRQ scaffolding.
+- Trinket Collection: Players collect up to 5 random trinkets at creation; NPCs have up to 3 trinkets each. Trinkets are unique items for social trading.
+- NPC Trinket Trading: Trade trinkets with NPCs via conversation menus; select and swap trinkets to build relationships.
+- Banking Vault: Secure storage for items (10 slots, rent for 10 silver); items saved and retrievable.
+- Dynamic Exchange Rates: Bank rates fluctuate based on supply; deposit/withdraw gold, silver, copper with current rates.
 
 Recent Additions (confirmed working)
 - Direct TALK: `TALK <NPCNAME>` parsing and dispatch.
@@ -69,6 +74,10 @@ This Update — New Features
 
 - NPC Hitpoints & Levels: NPCs now have level and current/max HP like players. NPC level is used with the same class base/level HP formula to compute an NPC's max HP; current HP is stored in saves (EV3). NPCs heal passively at the same rate as players (1 HP per real minute while idle) and their current HP is auto-saved when it changes. The Characters/Talk lists now display each NPC as "LV <n> HP <cur>/<max>" where applicable.
 
+- Trinket System: Players and NPCs can collect up to 32 unique trinkets. Players start with 5 random trinkets assigned at character creation. NPCs have up to 3 trinkets each, randomly assigned when first encountered. Trinkets are displayed in the inventory screen. Players can trade trinkets with NPCs using the "TRADE TRINKETS" option in conversations, selecting one trinket from their inventory and one from the NPC's collection to swap.
+
+- Advanced Banking: The Banker NPC now offers expanded services including secure item vault storage (rent for 10 silver, 10 slots), dynamic exchange rates that fluctuate based on bank supply, and full deposit/withdraw menus for gold, silver, and copper. Vault items are saved and can be retrieved later. Exchange rates adjust automatically to simulate economic activity.
+
 
  Latest Operational Updates
 ---------------------------
@@ -84,38 +93,34 @@ This Update — New Features
 
 Coin / Bartender Quest (player walkthrough)
 -------------------------------------------
-This release includes a small fetch quest where the Conductor asks you to bring a coin to the Bartender.
+This release includes a small fetch quest where the Conductor asks you to bring silver to the Bartender.
 
 1) Accept the quest from the Conductor
-	- `TALK CONDUCTOR` then select the "Any quests?" menu option (`3`) at the Train Station to accept `QUEST_COIN_BARTENDER`. When accepted, you will also receive a starter coin and see "YOU RECEIVE A COIN.".
+	- `TALK CONDUCTOR` then select the "Any quests?" menu option (`3`) at the Train Station to accept `QUEST_COIN_BARTENDER`. When accepted, you will also receive 1 silver and see "YOU RECEIVE 1 SILVER.".
 
-2) Get a coin
-	- The `COIN` object spawns in the Market by default. Travel to the Market and run:
+2) Get silver
+	- New users start with 9 copper. To get silver, you can buy ale from the Bartender for 1 silver (see below), but since you need silver to complete the quest, use the copper to buy ale first to get change or find another way. Alternatively, complete other quests that reward silver.
 
-```
-TAKE COIN
-```
+	- Verify with `I` (Inventory) that your coin balances are shown (e.g., "COPPER: 9").
 
-	- Verify with `I` (Inventory) that `COIN` is now in your inventory.
-
-3) Give the coin to the Bartender
+3) Give silver to the Bartender
 	- Go to the Tavern and either:
-	  - `GIVE COIN TO BARTENDER` (explicit target), or
-	  - `GIVE COIN` while standing in the Tavern (auto-targets default NPC at location), or
+	  - `GIVE COIN TO BARTENDER` (but since coin is now silver balance, this will consume 1 silver), or
+	  - `TALK BARTENDER` and choose `BUY ALE (1 SILVER)` — this consumes 1 silver and gives you a mug.
 	  - `TALK BARTENDER` and choose `BUY ALE (1 COIN)` or `GIVE TIP` — both consume a coin.
 
 	- If `QUEST_COIN_BARTENDER` is active, giving the coin to the Bartender triggers `questComplete` and marks the quest done.
 
 4) Verify
-	- `I` should show the coin removed from inventory and the last message will indicate quest completion or reward.
+	- `I` should show silver decreased by 1, and you receive a mug. The last message will indicate quest completion.
 
 Developer pointers (where to look in the source)
-- `objLoc` (initial item locations) contains the coin spawn location.
+- Coin system: `playerGold`, `playerSilver`, `playerCopper` store balances; `cmdInventory` displays them; saved in EV4 format.
 - `cmdTake` and `cmdGive` implement TAKE/GIVE parsing and behavior.
 - `questCheckGive` looks up (object,npc) pairs for active quests and calls `questComplete` when matched.
- - NPC HP/level and regen:
-	 - `npcLevel`, `npcCurHp`, and `npcClassIdx` tables define NPC level, current HP and class.
-	 - `computeNpcMaxHp` computes NPC max HP from class & level (same formula as players).
+- NPC HP/level and regen:
+	- `npcLevel`, `npcCurHp`, and `npcClassIdx` tables define NPC level, current HP and class.
+	- `computeNpcMaxHp` computes NPC max HP from class & level (same formula as players).
 	 - `applyRegenIfDue` now heals NPCs the same way as players; look for the NPC-healing loop.
 
 
@@ -581,4 +586,11 @@ Developer pointers (where to look in the source)
 	- Conversation: `mermaidConversation` and its dispatch via `@conv_mermaid` in `convSpeakHandler`.
 	- Parser: `kwMermaid`, `kwPinecone`, `kwShell` keywords mapped in `parseNpcNoun` and `parseObjectNoun`.
 	- Location/NPC mask: `npcMaskByLocHi` updates include the Mermaid’s presence at Clockwork Alley.
+
+Current Development Todos
+-------------------------
+- Playtest NPC HP/level feature: Run VICE emulator to verify NPC character sheets display LV and HP, and regen heals NPCs at 1 HP/min.
+- Fix Warlock noun parsing: Update `parseNpcNoun` to handle `kwWarlock` for the Warlock NPC.
+- Implement coin system: Add gold, silver, copper balances to inventory, save in EV4, display in inventory, quest rewards 1 silver, new users 9 copper. (Completed)
+- Fix exit travel: Ensure all cardinal and diagonal movement works by allowing cardinal directions to use reverse connections if direct exits are missing. (Completed)
 

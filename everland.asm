@@ -94,7 +94,8 @@ healLeft: .byte 0
 .const LOC_CATACOMBS = 10
 .const LOC_INN       = 11
 .const LOC_TEMPLE    = 12
-.const LOC_COUNT     = 13
+.const LOC_BANK      = 13
+.const LOC_COUNT     = 14
 
 // Object constants
 .const OBJ_LANTERN     = 0
@@ -135,6 +136,7 @@ healLeft: .byte 0
 	.const NPC_VASHTEE         = 19
 	.const NPC_TRADING_OWNER  = 20
 	.const NPC_FROST_WEAVERS_QUEEN = 21
+	.const NPC_BANKER          = 22
 // Legacy alias (maps PIXIE to FAIRY slot)
 .const NPC_PIXIE            = NPC_FAIRY
 // First mate alias; currently share captain slot
@@ -244,6 +246,26 @@ activeQuest: .byte QUEST_NONE
 questStatus: .byte 0 // 0=none/inactive, 1=active, 2=completed
 // Player level (single byte)
 currentLevel: .byte 0
+// Player coin balances
+playerGold: .byte 0
+playerSilver: .byte 0
+playerCopper: .byte 0
+
+// Bank variables
+bankCopper: .byte 0
+bankSilver: .byte 0
+bankGold: .byte 0
+interestRate: .byte 5 // 5% interest
+exchangeCopperToSilver: .byte 10
+exchangeSilverToGold: .byte 10
+vaultRented: .byte 0
+vaultItems: .fill 10, $FF  // 10 vault slots, $FF = empty
+
+// Trinket system
+.const TRINKET_COUNT = 32
+playerTrinkets: .fill 5, $FF  // 5 trinket slots, $FF = none
+playerTrinketsAssigned: .byte 0
+npcTrinkets: .fill 32*3, $FF  // 3 trinkets per NPC, $FF = none
 
 // Save filename buffers
 saveBaseLen: .byte 0
@@ -290,6 +312,8 @@ selChoice: .byte 0
 tmpNpcIdx: .byte 0
 tmpHp: .byte 0
 tmpPer: .byte 0,0
+tmpNumber: .byte 0
+tmpDigit: .byte 0
 // Per-NPC conversation stage (0 = initial, 1 = progressed)
 npcConvStage:
 	.fill NPC_COUNT, 0
@@ -299,6 +323,7 @@ npcMaskB3Temp: .byte 0
 // Ward disable flag used by Candy Witch
 wardDisabledFlag: .byte 0
 tmpCnt: .byte 0
+tmpCnt2: .byte 0
 
 // Input buffer (PETSCII)
 prefetchedHas: .byte 0
@@ -404,12 +429,12 @@ loginOrCreate:
 	sta activeQuest
 	lda #0
 	sta questStatus
+	lda #9
+	sta playerCopper
 
 	// Reset objects to starting positions
 	lda #LOC_TRAIN
 	sta objLoc+OBJ_LANTERN
-	lda #LOC_MARKET
-	sta objLoc+OBJ_COIN
 	lda #LOC_TAVERN
 	sta objLoc+OBJ_MUG
 	lda #LOC_PORTAL
@@ -478,6 +503,9 @@ loadedRace:
 loadedRaceIdx: .byte 0
 loadedFileVer: .byte 1
 loadedMaxHp: .byte 0
+loadedGold: .byte 0
+loadedSilver: .byte 0
+loadedCopper: .byte 0
 
 commitLoadedState:
 	lda loadedPinLo
@@ -539,6 +567,13 @@ commit_c4:
 	// restore player race idx
 	lda loadedRaceIdx
 	sta playerRaceIdx
+	// restore player coins
+	lda loadedGold
+	sta playerGold
+	lda loadedSilver
+	sta playerSilver
+	lda loadedCopper
+	sta playerCopper
 	// copy loaded given names into runtime buffer
 	ldx #0
 @cln_copy:
@@ -1050,6 +1085,8 @@ tryLoadGame:
 	beq @tl_ver2
 	cmp #'3'
 	beq @tl_ver3
+	cmp #'4'
+	beq @tl_ver4
 	jmp @fail2
 @tl_ver1:
 	lda #0
@@ -1061,6 +1098,9 @@ tryLoadGame:
  	jmp @tl_header_ok
 @tl_ver3:
 	lda #2
+	sta loadedFileVer
+@tl_ver4:
+	lda #3
 	sta loadedFileVer
 @tl_header_ok:
 	// Read username (skip, we already have it)
@@ -1164,6 +1204,17 @@ tryLoadGame:
 	sta loadedActiveQuest
 	jsr CHRIN
 	sta loadedQuestStatus
+	// player coins (EV4)
+	lda loadedFileVer
+	cmp #3
+	bne @skip_coins
+	jsr CHRIN
+	sta loadedGold
+	jsr CHRIN
+	sta loadedSilver
+	jsr CHRIN
+	sta loadedCopper
+@skip_coins:
 	// Read given names (fixed-length slots) only for EV3 saves
 	lda loadedFileVer
 	cmp #2
@@ -1214,7 +1265,7 @@ saveGame:
 	jsr CHROUT
 	lda #'V'
 	jsr CHROUT
-	lda #'3'
+	lda #'4'
 	jsr CHROUT
 	// username
 	ldx #0
@@ -1293,6 +1344,13 @@ saveGame:
 	lda activeQuest
 	jsr CHROUT
 	lda questStatus
+	jsr CHROUT
+	// player coins
+	lda playerGold
+	jsr CHROUT
+	lda playerSilver
+	jsr CHROUT
+	lda playerCopper
 	jsr CHROUT
 	// Write given names (fixed-length slots)
 	ldx #0
@@ -2835,6 +2893,10 @@ printZ:
 	bne @pz_loop
 
 @pz_done:
+	rts
+
+printChar:
+	jsr CHROUT
 	rts
 
 // Print NPC entry for current X index; expects X=index, uses selCount to number entries
@@ -4709,18 +4771,82 @@ parseSceneryNoun:
 cmdNorth:
 	ldx currentLoc
 	lda exitN,x
+	cmp #$FF
+	bne @n_direct
+	// find y where exitS[y] = currentLoc
+	ldy #0
+@n_loop:
+	lda exitS,y
+	cmp currentLoc
+	beq @n_found
+	iny
+	cpy #13
+	bne @n_loop
+	jmp @diag_no
+@n_found:
+	tya
+	jmp doMove
+@n_direct:
 	jmp doMove
 cmdSouth:
 	ldx currentLoc
 	lda exitS,x
+	cmp #$FF
+	bne @s_direct
+	// find y where exitN[y] = currentLoc
+	ldy #0
+@s_loop:
+	lda exitN,y
+	cmp currentLoc
+	beq @s_found
+	iny
+	cpy #13
+	bne @s_loop
+	jmp @diag_no
+@s_found:
+	tya
+	jmp doMove
+@s_direct:
 	jmp doMove
 cmdEast:
 	ldx currentLoc
 	lda exitE,x
+	cmp #$FF
+	bne @e_direct
+	// find y where exitW[y] = currentLoc
+	ldy #0
+@e_loop:
+	lda exitW,y
+	cmp currentLoc
+	beq @e_found
+	iny
+	cpy #13
+	bne @e_loop
+	jmp @diag_no
+@e_found:
+	tya
+	jmp doMove
+@e_direct:
 	jmp doMove
 cmdWest:
 	ldx currentLoc
 	lda exitW,x
+	cmp #$FF
+	bne @w_direct
+	// find y where exitE[y] = currentLoc
+	ldy #0
+@w_loop:
+	lda exitE,y
+	cmp currentLoc
+	beq @w_found
+	iny
+	cpy #13
+	bne @w_loop
+	jmp @diag_no
+@w_found:
+	tya
+	jmp doMove
+@w_direct:
 	jmp doMove
 
 // Diagonal movement: attempt two-step paths via cardinal exits
@@ -5597,6 +5723,7 @@ conversationMenu:
 	sta uiInConversation
 	// preserve NPC index across input reads
 	stx tmpNpcIdx
+	jsr assignNpcTrinkets
 	jsr clearScreen
 	// Print NPC name as header
 	lda npcNameLo,x
@@ -5693,7 +5820,38 @@ conv_loop:
 	jsr printZ
 	jsr newline
 
-	jsr setCursorPrompt
+	// Check if NPC has trinkets
+	txa
+	sta tmpCnt
+	asl
+	adc tmpCnt  // *3
+	tay
+	ldx #0
+@check_trinkets:
+	lda npcTrinkets,y
+	cmp #$FF
+	bne @has_trinkets
+	iny
+	inx
+	cpx #3
+	bne @check_trinkets
+	jmp @no_trade
+@has_trinkets:
+	// 6. Trade Trinkets
+	lda #'6'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<msgTradeTrinkets
+	sta ZP_PTR
+	lda #>msgTradeTrinkets
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+@no_trade:
+	ldx tmpNpcIdx
 	jsr readLine
 	lda inputBuf
 	// Ignore empty RETURN here to avoid stray buffered RETURNs exiting
@@ -5703,6 +5861,8 @@ conv_loop:
 	sbc #'0'
 	tay
 	tya
+	cmp #6
+	beq conv_choice6
 	cmp #5
 	beq conv_choice5
 	cmp #0
@@ -5740,6 +5900,9 @@ conv_choice4:
 
 conv_choice5:
 	jmp conversationMenu_exit
+
+conv_choice6:
+	jmp @conv_do_trade
 
 @conv_do_speak:
 	// restore npc index in X for handler dispatch
@@ -6922,10 +7085,10 @@ spiderJumpHi:
 // Conversation handler table indexed by NPC index (X)
 convSpeakHandlerLo:
 	.byte <@conv_conductor, <@conv_bartender, <@conv_knight, <@conv_speak_default, <@conv_fairy, <@conv_kendrick, <@conv_spider, <@conv_pirate, <@conv_warlock, <@conv_unseely, <@conv_apollonia, <@conv_alyster, <@conv_troll, <@conv_tosh, <@conv_louden, <@conv_mermaid
-	.byte <@conv_candywitch, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default
+	.byte <@conv_candywitch, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_banker, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default, <@conv_speak_default
 convSpeakHandlerHi:
 	.byte >@conv_conductor, >@conv_bartender, >@conv_knight, >@conv_speak_default, >@conv_fairy, >@conv_kendrick, >@conv_spider, >@conv_pirate, >@conv_warlock, >@conv_unseely, >@conv_apollonia, >@conv_alyster, >@conv_troll, >@conv_tosh, >@conv_louden, >@conv_mermaid
-	.byte >@conv_candywitch, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default
+	.byte >@conv_candywitch, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_banker, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default, >@conv_speak_default
 
 @conv_kendrick:
 	jsr kendrickConversation
@@ -6938,6 +7101,10 @@ convSpeakHandlerHi:
 @conv_candywitch:
 	// Use default conversation menu with Candy Witch talk
 	jmp @conv_speak_default
+
+@conv_banker:
+	jsr bankerConversation
+	jmp conv_loop
 
 // Pirate-specific conversation tree. Expects X = npc index.
 pirateConversation:
@@ -7327,15 +7494,11 @@ bartenderConversation:
 	jmp bartenderConversation
 
 @b_buy:
-	// If player has a coin, take coin and give mug
-	lda objLoc+OBJ_COIN
-	cmp #OBJ_INVENTORY
-	bne @b_nocoin
-	// take coin
-	lda #OBJ_COIN
-	sta tmpPer+1
-	lda #4
-	jsr conv_apply_effect
+	// If player has silver, take 1 silver and give mug
+	lda playerSilver
+	beq @b_nocoin
+	dec playerSilver
+	jsr saveGame
 	// give mug
 	lda #OBJ_MUG
 	sta tmpPer+1
@@ -7361,7 +7524,7 @@ bartenderConversation:
 	jmp bartenderConversation
 
 @b_tip:
-	// Tip: if player has a coin, take it and add score +1
+	// Tip: if player has a coin, take it and add 1 silver
 	lda objLoc+OBJ_COIN
 	cmp #OBJ_INVENTORY
 	bne @b_notipcoin
@@ -7370,11 +7533,18 @@ bartenderConversation:
 	sta tmpPer+1
 	lda #4
 	jsr conv_apply_effect
-	// add score +1
-	lda #1
+	// add silver +1
+	inc playerSilver
+	jsr saveGame
+	// check if quest active
+	lda activeQuest
+	cmp #QUEST_COIN_BARTENDER
+	bne @no_quest_complete
+	lda #QUEST_COIN_BARTENDER
 	sta tmpPer+1
-	lda #5
+	lda #2
 	jsr conv_apply_effect
+@no_quest_complete:
 	lda #<msgBartenderTipThanks
 	sta lastMsgLo
 	lda #>msgBartenderTipThanks
@@ -7427,6 +7597,798 @@ bartenderConversation:
 	jsr setCursorPrompt
 	jsr readLine
 	jmp bartenderConversation
+
+// Banker-specific conversation tree. Expects X = npc index.
+bankerConversation:
+	jsr clearScreen
+	jsr updateExchangeRates
+	// restore npc index in X for indexed lookups
+	ldx tmpNpcIdx
+	// Header
+	lda #<msgBankerMenuHeader
+	sta ZP_PTR
+	lda #>msgBankerMenuHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// Options
+	lda #<msgBankerOpt0
+	sta ZP_PTR
+	lda #>msgBankerOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBankerOpt1
+	sta ZP_PTR
+	lda #>msgBankerOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBankerOpt2
+	sta ZP_PTR
+	lda #>msgBankerOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBankerOpt3
+	sta ZP_PTR
+	lda #>msgBankerOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBankerOpt4
+	sta ZP_PTR
+	lda #>msgBankerOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @bank_noinput
+	sec
+	sbc #'0'
+	tay
+	// indirect jump table to avoid branch-distance issues
+	// ensure X = npc index before jumping to handlers
+	ldx tmpNpcIdx
+	lda bankerJumpLo,y
+	sta ZP_PTR
+	lda bankerJumpHi,y
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+
+@bank_noinput:
+	jmp bankerConversation
+
+	bankerJumpLo:
+		.byte <@bank_deposit, <@bank_withdraw, <@bank_balance, <@bank_vault, <@bank_leave
+	bankerJumpHi:
+		.byte >@bank_deposit, >@bank_withdraw, >@bank_balance, <@bank_vault, <@bank_leave
+
+@bank_deposit:
+	jsr clearScreen
+	ldx tmpNpcIdx
+	lda #<msgDepositMenu
+	sta ZP_PTR
+	lda #>msgDepositMenu
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgDepositOpt0
+	sta ZP_PTR
+	lda #>msgDepositOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgDepositOpt1
+	sta ZP_PTR
+	lda #>msgDepositOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgDepositOpt2
+	sta ZP_PTR
+	lda #>msgDepositOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgDepositOpt3
+	sta ZP_PTR
+	lda #>msgDepositOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @deposit_noinput
+	sec
+	sbc #'0'
+	cmp #4
+	bcs @deposit_noinput
+	tax
+	lda depositJumpLo,x
+	sta ZP_PTR
+	lda depositJumpHi,x
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+@deposit_noinput:
+	jmp bankerConversation
+depositJumpLo:
+	.byte <@deposit_copper, <@deposit_silver, <@deposit_gold, <@deposit_back
+depositJumpHi:
+	.byte >@deposit_copper, >@deposit_silver, >@deposit_gold, >@deposit_back
+@deposit_copper:
+	lda #<msgEnterAmount
+	sta ZP_PTR
+	lda #>msgEnterAmount
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	bne @deposit_continue
+	jmp @deposit_invalid
+@deposit_continue:
+	cmp playerCopper
+	bcc @deposit_ok4
+	jmp @deposit_not_enough
+@deposit_ok4:
+	sta tmpNumber
+	sec
+	lda playerCopper
+	sbc tmpNumber
+	sta playerCopper
+	clc
+	lda bankCopper
+	adc tmpNumber
+	sta bankCopper
+	jsr saveGame
+	lda #<msgDepositSuccess
+	sta lastMsgLo
+	lda #>msgDepositSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@deposit_not_enough:
+	lda #<msgNotEnough
+	sta lastMsgLo
+	lda #>msgNotEnough
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@deposit_invalid:
+	lda #<msgInvalidAmount
+	sta lastMsgLo
+	lda #>msgInvalidAmount
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@deposit_silver:
+	lda #<msgEnterAmount
+	sta ZP_PTR
+	lda #>msgEnterAmount
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	bne @deposit_continue2
+	jmp @deposit_invalid
+@deposit_continue2:
+	cmp playerSilver
+	bcc @deposit_ok5
+	jmp @deposit_not_enough
+@deposit_ok5:
+	sta tmpNumber
+	sec
+	lda playerSilver
+	sbc tmpNumber
+	sta playerSilver
+	clc
+	lda bankSilver
+	adc tmpNumber
+	sta bankSilver
+	jsr saveGame
+	lda #<msgDepositSuccess
+	sta lastMsgLo
+	lda #>msgDepositSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@deposit_gold:
+	lda #<msgEnterAmount
+	sta ZP_PTR
+	lda #>msgEnterAmount
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	bne @deposit_continue3
+	jmp @deposit_invalid
+@deposit_continue3:
+	cmp playerGold
+	bcc @deposit_ok
+	jmp @deposit_not_enough
+@deposit_ok:
+	sta tmpNumber
+	sec
+	lda playerGold
+	sbc tmpNumber
+	sta playerGold
+	clc
+	lda bankGold
+	adc tmpNumber
+	sta bankGold
+	jsr saveGame
+	lda #<msgDepositSuccess
+	sta lastMsgLo
+	lda #>msgDepositSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@deposit_back:
+	jmp bankerConversation
+
+@bank_withdraw:
+	jsr clearScreen
+	ldx tmpNpcIdx
+	lda #<msgWithdrawMenu
+	sta ZP_PTR
+	lda #>msgWithdrawMenu
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgWithdrawOpt0
+	sta ZP_PTR
+	lda #>msgWithdrawOpt0
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgWithdrawOpt1
+	sta ZP_PTR
+	lda #>msgWithdrawOpt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgWithdrawOpt2
+	sta ZP_PTR
+	lda #>msgWithdrawOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgWithdrawOpt3
+	sta ZP_PTR
+	lda #>msgWithdrawOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @withdraw_noinput
+	sec
+	sbc #'0'
+	cmp #4
+	bcs @withdraw_noinput
+	tax
+	lda withdrawJumpLo,x
+	sta ZP_PTR
+	lda withdrawJumpHi,x
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+@withdraw_noinput:
+	jmp bankerConversation
+withdrawJumpLo:
+	.byte <@withdraw_copper, <@withdraw_silver, <@withdraw_gold, <@withdraw_back
+withdrawJumpHi:
+	.byte >@withdraw_copper, >@withdraw_silver, >@withdraw_gold, >@withdraw_back
+@withdraw_copper:
+	lda #<msgEnterAmount
+	sta ZP_PTR
+	lda #>msgEnterAmount
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	bne @withdraw_continue2
+	jmp @withdraw_invalid
+@withdraw_continue2:
+	cmp bankCopper
+	bcc @withdraw_ok3
+	jmp @withdraw_not_enough
+@withdraw_ok3:
+	sta tmpNumber
+	sec
+	lda bankCopper
+	sbc tmpNumber
+	sta bankCopper
+	clc
+	lda playerCopper
+	adc tmpNumber
+	sta playerCopper
+	jsr saveGame
+	lda #<msgWithdrawSuccess
+	sta lastMsgLo
+	lda #>msgWithdrawSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@withdraw_not_enough:
+	lda #<msgBankNotEnough
+	sta lastMsgLo
+	lda #>msgBankNotEnough
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@withdraw_invalid:
+	lda #<msgInvalidAmount
+	sta lastMsgLo
+	lda #>msgInvalidAmount
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@withdraw_silver:
+	// Apply interest first
+	lda bankSilver
+	lsr
+	lsr
+	lsr
+	lsr
+	sta tmpNumber
+	lsr tmpNumber
+	clc
+	lda bankSilver
+	adc tmpNumber
+	sta bankSilver
+	lda #<msgEnterAmount
+	sta ZP_PTR
+	lda #>msgEnterAmount
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	bne @withdraw_continue3
+	jmp @withdraw_invalid
+@withdraw_continue3:
+	cmp bankSilver
+	bcc @withdraw_ok2
+	jmp @withdraw_not_enough
+@withdraw_ok2:
+	sta tmpNumber
+	sec
+	lda bankSilver
+	sbc tmpNumber
+	sta bankSilver
+	clc
+	lda playerSilver
+	adc tmpNumber
+	sta playerSilver
+	jsr saveGame
+	lda #<msgWithdrawSuccess
+	sta lastMsgLo
+	lda #>msgWithdrawSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@withdraw_gold:
+	lda #<msgEnterAmount
+	sta ZP_PTR
+	lda #>msgEnterAmount
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	bne @withdraw_continue
+	jmp @withdraw_invalid
+@withdraw_continue:
+	cmp bankGold
+	bcc @withdraw_ok
+	jmp @withdraw_not_enough
+@withdraw_ok:
+	sta tmpNumber
+	sec
+	lda bankGold
+	sbc tmpNumber
+	sta bankGold
+	clc
+	lda playerGold
+	adc tmpNumber
+	sta playerGold
+	jsr saveGame
+	lda #<msgWithdrawSuccess
+	sta lastMsgLo
+	lda #>msgWithdrawSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@withdraw_back:
+	jmp bankerConversation
+
+@bank_balance:
+	jsr clearScreen
+	ldx tmpNpcIdx
+	lda #<msgBalance
+	sta ZP_PTR
+	lda #>msgBalance
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgCopper
+	sta ZP_PTR
+	lda #>msgCopper
+	sta ZP_PTR+1
+	jsr printZ
+	lda bankCopper
+	jsr printDecimal
+	jsr newline
+	lda #<msgSilver
+	sta ZP_PTR
+	lda #>msgSilver
+	sta ZP_PTR+1
+	jsr printZ
+	lda bankSilver
+	jsr printDecimal
+	jsr newline
+	lda #<msgGold
+	sta ZP_PTR
+	lda #>msgGold
+	sta ZP_PTR+1
+	jsr printZ
+	lda bankGold
+	jsr printDecimal
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+
+@bank_vault:
+	lda vaultRented
+	bne @access_vault
+	jmp @rent_vault
+@access_vault:
+	// access vault
+	jsr clearScreen
+	ldx tmpNpcIdx
+	lda #<msgVaultAccess
+	sta ZP_PTR
+	lda #>msgVaultAccess
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgStoreItemOpt
+	sta ZP_PTR
+	lda #>msgStoreItemOpt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgRetrieveItemOpt
+	sta ZP_PTR
+	lda #>msgRetrieveItemOpt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<msgBackOpt
+	sta ZP_PTR
+	lda #>msgBackOpt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	lda inputBuf
+	beq @vault_noinput
+	sec
+	sbc #'0'
+	cmp #3
+	bcs @vault_noinput
+	tax
+	lda vaultJumpLo,x
+	sta ZP_PTR
+	lda vaultJumpHi,x
+	sta ZP_PTR+1
+	jmp (ZP_PTR)
+@vault_noinput:
+	jmp bankerConversation
+vaultJumpLo:
+	.byte <@store_item, <@retrieve_item, <@vault_back
+vaultJumpHi:
+	.byte >@store_item, >@retrieve_item, >@vault_back
+
+@bank_leave:
+	rts
+
+@store_item:
+	jsr clearScreen
+	ldx tmpNpcIdx
+	lda #<msgStoreItem
+	sta ZP_PTR
+	lda #>msgStoreItem
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	ldx #0
+	stx tmpCnt
+@store_loop:
+	lda objLoc,x
+	cmp #OBJ_INVENTORY
+	bne @store_next
+	txa
+	pha
+	lda tmpCnt
+	jsr printDecimal
+	lda #'.'
+	jsr printChar
+	lda #' '
+	jsr printChar
+	pla
+	tax
+	lda objNameLo,x
+	sta ZP_PTR
+	lda objNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	inc tmpCnt
+@store_next:
+	inx
+	cpx #OBJ_COUNT
+	bne @store_loop
+	lda tmpCnt
+	bne @no_store
+	jmp @no_items_store
+@no_store:
+	lda tmpCnt
+	jsr printDecimal
+	lda #'.'
+	jsr printChar
+	lda #' '
+	jsr printChar
+	lda #<msgBackOpt
+	sta ZP_PTR
+	lda #>msgBackOpt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	cmp tmpCnt
+	bcs @store_invalid
+	ldx #0
+	stx tmpCnt
+@find_item_loop:
+	lda objLoc,x
+	cmp #OBJ_INVENTORY
+	bne @find_next
+	lda tmpCnt
+	cmp tmpNumber
+	beq @found_item
+	inc tmpCnt
+@find_next:
+	inx
+	cpx #OBJ_COUNT
+	bne @find_item_loop
+@store_invalid:
+	lda #<msgInvalidAmount
+	sta lastMsgLo
+	lda #>msgInvalidAmount
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@found_item:
+	ldy #0
+@find_vault_slot:
+	lda vaultItems,y
+	cmp #$FF
+	beq @free_slot
+	iny
+	cpy #10
+	bne @find_vault_slot
+	lda #<msgVaultFull
+	sta lastMsgLo
+	lda #>msgVaultFull
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@free_slot:
+	txa
+	sta vaultItems,y
+	lda #$FF
+	sta objLoc,x
+	jsr saveGame
+	lda #<msgDepositSuccess
+	sta lastMsgLo
+	lda #>msgDepositSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@no_items_store:
+	lda #<msgNoItems
+	sta lastMsgLo
+	lda #>msgNoItems
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+
+@retrieve_item:
+	jsr clearScreen
+	ldx tmpNpcIdx
+	lda #<msgRetrieveItem
+	sta ZP_PTR
+	lda #>msgRetrieveItem
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	ldx #0
+	stx tmpCnt
+@retrieve_loop:
+	lda vaultItems,x
+	cmp #$FF
+	beq @retrieve_next
+	txa
+	pha
+	lda tmpCnt
+	jsr printDecimal
+	lda #'.'
+	jsr printChar
+	lda #' '
+	jsr printChar
+	pla
+	tax
+	lda vaultItems,x
+	tay
+	lda objNameLo,y
+	sta ZP_PTR
+	lda objNameHi,y
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	inc tmpCnt
+@retrieve_next:
+	inx
+	cpx #10
+	bne @retrieve_loop
+	lda tmpCnt
+	bne @no_retrieve
+	jmp @no_items_retrieve
+@no_retrieve:
+	lda tmpCnt
+	jsr printDecimal
+	lda #'.'
+	jsr printChar
+	lda #' '
+	jsr printChar
+	lda #<msgBackOpt
+	sta ZP_PTR
+	lda #>msgBackOpt
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	cmp tmpCnt
+	bcs @retrieve_invalid
+	ldx #0
+	stx tmpCnt
+@find_vault_item_loop:
+	lda vaultItems,x
+	cmp #$FF
+	beq @find_vault_next
+	lda tmpCnt
+	cmp tmpNumber
+	beq @found_vault_item
+	inc tmpCnt
+@find_vault_next:
+	inx
+	cpx #10
+	bne @find_vault_item_loop
+@retrieve_invalid:
+	lda #<msgInvalidAmount
+	sta lastMsgLo
+	lda #>msgInvalidAmount
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@found_vault_item:
+	lda vaultItems,x
+	tay
+	lda #OBJ_INVENTORY
+	sta objLoc,y
+	lda #$FF
+	sta vaultItems,x
+	jsr saveGame
+	lda #<msgWithdrawSuccess
+	sta lastMsgLo
+	lda #>msgWithdrawSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@no_items_retrieve:
+	lda #<msgNoItems
+	sta lastMsgLo
+	lda #>msgNoItems
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+
+@vault_back:
+	jmp bankerConversation
+
+@rent_vault:
+	lda playerSilver
+	cmp #10
+	bcc @vault_no_silver
+	sec
+	sbc #10
+	sta playerSilver
+	lda #1
+	sta vaultRented
+	jsr saveGame
+	lda #<msgVaultRentSuccess
+	sta lastMsgLo
+	lda #>msgVaultRentSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
+@vault_no_silver:
+	lda #<msgVaultNoSilver
+	sta lastMsgLo
+	lda #>msgVaultNoSilver
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	jmp bankerConversation
 
 // Conductor-specific conversation tree. Expects X = npc index.
 conductorConversation:
@@ -7573,8 +8535,6 @@ conductorConversation:
 	sta tmpPer+1
 	lda #3
 	jsr conv_apply_effect
-	// Debug print coin location/state if enabled
-	jsr debug_print_coin_info
 	// Show explicit confirmation that the player received a coin
 	lda #<msgCoinRec
 	sta lastMsgLo
@@ -8371,6 +9331,10 @@ pixieJumpHi:
 @conv_qinfo_noeff:
 	jmp conv_loop
 
+@conv_do_trade:
+	jsr tradeTrinkets
+	jmp conv_loop
+
 @conv_noactive:
 	lda #<msgNoQuest
 	sta lastMsgLo
@@ -8850,6 +9814,9 @@ questCheckGive:
 	lda ZP_PTR2+1
 	cmp #NPC_BARTENDER
 	bne @qcg_no
+	lda playerSilver
+	beq @qcg_no
+	dec playerSilver
 	jsr questComplete
 	sec
 	rts
@@ -9136,6 +10103,14 @@ cmdInventory:
 	jsr printZ
 	jsr newline
 
+	// Assign trinkets if not done
+	lda playerTrinketsAssigned
+	bne @trinkets_assigned
+	jsr assignRandomTrinkets
+	lda #1
+	sta playerTrinketsAssigned
+@trinkets_assigned:
+
 	// Build and print inventory full-screen
 	jsr buildInventoryMessage
 	lda #<msgBuf
@@ -9287,6 +10262,61 @@ buildInventoryMessage:
 @give_notHave:
 	jsr appendToMsgBuf
 
+	// Add coin balances
+	lda playerGold
+	beq @no_gold
+	lda #<strGold
+	sta ZP_PTR
+	lda #>strGold
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda playerGold
+	jsr appendByteAsDec
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+@no_gold:
+	lda playerSilver
+	beq @no_silver
+	lda #<strSilver
+	sta ZP_PTR
+	lda #>strSilver
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda playerSilver
+	jsr appendByteAsDec
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+@no_silver:
+	lda playerCopper
+	beq @no_copper
+	lda #<strCopper
+	sta ZP_PTR
+	lda #>strCopper
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda playerCopper
+	jsr appendByteAsDec
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+@no_copper:
+	// If any coins, add newline
+	lda playerGold
+	ora playerSilver
+	ora playerCopper
+	beq @no_coins
+	lda #13
+	jsr appendCharA
+@no_coins:
+
 	lda #0
 	sta ZP_PTR2 // foundAny flag
 	ldx #0
@@ -9321,6 +10351,37 @@ buildInventoryMessage:
 	jsr appendToMsgBuf
 
 @bom_done:
+	// Add trinkets section
+	lda #13
+	jsr appendCharA
+	lda #<strTrinkets
+	sta ZP_PTR
+	lda #>strTrinkets
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #13
+	jsr appendCharA
+	ldx #0
+@trinket_loop:
+	lda playerTrinkets,x
+	cmp #$FF
+	beq @trinket_next
+	lda playerTrinkets,x
+	tay
+	lda trinketNamesLo,y
+	sta ZP_PTR
+	lda trinketNamesHi,y
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+@trinket_next:
+	inx
+	cpx #5
+	bne @trinket_loop
 	rts
 
 // --- Exits printing ---
@@ -9628,14 +10689,14 @@ locDescHi:
 
 // Exits by cardinal direction ($FF = none)
 exitN:
-	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE
-	.byte $FF,  $FF,  LOC_GOLEM, $FF,  LOC_TRAIN, LOC_MARKET, LOC_PORTAL, LOC_TEMPLE, LOC_ALLEY, $FF,  LOC_GRAVE, $FF,  LOC_PLAZA
+	// TRAIN, MARKET, GATE, GOLEM, PLAZA, ALLEY, MYSTIC, GROVE, TAVERN, GRAVE, CATACOMBS, INN, TEMPLE, BANK
+	.byte $FF,  $FF,  LOC_GOLEM, $FF,  LOC_TRAIN, LOC_MARKET, LOC_PORTAL, LOC_TEMPLE, LOC_ALLEY, $FF,  LOC_GRAVE, $FF,  LOC_PLAZA, $FF
 exitE:
-	.byte LOC_MARKET, $FF,       LOC_PLAZA, LOC_TRAIN, LOC_ALLEY, $FF,       LOC_GROVE, LOC_TAVERN, LOC_INN, LOC_MYSTIC, $FF, $FF, LOC_GOLEM
+	.byte LOC_MARKET, $FF,       LOC_PLAZA, LOC_TRAIN, LOC_BANK, $FF,       LOC_GROVE, LOC_TAVERN, LOC_INN, LOC_MYSTIC, $FF, $FF, LOC_GOLEM, $FF
 exitS:
-	.byte LOC_PLAZA, LOC_ALLEY,  LOC_MYSTIC, LOC_PORTAL,  LOC_TEMPLE, LOC_TAVERN, $FF, $FF, $FF, LOC_CATACOMBS, $FF, $FF, LOC_GROVE
+	.byte LOC_PLAZA, LOC_ALLEY,  LOC_MYSTIC, LOC_PORTAL,  LOC_TEMPLE, LOC_TAVERN, $FF, $FF, $FF, LOC_CATACOMBS, $FF, $FF, LOC_GROVE, $FF
 exitW:
-	.byte LOC_GOLEM, LOC_TRAIN,  $FF,       LOC_TEMPLE, LOC_PORTAL, LOC_PLAZA, LOC_GRAVE, LOC_MYSTIC, LOC_GROVE, $FF, $FF, LOC_TAVERN, $FF
+	.byte LOC_GOLEM, LOC_TRAIN,  $FF,       LOC_TEMPLE, LOC_PORTAL, LOC_PLAZA, LOC_GRAVE, LOC_MYSTIC, LOC_GROVE, $FF, $FF, LOC_TAVERN, $FF, LOC_PLAZA
 
 // NPC masks by location (two bytes per location: low, high)
 npcMaskByLocLo:
@@ -9652,6 +10713,7 @@ npcMaskByLocLo:
 	.byte %00000000 // CATACOMBS
 	.byte %00100000 // PIGGLYWEED INN: FROST WEAVERS QUEEN (index21 -> b2 bit5)
 	.byte %00001000 // TEMPLE RUINS: VASHTEE (index19 -> b2 bit3)
+	.byte %00000000 // BANK
 
 npcMaskByLocHi:
 	.byte %00000000 // TRAIN
@@ -9667,6 +10729,7 @@ npcMaskByLocHi:
 	.byte %01000000 // CATACOMBS: SPIRIT OF LOUDEN (index14 -> high bit6)
 	.byte %00000100 // PIGGLYWEED INN: APOLLONIA (index10 -> high bit2)
 	.byte %00000010 // TEMPLE RUINS: UNSEELY FAE (index9 -> high bit1)
+	.byte %00000000 // BANK
 
 // Additional NPC masks by location for indices 16..31 (bytes 2 and 3)
 npcMaskByLocB2:
@@ -9683,6 +10746,7 @@ npcMaskByLocB2:
 	.byte %00000000 // CATACOMBS
 	.byte %00000000 // PIGGLYWEED INN
 	.byte %00000000 // TEMPLE RUINS
+	.byte %01000000 // BANK: BANKER (index22 -> b2 bit6)
 
 npcMaskByLocB3:
 	.byte %00000000 // TRAIN
@@ -9698,6 +10762,7 @@ npcMaskByLocB3:
 	.byte %00000000 // CATACOMBS
 	.byte %00000000 // PIGGLYWEED INN
 	.byte %00000000 // TEMPLE RUINS
+	.byte %00000000 // BANK
 
 
 // Default NPC to address in a location when only one is present
@@ -10235,6 +11300,82 @@ msgUnseelyThanks: .text "THE UNSEELY FAE WHISPERS THE NAME BACK; HER EYES GLINT.
 	.byte 0
 msgUnseelyNoName: .text "YOU DO NOT HOLD THE STOLEN NAME."
 	.byte 0
+
+msgBankerMenuHeader: .text "BANKER"
+	.byte 0
+msgBankerOpt0: .text "0. DEPOSIT COINS"
+	.byte 0
+msgBankerOpt1: .text "1. WITHDRAW COINS"
+	.byte 0
+msgBankerOpt2: .text "2. CHECK BALANCE"
+	.byte 0
+msgBankerOpt3: .text "3. VAULT"
+	.byte 0
+msgBankerOpt4: .text "4. LEAVE"
+	.byte 0
+msgDepositMenu: .text "DEPOSIT WHICH COIN TYPE?"
+	.byte 0
+msgDepositOpt0: .text "0. COPPER"
+	.byte 0
+msgDepositOpt1: .text "1. SILVER"
+	.byte 0
+msgDepositOpt2: .text "2. GOLD"
+	.byte 0
+msgDepositOpt3: .text "3. BACK"
+	.byte 0
+msgWithdrawMenu: .text "WITHDRAW WHICH COIN TYPE?"
+	.byte 0
+msgWithdrawOpt0: .text "0. COPPER"
+	.byte 0
+msgWithdrawOpt1: .text "1. SILVER"
+	.byte 0
+msgWithdrawOpt2: .text "2. GOLD"
+	.byte 0
+msgWithdrawOpt3: .text "3. BACK"
+	.byte 0
+msgEnterAmount: .text "ENTER AMOUNT:"
+	.byte 0
+msgDepositSuccess: .text "DEPOSITED SUCCESSFULLY."
+	.byte 0
+msgWithdrawSuccess: .text "WITHDRAWN SUCCESSFULLY."
+	.byte 0
+msgNotEnough: .text "YOU DON'T HAVE ENOUGH."
+	.byte 0
+msgBankNotEnough: .text "BANK DOESN'T HAVE ENOUGH."
+	.byte 0
+msgInvalidAmount: .text "INVALID AMOUNT."
+	.byte 0
+msgBalance: .text "BANK BALANCE:"
+	.byte 0
+msgVaultRented: .text "VAULT ALREADY RENTED."
+	.byte 0
+msgVaultRentSuccess: .text "VAULT RENTED FOR 10 SILVER."
+	.byte 0
+msgVaultNoSilver: .text "YOU NEED 10 SILVER TO RENT."
+	.byte 0
+msgCopper: .text "COPPER: "
+	.byte 0
+msgSilver: .text "SILVER: "
+	.byte 0
+msgGold: .text "GOLD: "
+	.byte 0
+msgVaultAccess: .text "VAULT ACCESS"
+	.byte 0
+msgStoreItemOpt: .text "0. STORE ITEM"
+	.byte 0
+msgRetrieveItemOpt: .text "1. RETRIEVE ITEM"
+	.byte 0
+msgBackOpt: .text "BACK"
+	.byte 0
+msgStoreItem: .text "STORE WHICH ITEM?"
+	.byte 0
+msgRetrieveItem: .text "RETRIEVE WHICH ITEM?"
+	.byte 0
+msgVaultFull: .text "VAULT IS FULL."
+	.byte 0
+msgNoItems: .text "NO ITEMS AVAILABLE."
+	.byte 0
+
 // Per-choice effect tables (one table per numeric menu choice). Each table
 // contains one byte per NPC (indexed by npc index). Effect types:
 // 0=none,1=startQuest,2=completeQuest,3=giveItem,4=takeItem,5=addScore,6=setNpcStage
@@ -10300,19 +11441,18 @@ classHpPerLevel:
 
 // NPC static attributes per NPC index
 npcClassIdx:
-	.byte 0,1,2,3,4,2,4,6,6,4,3,2,2,1,3,4,  
+	.byte 0,1,2,3,4,2,4,6,6,4,3,2,2,1,3,4
 	.byte 4,3,2,2,1,4,0,0,0,0,0,0,0,0,0,0
 npcLevel:
-	.byte 1,1,2,3,1,1,1,2,1,1,1,2,2,1,1,2, 
+	.byte 1,1,2,3,1,1,1,2,1,1,1,2,2,1,1,2
 	.byte 3,2,4,3,2,4,1,1,1,1,1,1,1,1,1,1
 npcScoreLo:
 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 npcScoreHi:
 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-// NPC current HP (persisted across saves)
 // NPC current HP (persisted across saves) - initialized to max per-class/level guesses
 npcCurHp:
-	.byte 25,19,36,24,12,30,12,28,23,12,16,36,36,19,16,14, 
+	.byte 25,19,36,24,12,30,12,28,23,12,16,36,36,19,16,14
 	.byte 16,20,48,42,22,18,10,10,10,10,10,10,10,10,10,10
 
 // Playable classes (for player)
@@ -10364,6 +11504,323 @@ computePlayerMaxHp:
 	sta tmpHp
 	rts
 
+// parseNumber: parses inputBuf as decimal number, returns in A, 0 if invalid
+parseNumber:
+	lda #0
+	sta tmpNumber
+	ldx #0
+@parse_loop:
+	lda inputBuf,x
+	beq @parse_done
+	cmp #'0'
+	bcc @parse_invalid
+	cmp #'9'+1
+	bcs @parse_invalid
+	sec
+	sbc #'0'
+	pha
+	lda tmpNumber
+	asl
+	asl
+	adc tmpNumber
+	asl  // *10
+	sta tmpNumber
+	pla
+	clc
+	adc tmpNumber
+	sta tmpNumber
+	inx
+	cpx #4  // max 3 digits
+	bcc @parse_loop
+@parse_invalid:
+	lda #0
+	sta tmpNumber
+@parse_done:
+	lda tmpNumber
+	rts
+
+// printDecimal: prints A as decimal (0-255)
+printDecimal:
+	sta tmpNumber
+	lda #0
+	sta tmpDigit
+	// Hundreds
+@pd_hundreds:
+	lda tmpDigit
+	cmp #2
+	bcs @pd_tens
+	lda tmpNumber
+	cmp #100
+	bcc @pd_hundreds_done
+	sec
+	sbc #100
+	sta tmpNumber
+	inc tmpDigit
+	jmp @pd_hundreds
+@pd_hundreds_done:
+	lda tmpDigit
+	beq @pd_tens  // skip leading zero
+	clc
+	adc #'0'
+	jsr printChar
+@pd_tens:
+	lda #0
+	sta tmpDigit
+@pd_tens_loop:
+	lda tmpNumber
+	cmp #10
+	bcc @pd_tens_done
+	sec
+	sbc #10
+	sta tmpNumber
+	inc tmpDigit
+	jmp @pd_tens_loop
+@pd_tens_done:
+	lda tmpDigit
+	clc
+	adc #'0'
+	jsr printChar
+@pd_ones:
+	lda tmpNumber
+	clc
+	adc #'0'
+	jsr printChar
+	rts
+
+// assignRandomTrinkets: assigns 5 random trinkets to player
+assignRandomTrinkets:
+	ldx #0
+@assign_loop:
+	jsr randomByte
+	and #31
+	sta playerTrinkets,x
+	inx
+	cpx #5
+	bne @assign_loop
+	rts
+
+// randomByte: simple LFSR random number generator
+randomByte:
+	lda randomSeed
+	asl
+	eor randomSeed
+	adc #$47
+	sta randomSeed
+	rts
+
+randomSeed: .byte 123
+
+// assignNpcTrinkets: assigns random trinkets to NPC if not already. X = npc index
+assignNpcTrinkets:
+	lda npcTrinketsAssigned,x
+	bne @already_assigned
+	// assign 0-3 trinkets
+	jsr randomByte
+	and #3
+	sta tmpNumber
+	beq @no_trinkets
+	// offset = x * 3
+	txa
+	sta tmpCnt
+	asl
+	adc tmpCnt
+	tay
+	lda tmpNumber
+	sta tmpCnt2
+@npc_trinket_loop:
+	jsr randomByte
+	and #31
+	sta npcTrinkets,y
+	iny
+	dec tmpCnt2
+	bne @npc_trinket_loop
+@no_trinkets:
+	lda #1
+	sta npcTrinketsAssigned,x
+@already_assigned:
+	rts
+
+npcTrinketsAssigned: .fill 32, 0
+
+// tradeTrinkets: trade trinkets with NPC
+tradeTrinkets:
+	jsr clearScreen
+	ldx tmpNpcIdx
+	// Show player trinkets
+	lda #<msgYourTrinkets
+	sta ZP_PTR
+	lda #>msgYourTrinkets
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	ldx #0
+@show_player:
+	lda playerTrinkets,x
+	cmp #$FF
+	beq @player_next
+	txa
+	pha
+	lda tmpCnt
+	jsr printDecimal
+	lda #'.'
+	jsr printChar
+	lda #' '
+	jsr printChar
+	pla
+	tax
+	lda playerTrinkets,x
+	tay
+	lda trinketNamesLo,y
+	sta ZP_PTR
+	lda trinketNamesHi,y
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+@player_next:
+	inx
+	cpx #5
+	bne @show_player
+	// Show NPC trinkets
+	lda #<msgNpcTrinkets
+	sta ZP_PTR
+	lda #>msgNpcTrinkets
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	ldx tmpNpcIdx
+	txa
+	sta tmpCnt
+	asl
+	adc tmpCnt
+	tay
+	ldx #0
+@show_npc:
+	lda npcTrinkets,y
+	cmp #$FF
+	beq @npc_next
+	txa
+	pha
+	lda tmpCnt2
+	jsr printDecimal
+	lda #'.'
+	jsr printChar
+	lda #' '
+	jsr printChar
+	pla
+	tax
+	lda npcTrinkets,y
+	tay
+	lda trinketNamesLo,y
+	sta ZP_PTR
+	lda trinketNamesHi,y
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+@npc_next:
+	iny
+	inx
+	cpx #3
+	bne @show_npc
+	// Ask for player trinket
+	lda #<msgSelectYour
+	sta ZP_PTR
+	lda #>msgSelectYour
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	cmp #5
+	bcs @trade_invalid
+	ldx tmpNumber
+	lda playerTrinkets,x
+	cmp #$FF
+	beq @trade_invalid
+	sta tmpTrinketPlayer
+	// Ask for NPC trinket
+	lda #<msgSelectNpc
+	sta ZP_PTR
+	lda #>msgSelectNpc
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jsr parseNumber
+	cmp #3
+	bcs @trade_invalid
+	ldy tmpNumber
+	ldx tmpNpcIdx
+	txa
+	sta tmpCnt
+	asl
+	adc tmpCnt
+	sty tmpCnt2
+	adc tmpCnt2
+	tay
+	lda npcTrinkets,y
+	cmp #$FF
+	beq @trade_invalid
+	sta tmpTrinketNpc
+	// Swap
+	ldx tmpNumber  // player slot
+	lda tmpTrinketNpc
+	sta playerTrinkets,x
+	ldx tmpNpcIdx
+	txa
+	sta tmpCnt
+	asl
+	adc tmpCnt
+	adc tmpCnt2
+	tay
+	lda tmpTrinketPlayer
+	sta npcTrinkets,y
+	jsr saveGame
+	lda #<msgTradeSuccess
+	sta lastMsgLo
+	lda #>msgTradeSuccess
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	rts
+@trade_invalid:
+	lda #<msgInvalidAmount
+	sta lastMsgLo
+	lda #>msgInvalidAmount
+	sta lastMsgHi
+	jsr render
+	jsr setCursorPrompt
+	jsr readLine
+	rts
+
+tmpTrinketPlayer: .byte 0
+tmpTrinketNpc: .byte 0
+
+// updateExchangeRates: adjusts rates based on bank supply
+updateExchangeRates:
+	lda bankCopper
+	cmp #50
+	bcc @copper_normal
+	lda #11
+	sta exchangeCopperToSilver
+	jmp @silver_check
+@copper_normal:
+	lda #10
+	sta exchangeCopperToSilver
+@silver_check:
+	lda bankSilver
+	cmp #20
+	bcc @silver_normal
+	lda #11
+	sta exchangeSilverToGold
+	rts
+@silver_normal:
+	lda #10
+	sta exchangeSilverToGold
+	rts
+
 // computeNpcMaxHp: expects X = npc index; returns max HP in tmpHp
 computeNpcMaxHp:
 	// load npc's class index
@@ -10376,17 +11833,17 @@ computeNpcMaxHp:
 	// load npc's level
 	lda npcLevel,x
 	sta tmpCnt
-@npc_hp_loop:
-	lda tmpCnt
-	beq @npc_hp_done
-	lda tmpHp
-	clc
-	adc tmpPer
-	sta tmpHp
-	dec tmpCnt
-	jmp @npc_hp_loop
-@npc_hp_done:
-	rts
+@npc_max_hp_loop:
+    lda tmpCnt
+    beq @npc_max_hp_done
+    lda tmpHp
+    clc
+    adc tmpPer
+    sta tmpHp
+    dec tmpCnt
+    jmp @npc_max_hp_loop
+@npc_max_hp_done:
+    rts
 
 // --- Data: Objects ---
 objName0: .text "LANTERN"
@@ -10416,6 +11873,78 @@ objNameLo:
 	.byte <objName0,<objName1,<objName2,<objName3,<objName4,<objName5,<objName6,<objName7,<objName8,<objName9,<objName10
 objNameHi:
 	.byte >objName0,>objName1,>objName2,>objName3,>objName4,>objName5,>objName6,>objName7,>objName8,>objName9,>objName10
+
+trinketNamesLo:
+	.byte <trinket0,<trinket1,<trinket2,<trinket3,<trinket4,<trinket5,<trinket6,<trinket7,<trinket8,<trinket9,<trinket10,<trinket11,<trinket12,<trinket13,<trinket14,<trinket15
+	.byte <trinket16,<trinket17,<trinket18,<trinket19,<trinket20,<trinket21,<trinket22,<trinket23,<trinket24,<trinket25,<trinket26,<trinket27,<trinket28,<trinket29,<trinket30,<trinket31
+trinketNamesHi:
+	.byte >trinket0,>trinket1,>trinket2,>trinket3,>trinket4,>trinket5,>trinket6,>trinket7,>trinket8,>trinket9,>trinket10,>trinket11,>trinket12,>trinket13,>trinket14,>trinket15
+	.byte >trinket16,>trinket17,>trinket18,>trinket19,>trinket20,>trinket21,>trinket22,>trinket23,>trinket24,>trinket25,>trinket26,>trinket27,>trinket28,>trinket29,>trinket30,>trinket31
+
+trinket0: .text "LUCKY RABBIT FOOT"
+	.byte 0
+trinket1: .text "SILVER LOCKET"
+	.byte 0
+trinket2: .text "CRYSTAL PENDANT"
+	.byte 0
+trinket3: .text "IRON KEYCHAIN"
+	.byte 0
+trinket4: .text "WOODEN TALISMAN"
+	.byte 0
+trinket5: .text "GOLDEN RING"
+	.byte 0
+trinket6: .text "FEATHER QUILL"
+	.byte 0
+trinket7: .text "STONE AMULET"
+	.byte 0
+trinket8: .text "BRASS COMPASS"
+	.byte 0
+trinket9: .text "VELVET RIBBON"
+	.byte 0
+trinket10: .text "COPPER COIN"
+	.byte 0
+trinket11: .text "GLASS MARBLE"
+	.byte 0
+trinket12: .text "LEATHER BRACELET"
+	.byte 0
+trinket13: .text "BONE WHISTLE"
+	.byte 0
+trinket14: .text "SILK HANDKERCHIEF"
+	.byte 0
+trinket15: .text "PEARL EARRING"
+	.byte 0
+trinket16: .text "TIN BADGE"
+	.byte 0
+trinket17: .text "WAX SEAL"
+	.byte 0
+trinket18: .text "CLOTH PATCH"
+	.byte 0
+trinket19: .text "METAL BUTTON"
+	.byte 0
+trinket20: .text "SHELL NECKLACE"
+	.byte 0
+trinket21: .text "FEATHER CAP"
+	.byte 0
+trinket22: .text "WOODEN PIPE"
+	.byte 0
+trinket23: .text "GLASS VIAL"
+	.byte 0
+trinket24: .text "LEATHER GLOVE"
+	.byte 0
+trinket25: .text "BONE DICE"
+	.byte 0
+trinket26: .text "SILK SCARF"
+	.byte 0
+trinket27: .text "PEARL BROOCH"
+	.byte 0
+trinket28: .text "TIN WHISTLE"
+	.byte 0
+trinket29: .text "WAX CANDLE"
+	.byte 0
+trinket30: .text "CLOTH SASH"
+	.byte 0
+trinket31: .text "METAL NAIL"
+	.byte 0
 
 objInspect0: .text "A BRASS LANTERN. IT COULD LIGHT DARK PATHS."
 	.byte 0
@@ -10628,6 +12157,13 @@ strHP:   .text "HP: "
 strCharacters: .text "CHARACTERS: "
 	.byte 0
 strInventory:  .text "INVENTORY: "
+strTrinkets:   .text "TRINKETS: "
+	.byte 0
+strGold:       .text "GOLD: "
+	.byte 0
+strSilver:     .text "SILVER: "
+	.byte 0
+strCopper:     .text "COPPER: "
 	.byte 0
 strNone:       .text "(NONE)"
 	.byte 0
@@ -10680,7 +12216,7 @@ npcName8: .text "WARLOCK"
 	.byte 0
 npcName9: .text "UNSEELY FAE"
 	.byte 0
-npcName10: .text "STATUE OF SAINT APOLLONIA"
+npcName10: .text "SAINT APOLLONIA"
 	.byte 0
 npcName11: .text "DRAGON TRAINER ALYSTER"
 	.byte 0
@@ -10694,7 +12230,7 @@ npcName15: .text "MERMAID"
 	.byte 0
 npcName16: .text "CANDY WITCH"
 	.byte 0
-npcName17: .text "KORA"
+npcName17: .text "KNIGHT KORA"
 	.byte 0
 npcName18: .text "ALPHA WOLFRIC"
 	.byte 0
@@ -10703,6 +12239,8 @@ npcName19: .text "DRAGON TRAINER VASHTEE"
 npcName20: .text "TRADING COMPANY OWNER"
 	.byte 0
 npcName21: .text "FROST WEAVERS QUEEN"
+	.byte 0
+npcName22: .text "BANKER"
 	.byte 0
 npcNameUnknown: .text "(UNKNOWN)"
 	.byte 0
@@ -10740,22 +12278,27 @@ msgAskNpcName: .text "ENTER A GIVEN NAME FOR:"
 
 // Runtime buffer: flat block of NPC_COUNT * NPC_GIVEN_NAME_LEN bytes
 npcGivenNames:
-	// NPC 0 (CONDUCTOR)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 1 (BARTENDER)
-	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 0 (CONDUCTOR) - given name set to "bob"
+	.text "bob"
+	.fill (NPC_GIVEN_NAME_LEN - 3), 0
+	// NPC 1 (BARTENDER) - given name set to "Sirus"
+	.text "Sirus"
+	.fill (NPC_GIVEN_NAME_LEN - 5), 0
 	// NPC 2 (KNIGHT) - given name set to "Damian"
 	.text "Damian"
 	.fill (NPC_GIVEN_NAME_LEN - 6), 0
 	// NPC 3 (MYSTIC) - given name set to "mela"
 	.text "mela"
 	.fill (NPC_GIVEN_NAME_LEN - 4), 0
-	// NPC 4 (FAIRY)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 5 (KENDRICK)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 6 (SPIDER_PRINCESS)
-	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 4 (FAIRY) - given name set to "Lezule"
+	.text "Lezule"
+	.fill (NPC_GIVEN_NAME_LEN - 6), 0
+	// NPC 5 (KENDRICK) - given name set to "kendrick"
+	.text "kendrick"
+	.fill (NPC_GIVEN_NAME_LEN - 8), 0
+	// NPC 6 (SPIDER_PRINCESS) - given name set to "unknown"
+	.text "unknown"
+	.fill (NPC_GIVEN_NAME_LEN - 7), 0
 	// NPC 7 (PIRATE_CAPTAIN) - given name set to "Bonnie Red Boots"
 	.text "Bonnie Red Boots"
 	// NPC 8 (WARLOCK) - given name set to "Dorian"
@@ -10764,23 +12307,30 @@ npcGivenNames:
 	// NPC 9 (UNSEELY_FAE) - given name set to "Tamara"
 	.text "Tamara"
 	.fill (NPC_GIVEN_NAME_LEN - 6), 0
-	// NPC 10 (APOLLONIA)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 11 (ALYSTER)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 12 (TROLL)
-	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 10 (APOLLONIA) - given name set to "apolonia"
+	.text "apolonia"
+	.fill (NPC_GIVEN_NAME_LEN - 8), 0
+	// NPC 11 (ALYSTER) - given name set to "alyster"
+	.text "alyster"
+	.fill (NPC_GIVEN_NAME_LEN - 7), 0
+	// NPC 12 (TROLL) - given name set to "bridge"
+	.text "bridge"
+	.fill (NPC_GIVEN_NAME_LEN - 6), 0
 	// NPC 13 (TOSH) - given name set to "tosh"
 	.text "tosh"
 	.fill (NPC_GIVEN_NAME_LEN - 4), 0
-	// NPC 14 (LOUDEN)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 15 (MERMAID)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 16 (CANDY_WITCH)
-	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 17 (KORA)
-	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 14 (LOUDEN) - given name set to "louden"
+	.text "louden"
+	.fill (NPC_GIVEN_NAME_LEN - 6), 0
+	// NPC 15 (MERMAID) - given name set to "talayla"
+	.text "talayla"
+	.fill (NPC_GIVEN_NAME_LEN - 7), 0
+	// NPC 16 (CANDY_WITCH) - given name set to "Wen Weaver"
+	.text "Wen Weaver"
+	.fill (NPC_GIVEN_NAME_LEN - 10), 0
+	// NPC 17 (KORA) - given name set to "kora"
+	.text "kora"
+	.fill (NPC_GIVEN_NAME_LEN - 4), 0
 	// NPC 18 (ALPHA WOLFRIC) - given name set to "vassa"
 	.text "vassa"
 	.fill (NPC_GIVEN_NAME_LEN - 5), 0
@@ -10794,8 +12344,9 @@ npcGivenNames:
 	.fill NPC_GIVEN_NAME_LEN, 0
 	// NPC 21
 	.fill NPC_GIVEN_NAME_LEN, 0
-	// NPC 22
-	.fill NPC_GIVEN_NAME_LEN, 0
+	// NPC 22 (BANKER) - given name set to "bert"
+	.text "bert"
+	.fill (NPC_GIVEN_NAME_LEN - 4), 0
 	// NPC 23
 	.fill NPC_GIVEN_NAME_LEN, 0
 	// NPC 24
@@ -10827,6 +12378,11 @@ npcGivenNamePtrHi:
 loadedGivenNames:
 	.fill NPC_COUNT * NPC_GIVEN_NAME_LEN, 0
 
+// NPC coin balances (reset on game start)
+npcGold: .fill NPC_COUNT, 0
+npcSilver: .fill NPC_COUNT, 0
+npcCopper: .fill NPC_COUNT, 0
+
 // Temp linear index used during interactive setup
 givenNameLoopIndex: .byte 0
 msgNoWay:      .text "YOU CAN'T GO THAT WAY."
@@ -10842,6 +12398,18 @@ msgDropWhat:   .text "DROP WHAT?"
 msgGiveWhat:   .text "GIVE WHAT?"
 	.byte 0
 msgDontKnow:   .text "I DON'T RECOGNIZE THAT."
+	.byte 0
+msgTradeTrinkets: .text "TRADE TRINKETS"
+	.byte 0
+msgYourTrinkets: .text "YOUR TRINKETS:"
+	.byte 0
+msgNpcTrinkets: .text "NPC TRINKETS:"
+	.byte 0
+msgSelectYour: .text "SELECT YOUR TRINKET (0-4):"
+	.byte 0
+msgSelectNpc: .text "SELECT NPC TRINKET (0-2):"
+	.byte 0
+msgTradeSuccess: .text "TRADE COMPLETED."
 	.byte 0
 msgNotHere:    .text "YOU DON'T SEE THAT HERE."
 	.byte 0
