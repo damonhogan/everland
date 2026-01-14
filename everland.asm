@@ -276,9 +276,9 @@ saveNameBuf:
 	.fill 24, 0
 // --- Dev-mode auto login defaults ---
 autoMarkerName: .byte 'E','V','A','U','T','O'
-autoUserZ:  .text "AUTOTEST"; .byte 0
-autoDispZ:  .text "AUTO"; .byte 0
-autoClassZ: .text "KNIGHT"; .byte 0
+autoUserZ:  .text "autotest"; .byte 0
+autoDispZ:  .text "auto"; .byte 0
+autoClassZ: .text "knight"; .byte 0
 
 
 // Music state (runs in IRQ)
@@ -304,7 +304,7 @@ musicInstalled: .byte 0
 // Dynamic message buffer (used for characters/inventory listings)
 msgBufLen: .byte 0
 msgBuf:
-	.fill 96, 0
+	.fill 256, 0
 
 // Temporary selection state for menus
 selCount: .byte 0
@@ -337,6 +337,8 @@ objLoc:
 
 // --- Program entry ---
 start:
+	lda #$0e
+	jsr CHROUT
 	jsr init
 mainLoop:
 	jsr applyRegenIfDue
@@ -369,18 +371,28 @@ loginOrCreate:
 	jmp @loaded
 
 @loc_create:
-	jsr printNpcEntry
-	jmp @cc_npc_next
-	beq @lc_skip_init
-	lda playerCurHp
-	beq @lc_set_hp
-	jmp @lc_skip_init
+  	// Prompt DISPLAY NAME
+	lda #<msgAskDisplay
+	sta lastMsgLo
+	lda #>msgAskDisplay
+	sta lastMsgHi
+	jsr render
+	jsr readLine
+	jsr copyInputToDisplay
 
-@lc_set_hp:
+	// Prompt CLASS
+	lda #<msgAskClass
+	sta lastMsgLo
+	lda #>msgAskClass
+	sta lastMsgHi
+	jsr render
+	jsr readLine
+	jsr copyInputToClass
+	jsr mapPlayerClass
+	// Initialize HP based on chosen class/level
+	jsr computePlayerMaxHp
 	lda tmpHp
 	sta playerCurHp
-
-@lc_skip_init:
 
 	// Prompt RACE
 	lda #<msgAskRace
@@ -1243,6 +1255,9 @@ tryLoadGame:
 	rts
 
 saveGame:
+	// Ensure uppercase charset so any CHROUT during file write is readable
+	lda #$15
+	sta $d018
 	lda #'W'
 	jsr buildSaveNameWithMode
 	lda saveNameLen
@@ -2519,6 +2534,9 @@ themeV2SR: .byte $C8,$C8,$C8,$C8,$46,$C8,$C8,$C8,$98,$C8
 themeV3SR: .byte $88,$98,$98,$98,$28,$98,$88,$88,$98,$88
 
 init:
+	// Switch to lowercase/uppercase character set so text displays as uppercase letters.
+	lda #$0e
+	jsr CHROUT
 	// Start music early so the login screen has its own theme.
 	lda #1
 	sta musicEnabled
@@ -2552,6 +2570,9 @@ musicStartLoginTheme:
 // --- Rendering ---
 render:
 	jsr clearScreen
+	// Ensure uppercase/graphics character set for auth and UI
+	lda #$15
+	sta $d018
 	// During login/account creation, keep the screen minimal.
 	lda uiHideExits
 	beq render_game
@@ -2918,6 +2939,8 @@ printNpcEntry:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
+	lda #$0e
+	jsr CHROUT
 	jsr printZ
 	jsr newline
 	inc selCount
@@ -2943,6 +2966,8 @@ printNpcEntry:
 	lda #'.'
 	jsr CHROUT
 	lda #' '
+	jsr CHROUT
+	lda #$0e
 	jsr CHROUT
 	jsr printZ
 	// After printing name/title, append level and HP info
@@ -3497,6 +3522,15 @@ executeCommand:
 	beq @ec_trySE
 	cmp #'W'
 	beq @ec_trySW
+	lda inputBuf,y
+	cmp #' '
+	bne @check_zero
+	jmp @do_cmdSouth
+@check_zero:
+	cmp #0
+	bne @after
+	jmp @do_cmdSouth
+@after:
 	jmp @ec_afterDiag
 @ec_trySE:
 	ldy #2
@@ -3522,6 +3556,16 @@ executeCommand:
 @ec_afterDiag:
 	// treat single-letter directional commands only when the input is a single-letter
 	cmp #'N'
+	bne @ec_chk_n
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdNorth
+	cmp #0
+	beq @do_cmdNorth
+	jmp @ec_chkS
+@ec_chk_n:
+	cmp #'n'
 	bne @ec_chkS
 	ldy #1
 	lda inputBuf,y
@@ -3534,6 +3578,16 @@ executeCommand:
 	jmp cmdNorth
 @ec_chkS:
 	cmp #'S'
+	bne @ec_chk_s
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdSouth
+	cmp #0
+	beq @do_cmdSouth
+	jmp @ec_chkE
+@ec_chk_s:
+	cmp #'s'
 	bne @ec_chkE
 	ldy #1
 	lda inputBuf,y
@@ -3546,6 +3600,16 @@ executeCommand:
 	jmp cmdSouth
 @ec_chkE:
 	cmp #'E'
+	bne @ec_chk_e
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdEast
+	cmp #0
+	beq @do_cmdEast
+	jmp @ec_chkW
+@ec_chk_e:
+	cmp #'e'
 	bne @ec_chkW
 	ldy #1
 	lda inputBuf,y
@@ -3558,6 +3622,16 @@ executeCommand:
 	jmp cmdEast
 @ec_chkW:
 	cmp #'W'
+	bne @ec_chk_w
+	ldy #1
+	lda inputBuf,y
+	cmp #' '
+	beq @do_cmdWest
+	cmp #0
+	beq @do_cmdWest
+	jmp @ec_chkC
+@ec_chk_w:
+	cmp #'w'
 	bne @ec_chkC
 	ldy #1
 	lda inputBuf,y
@@ -4961,6 +5035,8 @@ doMove:
 
 cmdCharactersMenu:
 	jsr clearScreen
+	lda #$0e
+	jsr CHROUT
 	// Title
 	lda #<strCharacters
 	sta ZP_PTR
@@ -5022,7 +5098,18 @@ cmdCharactersMenu:
 	ldy #0
 	lda (ZP_PTR),y
 	beq @cc_use_title_low
-	// given name present — print it
+	// given name present — print numbered entry
+	inc selCount
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #$0e
+	jsr CHROUT
 	jsr printZ
 	jsr newline
 	jmp @cc_npc_next
@@ -5034,10 +5121,17 @@ cmdCharactersMenu:
 	// skip unknown entries
 	lda ZP_PTR
 	cmp #<npcNameUnknown
-	bne @cc_print_low
+	beq @cc_check_low_eq
+	jmp @cc_print_low
+
+@cc_check_low_eq:
 	lda ZP_PTR+1
 	cmp #>npcNameUnknown
-	beq @cc_npc_next
+	beq @cc_npc_next_tramp
+	jmp @cc_print_low
+
+@cc_npc_next_tramp:
+	jmp @cc_npc_next
 @cc_print_low:
 	// increment display count and print entry
 	inc selCount
@@ -5048,6 +5142,8 @@ cmdCharactersMenu:
 	lda #'.'
 	jsr CHROUT
 	lda #' '
+	jsr CHROUT
+	lda #$0e
 	jsr CHROUT
 	jsr printZ
 	jsr newline
@@ -5062,7 +5158,18 @@ cmdCharactersMenu:
 	ldy #0
 	lda (ZP_PTR),y
 	beq @cc_use_title_hi
-	// given name present — print it
+	// given name present — print numbered entry
+	inc selCount
+	lda selCount
+	clc
+	adc #'0'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #$0e
+	jsr CHROUT
 	jsr printZ
 	jsr newline
 	jmp @cc_npc_next
@@ -5177,7 +5284,7 @@ cmdCharactersMenu:
 
 @cc_selected:
 	// if NPC present, open conversation menu
-	jsr conversationMenu
+	jsr showNpcSheet
 	rts
 
 @cc_done:
@@ -5483,6 +5590,8 @@ cmdSheet:
 cmdTalk:
 	// Nested talk menu: list NPCs and pick one to talk to
 	jsr clearScreen
+	lda #$0e
+	jsr CHROUT
 	lda #<strCharacters
 	sta ZP_PTR
 	lda #>strCharacters
@@ -5725,6 +5834,8 @@ conversationMenu:
 	stx tmpNpcIdx
 	jsr assignNpcTrinkets
 	jsr clearScreen
+	lda #$0e
+	jsr CHROUT
 	// Print NPC name as header
 	lda npcNameLo,x
 	sta ZP_PTR
@@ -10102,6 +10213,28 @@ cmdInventory:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// Force uppercase charset for inventory UI/diagnostics
+	lda #$15
+	sta $d018
+
+	// Assign trinkets if not done (do this before printing diagnostics)
+	lda playerTrinketsAssigned
+	bne @trinkets_assigned
+	jsr assignRandomTrinkets
+	lda #1
+	sta playerTrinketsAssigned
+
+
+	// Diagnostic output: show trinket assignment flag and contents
+	// Diagnostic: indicate whether trinkets were assigned
+	lda #<msgDbgTrinketsAssigned
+	sta ZP_PTR
+	lda #>msgDbgTrinketsAssigned
+	sta ZP_PTR+1
+	jsr printZ
+	lda playerTrinketsAssigned
+	jsr printDecimal
+	jsr newline
 
 	// Assign trinkets if not done
 	lda playerTrinketsAssigned
@@ -10110,6 +10243,23 @@ cmdInventory:
 	lda #1
 	sta playerTrinketsAssigned
 @trinkets_assigned:
+
+	// Debug object locations
+	lda #<msgDbgObjLoc
+	sta ZP_PTR
+	lda #>msgDbgObjLoc
+	sta ZP_PTR+1
+	jsr printZ
+	ldx #0
+@dbg_objloc_loop:
+	lda objLoc,x
+	jsr printDecimal
+	lda #' '
+	jsr printChar
+	inx
+	cpx #OBJ_COUNT
+	bne @dbg_objloc_loop
+	jsr newline
 
 	// Build and print inventory full-screen
 	jsr buildInventoryMessage
@@ -10120,7 +10270,66 @@ cmdInventory:
 	jsr printZ
 	jsr newline
 
+	// Additional direct diagnostics: print each trinket name (if present)
+	lda #<msgDbgTrinkets
+	sta ZP_PTR
+	lda #>msgDbgTrinkets
+	sta ZP_PTR+1
+	jsr printZ
+	ldx #0
+@dbg_trink_name_loop:
+	lda playerTrinkets,x
+	cmp #$FF
+	beq @dbg_trink_name_dash
+	tay
+	lda trinketNamesLo,y
+	sta ZP_PTR
+	lda trinketNamesHi,y
+	sta ZP_PTR+1
+	jsr printZ
+	jmp @dbg_trink_name_after
+@dbg_trink_name_dash:
+	lda #'-'
+	jsr printChar
+@dbg_trink_name_after:
+	lda #' '
+	jsr printChar
+	inx
+	cpx #5
+	bne @dbg_trink_name_loop
+	jsr newline
+
+	// Direct coin & obj diagnostics
+	lda #<msgDbgObjLoc
+	sta ZP_PTR
+	lda #>msgDbgObjLoc
+	sta ZP_PTR+1
+	jsr printZ
+	lda playerGold
+	jsr printDecimal
+	lda #'<'
+	jsr printChar
+	lda playerSilver
+	jsr printDecimal
+	lda #'<'
+	jsr printChar
+	lda playerCopper
+	jsr printDecimal
+	jsr newline
+
+	// Print objLoc entry for OBJ_COIN explicitly
+	lda objLoc+OBJ_COIN
+	jsr printDecimal
+	jsr newline
+
 	// Wait for any key (press Enter) to continue
+	// Show explicit press-enter prompt so player can exit inventory
+	lda #<msgPressEnter
+	sta ZP_PTR
+	lda #>msgPressEnter
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 	jsr setCursorPrompt
 	jsr readLine
 	rts
@@ -10140,7 +10349,7 @@ appendToMsgBuf:
 @atm_loop:
 	lda (ZP_PTR),y
 	beq @atm_done
-	cpx #95
+	cpx #255
 	bcs @atm_done
 	sta msgBuf,x
 	inx
@@ -10149,7 +10358,7 @@ appendToMsgBuf:
 
 @atm_done:
 	stx msgBufLen
-	lda #0
+	cpx #255
 	sta msgBuf,x
 	rts
 
@@ -10254,6 +10463,50 @@ buildCharactersMessage:
 @give_need:
 buildInventoryMessage:
 	jsr clearMsgBuf
+
+	// Diagnostic: include trinket & objLoc debug in msgBuf for visibility
+	lda #<msgDbgTrinketsAssigned
+	sta ZP_PTR
+	lda #>msgDbgTrinketsAssigned
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	lda playerTrinketsAssigned
+	jsr appendByteAsDec
+	lda #13
+	jsr appendCharA
+
+	lda #<msgDbgTrinkets
+	sta ZP_PTR
+	lda #>msgDbgTrinkets
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	ldx #0
+@app_trink_loop:
+	lda playerTrinkets,x
+	cmp #$FF
+	beq @app_trink_dash
+	jsr appendByteAsDec
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+	jmp @app_trink_after
+@app_trink_dash:
+	lda #'-'
+	jsr appendCharA
+	lda #<strSpace
+	sta ZP_PTR
+	lda #>strSpace
+	sta ZP_PTR+1
+	jsr appendToMsgBuf
+@app_trink_after:
+	inx
+	cpx #5
+	bne @app_trink_loop
+	lda #13
+	jsr appendCharA
+
 	lda #<strInventory
 	sta ZP_PTR
 	lda #>strInventory
@@ -10262,9 +10515,7 @@ buildInventoryMessage:
 @give_notHave:
 	jsr appendToMsgBuf
 
-	// Add coin balances
-	lda playerGold
-	beq @no_gold
+	// Always show coin balances (including zeros)
 	lda #<strGold
 	sta ZP_PTR
 	lda #>strGold
@@ -10277,9 +10528,7 @@ buildInventoryMessage:
 	lda #>strSpace
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
-@no_gold:
-	lda playerSilver
-	beq @no_silver
+
 	lda #<strSilver
 	sta ZP_PTR
 	lda #>strSilver
@@ -10292,9 +10541,7 @@ buildInventoryMessage:
 	lda #>strSpace
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
-@no_silver:
-	lda playerCopper
-	beq @no_copper
+
 	lda #<strCopper
 	sta ZP_PTR
 	lda #>strCopper
@@ -10307,7 +10554,6 @@ buildInventoryMessage:
 	lda #>strSpace
 	sta ZP_PTR+1
 	jsr appendToMsgBuf
-@no_copper:
 	// If any coins, add newline
 	lda playerGold
 	ora playerSilver
@@ -10597,23 +10843,23 @@ locMarkY:
 	.byte  1,  3,  5,  3,  5,  5,  7,  7,  9,  8,  4,  9,  4
 
 // --- Data: Locations ---
-locName0: .text "train station"
+locName0: .text "TRAIN STATION"
 	.byte 0
-locName1: .text "market green"
+locName1: .text "MARKET GREEN"
 	.byte 0
-locName2: .text "fractured portal"
+locName2: .text "FRACTURED PORTAL"
 	.byte 0
-locName3: .text "dragon haven"
+locName3: .text "DRAGON HAVEN"
 	.byte 0
-locName4: .text "central plaza"
+locName4: .text "CENTRAL PLAZA"
 	.byte 0
-locName5: .text "clockwork alley"
+locName5: .text "CLOCKWORK ALLEY"
 	.byte 0
-locName6: .text "mysticwood"
+locName6: .text "MYSTICWOOD"
 	.byte 0
-locName7: .text "fairy gardens"
+locName7: .text "FAIRY GARDENS"
 	.byte 0
-locName8: .text "tipsy maiden tavern"
+locName8: .text "TIPSY MAIDEN TAVERN"
 	.byte 0
 locName9: .text "DRAGON HAVEN"
 	.byte 0
@@ -11374,6 +11620,15 @@ msgRetrieveItem: .text "RETRIEVE WHICH ITEM?"
 msgVaultFull: .text "VAULT IS FULL."
 	.byte 0
 msgNoItems: .text "NO ITEMS AVAILABLE."
+	.byte 0
+
+msgPressEnter: .text "PRESS ENTER TO CONTINUE."
+	.byte 0
+msgDbgTrinketsAssigned: .text "DBG TRINKETS ASSIGNED: "
+	.byte 0
+msgDbgTrinkets: .text "DBG TRINKETS: "
+	.byte 0
+msgDbgObjLoc: .text "DBG OBJLOC: "
 	.byte 0
 
 // Per-choice effect tables (one table per numeric menu choice). Each table
@@ -12196,53 +12451,53 @@ npcBitB3:
 	.byte %00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000,%00000000
 	.byte %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000
 
-npcName0: .text "conductor"
+npcName0: .text "CONDUCTOR"
 	.byte 0
-npcName1: .text "bartender"
+npcName1: .text "BARTENDER"
 	.byte 0
-npcName2: .text "knight"
+npcName2: .text "KNIGHT"
 	.byte 0
-npcName3: .text "mystic"
+npcName3: .text "MYSTIC"
 	.byte 0
-npcName4: .text "fairy"
+npcName4: .text "FAIRY"
 	.byte 0
-npcName5: .text "knight kendrick"
+npcName5: .text "KNIGHT KENDRICK"
 	.byte 0
-npcName6: .text "spider princess"
+npcName6: .text "SPIDER PRINCESS"
 	.byte 0
-npcName7: .text "pirate captain"
+npcName7: .text "PIRATE CAPTAIN"
 	.byte 0
-npcName8: .text "warlock"
+npcName8: .text "WARLOCK"
 	.byte 0
-npcName9: .text "unseely fae"
+npcName9: .text "UNSEELY FAE"
 	.byte 0
-npcName10: .text "saint apollonia"
+npcName10: .text "SAINT APOLLONIA"
 	.byte 0
-npcName11: .text "dragon trainer alyster"
+npcName11: .text "DRAGON TRAINER ALYSTER"
 	.byte 0
-npcName12: .text "bridge the troll"
+npcName12: .text "BRIDGE THE TROLL"
 	.byte 0
-npcName13: .text "tosh the tosher"
+npcName13: .text "TOSH THE TOSHER"
 	.byte 0
-npcName14: .text "spirit of louden"
+npcName14: .text "SPIRIT OF LOUDEN"
 	.byte 0
-npcName15: .text "mermaid"
+npcName15: .text "MERMAID"
 	.byte 0
-npcName16: .text "candy witch"
+npcName16: .text "CANDY WITCH"
 	.byte 0
-npcName17: .text "knight kora"
+	npcName17: .text "KORA"
 	.byte 0
-npcName18: .text "alpha wolfric"
+npcName18: .text "DORIAN"
 	.byte 0
-npcName19: .text "dragon trainer vashtee"
+npcName19: .text "DRAGON TRAINER VASHTEE"
 	.byte 0
-npcName20: .text "trading company owner"
+npcName20: .text "TRADING COMPANY OWNER"
 	.byte 0
-npcName21: .text "frost weavers queen"
+npcName21: .text "FROST WEAVERS QUEEN"
 	.byte 0
-npcName22: .text "banker"
+npcName22: .text "BANKER"
 	.byte 0
-npcNameUnknown: .text "(unknown)"
+npcNameUnknown: .text "(UNKNOWN)"
 	.byte 0
 
 npcNameLo:
@@ -12267,7 +12522,7 @@ msgChartRange2: .text "RANGE $A0-$FF:"
 	.byte 0
 msgChart3: .text "PRESS ANY KEY TO RETURN"
 	.byte 0
-msgUnknown:    .text "i didn't understand. try: n e s w, inspect <obj>, take <obj>."
+msgUnknown:    .text "I DIDN'T UNDERSTAND. TRY: N E S W, INSPECT <OBJ>, TAKE <OBJ>."
 	.byte 0
 msgHelp:       .text "help: n/e/s/w move, t talk, i inv, look"
 	.byte 0
