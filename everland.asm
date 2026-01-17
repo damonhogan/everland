@@ -10214,33 +10214,130 @@ cmdHelp:
 
 cmdInventory:
 	jsr clearScreen
-	// Force uppercase charset for inventory UI/diagnostics
+	// Force uppercase charset for inventory UI
 	lda #$15
 	sta $d018
 
-	// Assign trinkets if not done
+	// Ensure player has starting trinkets
 	lda playerTrinketsAssigned
-	bne @trinkets_assigned
+	bne @inv_trinkets_assigned
 	jsr assignRandomTrinkets
 	lda #1
 	sta playerTrinketsAssigned
-@trinkets_assigned:
+@inv_trinkets_assigned:
 
-	// Build and print inventory full-screen
-	jsr buildInventoryMessage
-	lda #<msgBuf
+	// Title
+	lda #<strInventory
 	sta ZP_PTR
-	lda #>msgBuf
+	lda #>strInventory
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
-	jsr newline
-	jsr newline
+
+	// Coins line: GOLD / SILVER / COPPER
+	lda #<strGold
+	sta ZP_PTR
+	lda #>strGold
+	sta ZP_PTR+1
+	jsr printZ
+	lda playerGold
+	jsr printDecimal
+	lda #' '
+	jsr printChar
+
+	lda #<strSilver
+	sta ZP_PTR
+	lda #>strSilver
+	sta ZP_PTR+1
+	jsr printZ
+	lda playerSilver
+	jsr printDecimal
+	lda #' '
+	jsr printChar
+
+	lda #<strCopper
+	sta ZP_PTR
+	lda #>strCopper
+	sta ZP_PTR+1
+	jsr printZ
+	lda playerCopper
+	jsr printDecimal
 	jsr newline
 	jsr newline
 
-	// Wait for any key (press Enter) to continue
-	// Show explicit press-enter prompt so player can exit inventory
+	// Inventory items (objects carried)
+	lda #0
+	sta ZP_PTR2
+	ldx #0
+@inv_obj_loop:
+	lda objLoc,x
+	cmp #OBJ_INVENTORY
+	bne @inv_obj_next
+	lda #1
+	sta ZP_PTR2
+	lda objNameLo,x
+	sta ZP_PTR
+	lda objNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	lda #' '
+	jsr printChar
+@inv_obj_next:
+	inx
+	cpx #OBJ_COUNT
+	bne @inv_obj_loop
+	lda ZP_PTR2
+	bne @inv_items_done
+	lda #<strEmpty
+	sta ZP_PTR
+	lda #>strEmpty
+	sta ZP_PTR+1
+	jsr printZ
+@inv_items_done:
+	jsr newline
+	jsr newline
+
+	// Trinkets section
+	lda #<strTrinkets
+	sta ZP_PTR
+	lda #>strTrinkets
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #0
+	sta ZP_PTR2
+	ldx #0
+@inv_trinket_loop:
+	lda playerTrinkets,x
+	cmp #$FF
+	beq @inv_trinket_next
+	lda playerTrinkets,x
+	tay
+	lda trinketNamesLo,y
+	sta ZP_PTR
+	lda trinketNamesHi,y
+	sta ZP_PTR+1
+	jsr printZ
+	lda #' '
+	jsr printChar
+	lda #1
+	sta ZP_PTR2
+@inv_trinket_next:
+	inx
+	cpx #5
+	bne @inv_trinket_loop
+	lda ZP_PTR2
+	bne @inv_trinkets_done
+	lda #<strNone
+	sta ZP_PTR
+	lda #>strNone
+	sta ZP_PTR+1
+	jsr printZ
+@inv_trinkets_done:
+	jsr newline
+	jsr newline
+
+	// Wait for Enter to continue
 	lda #<msgPressEnter
 	sta ZP_PTR
 	lda #>msgPressEnter
@@ -10275,7 +10372,7 @@ appendToMsgBuf:
 
 @atm_done:
 	stx msgBufLen
-	cpx #255
+	lda #0
 	sta msgBuf,x
 	rts
 
