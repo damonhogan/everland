@@ -329,6 +329,7 @@ tmpCnt2: .byte 0
 prefetchedHas: .byte 0
 prefetchedKey: .byte 0
 inputLen: .byte 0
+lastKey: .byte 0
 inputBuf:
 	.fill 48, 0
 // Object locations (location id, $FE=inventory, $FF=nowhere)
@@ -443,6 +444,8 @@ loginOrCreate:
 	sta questStatus
 	lda #9
 	sta playerCopper
+	lda #1
+	sta playerSilver
 
 	// Reset objects to starting positions
 	lda #LOC_TRAIN
@@ -457,6 +460,9 @@ loginOrCreate:
 	sta objLoc+OBJ_SHELL
 
 	jsr setupNpcGivenNames
+	jsr assignRandomTrinkets
+	lda #1
+	sta playerTrinketsAssigned
 	jsr saveGame
 	lda #<msgCreated
 	sta lastMsgLo
@@ -1720,13 +1726,11 @@ appendByteAsDec:
 
 appendCharA:
 	ldx msgBufLen
-	cpx #95
+	cpx #255
 	bcs @d
 	sta msgBuf,x
 	inx
 	stx msgBufLen
-	lda #0
-	sta msgBuf,x
 @d:
 	rts
 
@@ -3173,6 +3177,7 @@ log_give_item:
 readLine:
 	lda #0
 	sta inputLen
+	sta lastKey
 	// no initial flush: avoid discarding the first Enter at prompts
 	// If a key was prefetched (typed immediately after prior Enter), seed the buffer
 	lda prefetchedHas
@@ -3186,6 +3191,7 @@ readLine:
 	// echo the prefetched character
 	lda inputBuf
 	jsr CHROUT
+	sta lastKey
 
 @poll:
 	jsr SCNKEY
@@ -3206,14 +3212,16 @@ readLine:
 	cpx #47
 	bcs @poll
 
-	// Store and echo; only debounce SPACE to avoid multi-space jumps
+	// Debounce to prevent key repeat
+	cmp lastKey
+	beq @poll
+	sta lastKey
+
+	// Store and echo
 	sta inputBuf,x
 	inx
 	stx inputLen
 	jsr CHROUT
-	cmp #$20
-	bne @poll
-	jsr flushKeys
 	jmp @poll
 
 // log_quest_complete: write a short record for quest completion to EVLOG
@@ -10206,35 +10214,9 @@ cmdHelp:
 
 cmdInventory:
 	jsr clearScreen
-	// Title
-	lda #<strInventory
-	sta ZP_PTR
-	lda #>strInventory
-	sta ZP_PTR+1
-	jsr printZ
-	jsr newline
 	// Force uppercase charset for inventory UI/diagnostics
 	lda #$15
 	sta $d018
-
-	// Assign trinkets if not done (do this before printing diagnostics)
-	lda playerTrinketsAssigned
-	bne @trinkets_assigned
-	jsr assignRandomTrinkets
-	lda #1
-	sta playerTrinketsAssigned
-
-
-	// Diagnostic output: show trinket assignment flag and contents
-	// Diagnostic: indicate whether trinkets were assigned
-	lda #<msgDbgTrinketsAssigned
-	sta ZP_PTR
-	lda #>msgDbgTrinketsAssigned
-	sta ZP_PTR+1
-	jsr printZ
-	lda playerTrinketsAssigned
-	jsr printDecimal
-	jsr newline
 
 	// Assign trinkets if not done
 	lda playerTrinketsAssigned
@@ -10244,23 +10226,6 @@ cmdInventory:
 	sta playerTrinketsAssigned
 @trinkets_assigned:
 
-	// Debug object locations
-	lda #<msgDbgObjLoc
-	sta ZP_PTR
-	lda #>msgDbgObjLoc
-	sta ZP_PTR+1
-	jsr printZ
-	ldx #0
-@dbg_objloc_loop:
-	lda objLoc,x
-	jsr printDecimal
-	lda #' '
-	jsr printChar
-	inx
-	cpx #OBJ_COUNT
-	bne @dbg_objloc_loop
-	jsr newline
-
 	// Build and print inventory full-screen
 	jsr buildInventoryMessage
 	lda #<msgBuf
@@ -10269,57 +10234,9 @@ cmdInventory:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
-
-	// Additional direct diagnostics: print each trinket name (if present)
-	lda #<msgDbgTrinkets
-	sta ZP_PTR
-	lda #>msgDbgTrinkets
-	sta ZP_PTR+1
-	jsr printZ
-	ldx #0
-@dbg_trink_name_loop:
-	lda playerTrinkets,x
-	cmp #$FF
-	beq @dbg_trink_name_dash
-	tay
-	lda trinketNamesLo,y
-	sta ZP_PTR
-	lda trinketNamesHi,y
-	sta ZP_PTR+1
-	jsr printZ
-	jmp @dbg_trink_name_after
-@dbg_trink_name_dash:
-	lda #'-'
-	jsr printChar
-@dbg_trink_name_after:
-	lda #' '
-	jsr printChar
-	inx
-	cpx #5
-	bne @dbg_trink_name_loop
 	jsr newline
-
-	// Direct coin & obj diagnostics
-	lda #<msgDbgObjLoc
-	sta ZP_PTR
-	lda #>msgDbgObjLoc
-	sta ZP_PTR+1
-	jsr printZ
-	lda playerGold
-	jsr printDecimal
-	lda #'<'
-	jsr printChar
-	lda playerSilver
-	jsr printDecimal
-	lda #'<'
-	jsr printChar
-	lda playerCopper
-	jsr printDecimal
 	jsr newline
-
-	// Print objLoc entry for OBJ_COIN explicitly
-	lda objLoc+OBJ_COIN
-	jsr printDecimal
+	jsr newline
 	jsr newline
 
 	// Wait for any key (press Enter) to continue
@@ -10465,47 +10382,7 @@ buildInventoryMessage:
 	jsr clearMsgBuf
 
 	// Diagnostic: include trinket & objLoc debug in msgBuf for visibility
-	lda #<msgDbgTrinketsAssigned
-	sta ZP_PTR
-	lda #>msgDbgTrinketsAssigned
-	sta ZP_PTR+1
-	jsr appendToMsgBuf
-	lda playerTrinketsAssigned
-	jsr appendByteAsDec
-	lda #13
-	jsr appendCharA
 
-	lda #<msgDbgTrinkets
-	sta ZP_PTR
-	lda #>msgDbgTrinkets
-	sta ZP_PTR+1
-	jsr appendToMsgBuf
-	ldx #0
-@app_trink_loop:
-	lda playerTrinkets,x
-	cmp #$FF
-	beq @app_trink_dash
-	jsr appendByteAsDec
-	lda #<strSpace
-	sta ZP_PTR
-	lda #>strSpace
-	sta ZP_PTR+1
-	jsr appendToMsgBuf
-	jmp @app_trink_after
-@app_trink_dash:
-	lda #'-'
-	jsr appendCharA
-	lda #<strSpace
-	sta ZP_PTR
-	lda #>strSpace
-	sta ZP_PTR+1
-	jsr appendToMsgBuf
-@app_trink_after:
-	inx
-	cpx #5
-	bne @app_trink_loop
-	lda #13
-	jsr appendCharA
 
 	lda #<strInventory
 	sta ZP_PTR
@@ -10628,6 +10505,9 @@ buildInventoryMessage:
 	inx
 	cpx #5
 	bne @trinket_loop
+	ldx msgBufLen
+	lda #0
+	sta msgBuf,x
 	rts
 
 // --- Exits printing ---

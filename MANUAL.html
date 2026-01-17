@@ -319,19 +319,23 @@ class/race indices, max HP (for reference), calendar, location, object
 locations, quest state, and coin balances (gold, silver, copper).
 Backward-compatible loader accepts EV1/EV2/EV3.</li>
 <li>Login/Profile: Username, display name, class, and race are selected
-at first login. New users start with 9 copper.</li>
+at first login. New users start with 1 silver and 9 copper and are
+assigned 5 random starting trinkets.</li>
 <li>Class &amp; Level System: Class base HP and HP-per-level; new
 profiles start at Level 1.</li>
 <li>HP System: Character sheet shows current and max HP; max HP is based
 on class, level, and session bonuses. Current HP is saved; max HP is
 recomputed and also persisted in EV3.</li>
 <li>Coin System: Inventory displays gold, silver, and copper balances.
-Quest rewards are 1 silver; new users get 9 copper to prevent completing
-quests without starting them. Balances saved in user record.</li>
+Many quest rewards pay out 1 silver; new users begin with 1 silver and 9
+copper to ensure they can participate in early quests. Balances are
+saved in the user record.</li>
 <li>Idle Regeneration: While idle at prompts (i.e., not in a fight), HP
 regenerates at 1 HP per real-time minute (uses KERNAL jiffy clock;
 handles midnight wrap).</li>
-<li>Inventory: Full-screen Inventory with <code>I</code>.</li>
+<li>Inventory: Full-screen Inventory with <code>I</code>; shows coin
+balances, carried items, and trinkets, and returns to the game when you
+press Enter.</li>
 <li>Characters &amp; Sheets: <code>C</code> opens character menu; view
 player or NPC sheets with stats and HP.</li>
 <li>Talk/NPC Selection: <code>T</code> opens talk screen; select any
@@ -474,46 +478,43 @@ score.</li>
 </ul>
 <h2 id="coin-bartender-quest-player-walkthrough">Coin / Bartender Quest
 (player walkthrough)</h2>
-<p>This release includes a small fetch quest where the Conductor asks
-you to bring silver to the Bartender.</p>
+<p>This release includes a small quest where the Conductor gives you a
+special coin and asks you to tip the Bartender.</p>
 <ol type="1">
 <li>Accept the quest from the Conductor
 <ul>
 <li><code>TALK CONDUCTOR</code> then select the “Any quests?” menu
 option (<code>3</code>) at the Train Station to accept
 <code>QUEST_COIN_BARTENDER</code>. When accepted, you will also receive
-1 silver and see “YOU RECEIVE 1 SILVER.”.</li>
+a coin (an inventory object) and see a confirmation message that you
+received it.</li>
 </ul></li>
-<li>Get silver
+<li>Check your starting money
 <ul>
-<li><p>New users start with 9 copper. To get silver, you can buy ale
-from the Bartender for 1 silver (see below), but since you need silver
-to complete the quest, use the copper to buy ale first to get change or
-find another way. Alternatively, complete other quests that reward
-silver.</p></li>
-<li><p>Verify with <code>I</code> (Inventory) that your coin balances
-are shown (e.g., “COPPER: 9”).</p></li>
+<li>New users now start with 1 silver and 9 copper in addition to the
+special quest coin from the Conductor. You can verify this with
+<code>I</code> (Inventory), which shows GOLD / SILVER / COPPER at the
+top of the screen.</li>
 </ul></li>
-<li>Give silver to the Bartender
+<li>Tip the Bartender with the quest coin
 <ul>
 <li>Go to the Tavern and either:
 <ul>
-<li><code>GIVE COIN TO BARTENDER</code> (but since coin is now silver
-balance, this will consume 1 silver), or</li>
-<li><code>TALK BARTENDER</code> and choose
-<code>BUY ALE (1 SILVER)</code> — this consumes 1 silver and gives you a
-mug.</li>
-<li><code>TALK BARTENDER</code> and choose <code>BUY ALE (1 COIN)</code>
-or <code>GIVE TIP</code> — both consume a coin.</li>
+<li>Use a direct command like <code>GIVE COIN TO BARTENDER</code>,
+or</li>
+<li><code>TALK BARTENDER</code> and choose the tip option when it is
+offered.</li>
 </ul></li>
-<li>If <code>QUEST_COIN_BARTENDER</code> is active, giving the coin to
-the Bartender triggers <code>questComplete</code> and marks the quest
-done.</li>
+<li>If you are carrying the quest coin, the Bartender will take the
+coin, add +1 silver to your balance, and, if
+<code>QUEST_COIN_BARTENDER</code> is active, mark the quest
+complete.</li>
 </ul></li>
 <li>Verify
 <ul>
-<li><code>I</code> should show silver decreased by 1, and you receive a
-mug. The last message will indicate quest completion.</li>
+<li><code>I</code> should show that your silver increased by 1, and the
+last messages will indicate that your tip was accepted and the quest is
+complete.</li>
 </ul></li>
 </ol>
 <p>Developer pointers (where to look in the source) - Coin system:
@@ -572,6 +573,22 @@ class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb3-
 <ul>
 <li>On first run you’ll be prompted for a username/display and to pick a
 player class. The chosen class affects HP and is saved.</li>
+<li>Input &amp; PIN limitation (important): the current input handler
+does <strong>not</strong> accept two identical characters in a row on
+any line. This affects usernames, display names, free-text prompts and
+PIN entry.
+<ul>
+<li>For PINs, choose a pattern that does not rely on repeated digits
+like <code>1111</code> or <code>2222</code> (for example, use
+<code>1212</code>, <code>1357</code>, etc.).</li>
+<li>For names and phrases, avoid double letters like <code>ANNA</code>
+or <code>AARON</code>; instead, choose variants without consecutive
+identical characters (e.g., <code>ANA</code>, <code>ARON</code>) or
+slightly rephrase.</li>
+<li>Spaces are treated as regular characters; you can still have
+multi-word inputs (e.g., <code>MAGE DAMON</code>), but you cannot type
+two spaces back-to-back.</li>
+</ul></li>
 </ul>
 <p>Core Controls</p>
 <ul>
@@ -646,6 +663,14 @@ and lowercase:</li>
 </ul>
 <pre class="basic"><code>load&quot;*&quot;,8,1
 run</code></pre>
+<ul>
+<li>If input seems to “ignore” a key when you try to type the same
+character twice (for example <code>1111</code> as a PIN, or double
+letters in a name), this is expected with the current debounce logic.
+The game only accepts one instance of any character before a different
+character is typed. Adjust your PIN and names so they do not contain
+consecutive identical characters.</li>
+</ul>
 <h2 id="upcoming-recommended-features">Upcoming / Recommended
 Features</h2>
 <ul>

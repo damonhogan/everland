@@ -15,12 +15,12 @@ The following screenshots are included from the `images/` folder.
 Fully Working Features
 ----------------------
 - Save/Load (EV4): Per-username profile saved to device 8. EV4 stores username, display, class, race, pin, score, level, current HP, class/race indices, max HP (for reference), calendar, location, object locations, quest state, and coin balances (gold, silver, copper). Backward-compatible loader accepts EV1/EV2/EV3.
-- Login/Profile: Username, display name, class, and race are selected at first login. New users start with 9 copper.
+- Login/Profile: Username, display name, class, and race are selected at first login. New users start with 1 silver and 9 copper and are assigned 5 random starting trinkets.
 - Class & Level System: Class base HP and HP-per-level; new profiles start at Level 1.
 - HP System: Character sheet shows current and max HP; max HP is based on class, level, and session bonuses. Current HP is saved; max HP is recomputed and also persisted in EV3.
-- Coin System: Inventory displays gold, silver, and copper balances. Quest rewards are 1 silver; new users get 9 copper to prevent completing quests without starting them. Balances saved in user record.
+- Coin System: Inventory displays gold, silver, and copper balances. Many quest rewards pay out 1 silver; new users begin with 1 silver and 9 copper to ensure they can participate in early quests. Balances are saved in the user record.
 - Idle Regeneration: While idle at prompts (i.e., not in a fight), HP regenerates at 1 HP per real-time minute (uses KERNAL jiffy clock; handles midnight wrap).
-- Inventory: Full-screen Inventory with `I`.
+- Inventory: Full-screen Inventory with `I`; shows coin balances, carried items, and trinkets, and returns to the game when you press Enter.
 - Characters & Sheets: `C` opens character menu; view player or NPC sheets with stats and HP.
 - Talk/NPC Selection: `T` opens talk screen; select any present NPC.
 - Direct TALK: `TALK <NPCNAME>` jumps straight to that NPC if present.
@@ -93,26 +93,23 @@ This Update — New Features
 
 Coin / Bartender Quest (player walkthrough)
 -------------------------------------------
-This release includes a small fetch quest where the Conductor asks you to bring silver to the Bartender.
+This release includes a small quest where the Conductor gives you a special coin and asks you to tip the Bartender.
 
 1) Accept the quest from the Conductor
-	- `TALK CONDUCTOR` then select the "Any quests?" menu option (`3`) at the Train Station to accept `QUEST_COIN_BARTENDER`. When accepted, you will also receive 1 silver and see "YOU RECEIVE 1 SILVER.".
+	- `TALK CONDUCTOR` then select the "Any quests?" menu option (`3`) at the Train Station to accept `QUEST_COIN_BARTENDER`. When accepted, you will also receive a coin (an inventory object) and see a confirmation message that you received it.
 
-2) Get silver
-	- New users start with 9 copper. To get silver, you can buy ale from the Bartender for 1 silver (see below), but since you need silver to complete the quest, use the copper to buy ale first to get change or find another way. Alternatively, complete other quests that reward silver.
+2) Check your starting money
+	- New users now start with 1 silver and 9 copper in addition to the special quest coin from the Conductor. You can verify this with `I` (Inventory), which shows GOLD / SILVER / COPPER at the top of the screen.
 
-	- Verify with `I` (Inventory) that your coin balances are shown (e.g., "COPPER: 9").
-
-3) Give silver to the Bartender
+3) Tip the Bartender with the quest coin
 	- Go to the Tavern and either:
-	  - `GIVE COIN TO BARTENDER` (but since coin is now silver balance, this will consume 1 silver), or
-	  - `TALK BARTENDER` and choose `BUY ALE (1 SILVER)` — this consumes 1 silver and gives you a mug.
-	  - `TALK BARTENDER` and choose `BUY ALE (1 COIN)` or `GIVE TIP` — both consume a coin.
+	  - Use a direct command like `GIVE COIN TO BARTENDER`, or
+	  - `TALK BARTENDER` and choose the tip option when it is offered.
 
-	- If `QUEST_COIN_BARTENDER` is active, giving the coin to the Bartender triggers `questComplete` and marks the quest done.
+	- If you are carrying the quest coin, the Bartender will take the coin, add +1 silver to your balance, and, if `QUEST_COIN_BARTENDER` is active, mark the quest complete.
 
 4) Verify
-	- `I` should show silver decreased by 1, and you receive a mug. The last message will indicate quest completion.
+	- `I` should show that your silver increased by 1, and the last messages will indicate that your tip was accepted and the quest is complete.
 
 Developer pointers (where to look in the source)
 - Coin system: `playerGold`, `playerSilver`, `playerCopper` store balances; `cmdInventory` displays them; saved in EV4 format.
@@ -162,6 +159,10 @@ C:\commodore\everland\tools\run_from_d64.bat "C:\commodore\GTK3VICE-3.10-win64\b
 First Run / Profiles
 
 - On first run you'll be prompted for a username/display and to pick a player class. The chosen class affects HP and is saved.
+- Input & PIN limitation (important): the current input handler does **not** accept two identical characters in a row on any line. This affects usernames, display names, free-text prompts and PIN entry.
+	- For PINs, choose a pattern that does not rely on repeated digits like `1111` or `2222` (for example, use `1212`, `1357`, etc.).
+	- For names and phrases, avoid double letters like `ANNA` or `AARON`; instead, choose variants without consecutive identical characters (e.g., `ANA`, `ARON`) or slightly rephrase.
+	- Spaces are treated as regular characters; you can still have multi-word inputs (e.g., `MAGE DAMON`), but you cannot type two spaces back-to-back.
 
 Core Controls
 
@@ -204,6 +205,8 @@ Troubleshooting
 load"*",8,1
 run
 ```
+
+- If input seems to "ignore" a key when you try to type the same character twice (for example `1111` as a PIN, or double letters in a name), this is expected with the current debounce logic. The game only accepts one instance of any character before a different character is typed. Adjust your PIN and names so they do not contain consecutive identical characters.
 
  
 
