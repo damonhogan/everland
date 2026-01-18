@@ -97,6 +97,21 @@ healLeft: .byte 0
 .const LOC_BANK      = 13
 .const LOC_COUNT     = 14
 
+// Screen row layout
+.const ROW_MAP_LAST   = 11
+.const ROW_DIVIDER    = 12
+.const ROW_UI_START   = 13
+.const ROW_DESC       = 14
+.const ROW_SEASON     = 17
+.const ROW_EXITS      = 18
+.const ROW_QUEST      = 19
+.const ROW_MSG        = 20
+.const ROW_HELP       = 22
+.const ROW_PROMPT     = 24
+
+.const ROW_AUTH_MSG    = 12
+.const ROW_AUTH_PROMPT = 14
+
 // Object constants
 .const OBJ_LANTERN     = 0
 .const OBJ_COIN        = 1
@@ -132,36 +147,19 @@ healLeft: .byte 0
 .const NPC_MERMAID          = 15
 .const NPC_CANDY_WITCH      = 16
 .const NPC_KORA             = 17
-	.const NPC_ALPHA_WOLFRIC   = 18
-	.const NPC_VASHTEE         = 19
-	.const NPC_TRADING_OWNER  = 20
-	.const NPC_FROST_WEAVERS_QUEEN = 21
-	.const NPC_BANKER          = 22
+.const NPC_ALPHA_WOLFRIC    = 18
+.const NPC_VASHTEE          = 19
+.const NPC_TRADING_OWNER    = 20
+.const NPC_FROST_WEAVERS_QUEEN = 21
+.const NPC_BANKER           = 22
 // Legacy alias (maps PIXIE to FAIRY slot)
 .const NPC_PIXIE            = NPC_FAIRY
 // First mate alias; currently share captain slot
 .const NPC_PIRATE_FIRSTMATE = NPC_PIRATE_CAPTAIN
 .const NPC_COUNT            = 32
 
-.encoding "petscii_upper"
-
-// Given name storage for NPCs (per-NPC editable given/generic names)
-.const NPC_GIVEN_NAME_LEN = 16
-
-
-.const ROW_MAP_LAST   = 11
-.const ROW_DIVIDER    = 12
-.const ROW_UI_START   = 13
-.const ROW_DESC       = 14
-.const ROW_SEASON     = 17
-.const ROW_EXITS      = 18
-.const ROW_QUEST      = 19
-.const ROW_MSG        = 20
-.const ROW_HELP       = 22
-.const ROW_PROMPT     = 24
-
-.const ROW_AUTH_MSG   = 12
-.const ROW_AUTH_PROMPT= 14
+// Max characters stored for each NPC given name
+.const NPC_GIVEN_NAME_LEN   = 16
 
 // Seasons
 .const SEASON_OFF    = 0
@@ -169,40 +167,39 @@ healLeft: .byte 0
 .const SEASON_LORE   = 2
 .const SEASON_AURORA = 3
 
-// Quests (MVP)
-.const QUEST_NONE = $FF
-.const QUEST_COIN_BARTENDER = 0
-.const QUEST_KEY_KNIGHT     = 1
-.const QUEST_LANTERN_MYSTIC  = 2
-.const QUEST_TREASURE       = 3
-.const QUEST_LURE_MYSTIC    = 4
-.const QUEST_BLACK_ROSE     = 5
-.const QUEST_UNSEELY_NAME   = 6
-.const QUEST_APOLLONIA_OFFERING = 7
-.const QUEST_LOUDEN_HEART   = 8
-.const QUEST_MERMAID_TRADE  = 9
-.const QUEST_KENDRICK_SCOTCH = 10
-.const QUEST_WARLOCK_WARD    = 11
+// Quest IDs
+.const QUEST_NONE                   = $FF
+.const QUEST_COIN_BARTENDER         = 0
+.const QUEST_KEY_KNIGHT             = 1
+.const QUEST_LANTERN_MYSTIC         = 2
+.const QUEST_TREASURE               = 3
+.const QUEST_LURE_MYSTIC            = 4
+.const QUEST_BLACK_ROSE             = 5
+.const QUEST_UNSEELY_NAME           = 6
+.const QUEST_APOLLONIA_OFFERING     = 7
+.const QUEST_LOUDEN_HEART           = 8
+.const QUEST_MERMAID_TRADE          = 9
+.const QUEST_KENDRICK_SCOTCH        = 10
+.const QUEST_WARLOCK_WARD           = 11
 .const QUEST_CANDY_WITCH_DISABLE_WARD = 12
-.const QUEST_KORA_JAPE      = 13
-.const QUEST_ALYSTER_OATH   = 14
-.const QUEST_ALPHA_WOLFRIC  = 15
-.const QUEST_COUNT          = 16
+.const QUEST_KORA_JAPE              = 13
+.const QUEST_ALPHA_WOLFRIC          = 14
+// Total number of distinct quest IDs used with assignQuest_mod / rewards
+.const QUEST_COUNT                  = 15
 
-// --- Core constants (local fallback to satisfy early references) ---
-// Note: These mirror top-level definitions to resolve symbol order issues.
-// Remove local fallbacks; constants are defined above
+.encoding "petscii_upper"
 
-// Game state
-currentLoc: .byte LOC_PLAZA
-prevLoc:    .byte LOC_PLAZA
-lastMsgLo:  .byte <msgWelcome
-lastMsgHi:  .byte >msgWelcome
-
-// UI state
-uiHideExits: .byte 0
-// When set, suppress map rendering (used during login and conversations)
+// Game and UI state
+currentLoc:    .byte LOC_PLAZA
+prevLoc:       .byte LOC_PLAZA
+lastMsgLo:     .byte <msgWelcome
+lastMsgHi:     .byte >msgWelcome
+uiHideExits:   .byte 0
 uiInConversation: .byte 0
+
+// Combat / debug flags
+inCombat:       .byte 0    // 0 = not in combat, 1 = in combat (reserved for future use)
+combatNpcIdx:   .byte 0    // last/active combat opponent (npc index)
 // Debug mode flag (enabled in dev auto-login)
 debugEnabled: .byte 0
 
@@ -314,6 +311,7 @@ tmpHp: .byte 0
 tmpPer: .byte 0,0
 tmpNumber: .byte 0
 tmpDigit: .byte 0
+tmpNounStart: .byte 0
 // Per-NPC conversation stage (0 = initial, 1 = progressed)
 npcConvStage:
 	.fill NPC_COUNT, 0
@@ -338,6 +336,7 @@ objLoc:
 
 // --- Program entry ---
 start:
+	// Force a consistent C64 character set for all UI text
 	lda #$0e
 	jsr CHROUT
 	jsr init
@@ -1261,9 +1260,6 @@ tryLoadGame:
 	rts
 
 saveGame:
-	// Ensure uppercase charset so any CHROUT during file write is readable
-	lda #$15
-	sta $d018
 	lda #'W'
 	jsr buildSaveNameWithMode
 	lda saveNameLen
@@ -1644,6 +1640,9 @@ renderQuestLine:
 	lda activeQuest
 	cmp #QUEST_NONE
 	beq @rql_none
+	// Guard against out-of-range quest ids when looking up names
+	cmp #QUEST_COUNT
+	bcs @rql_none
 	tax
 	lda questNameLo,x
 	sta ZP_PTR
@@ -1745,13 +1744,13 @@ ensureQuest:
 	rts
 
 assignQuestForWeek:
-	// Simple weekly rotation: quest = week % QUEST_COUNT
+	// Simple weekly rotation: quest = week % 13 (core quests only)
 	lda week
 @mod:
-	cmp #QUEST_COUNT
+	cmp #13
 	bcc @set
 	sec
-	sbc #QUEST_COUNT
+	sbc #13
 	jmp @mod
 @set:
 	sta activeQuest
@@ -2538,9 +2537,6 @@ themeV2SR: .byte $C8,$C8,$C8,$C8,$46,$C8,$C8,$C8,$98,$C8
 themeV3SR: .byte $88,$98,$98,$98,$28,$98,$88,$88,$98,$88
 
 init:
-	// Switch to lowercase/uppercase character set so text displays as uppercase letters.
-	lda #$0e
-	jsr CHROUT
 	// Start music early so the login screen has its own theme.
 	lda #1
 	sta musicEnabled
@@ -2574,31 +2570,10 @@ musicStartLoginTheme:
 // --- Rendering ---
 render:
 	jsr clearScreen
-	// Ensure uppercase/graphics character set for auth and UI
-	lda #$15
-	sta $d018
 	// During login/account creation, keep the screen minimal.
 	lda uiHideExits
 	beq render_game
-	// Auth mode: welcome + message + prompt.
-	clc
-	ldx #2
-	ldy #0
-	jsr PLOT
-	lda #<msgWelcomeLine1
-	sta ZP_PTR
-	lda #>msgWelcomeLine1
-	sta ZP_PTR+1
-	jsr printZ
-	clc
-	ldx #3
-	ldy #0
-	jsr PLOT
-	lda #<msgWelcomeLine2
-	sta ZP_PTR
-	lda #>msgWelcomeLine2
-	sta ZP_PTR+1
-	jsr printZ
+	// Auth mode: just the active auth message + prompt.
 	clc
 	ldx #ROW_AUTH_MSG
 	ldy #0
@@ -2668,6 +2643,11 @@ render_game:
 
 	// Last message
 	jsr setCursorMsg
+	// Force a known-good default message here so the line under the map is always readable.
+	lda #<msgWelcome
+	sta lastMsgLo
+	lda #>msgWelcome
+	sta lastMsgHi
 	lda lastMsgLo
 	sta ZP_PTR
 	lda lastMsgHi
@@ -2943,26 +2923,49 @@ printNpcEntry:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	lda #$0e
-	jsr CHROUT
 	jsr printZ
 	jsr newline
 	inc selCount
-	rts
-
-@pne_use_title:
+// Print NPC display name for NPC index in X.
+// If a given name is present, prints: GIVEN (TITLE)
+// Otherwise prints just the TITLE.
+printNpcDisplayName:
+	// Check first character of given name
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
+	beq @pnd_no_given
+	// Given name present: print given, then space + '(' + title + ')'
+	jsr printZ
+	lda #' '
+	jsr CHROUT
+	lda #'('
+	jsr CHROUT
 	lda npcNameLo,x
 	sta ZP_PTR
 	lda npcNameHi,x
 	sta ZP_PTR+1
-	// skip unknown entries
-	lda ZP_PTR
-	cmp #<npcNameUnknown
-	bne @pne_print_title
-	lda ZP_PTR+1
-	cmp #>npcNameUnknown
-	beq @pne_skip
-@pne_print_title:
+	jsr printZ
+	lda #')'
+	jsr CHROUT
+	rts
+
+@pnd_no_given:
+	// No given name: fall back to title only
+	lda npcNameLo,x
+	sta ZP_PTR
+	lda npcNameHi,x
+	sta ZP_PTR+1
+	jsr printZ
+	rts
+
+	rts
+
+@pne_use_title:
+	// No given name: print numbered entry using title only
 	lda selCount
 	clc
 	adc #'0'
@@ -2971,43 +2974,9 @@ printNpcEntry:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	lda #$0e
-	jsr CHROUT
-	jsr printZ
-	// After printing name/title, append level and HP info
-	// Print space + "LV " + level (single digit assumed)
-	lda #' '
-	jsr CHROUT
-	lda #'L'
-	jsr CHROUT
-	lda #'V'
-	jsr CHROUT
-	lda #' '
-	jsr CHROUT
-	lda npcLevel,x
-	clc
-	adc #'0'
-	jsr CHROUT
-	lda #' '
-	jsr CHROUT
-	lda #'H'
-	jsr CHROUT
-	lda #'P'
-	jsr CHROUT
-	lda #' '
-	jsr CHROUT
-	// Build hp string: current/max into msgBuf and print
-	jsr clearMsgBuf
-	lda npcCurHp,x
-	jsr appendByteAsDec
-	lda #'/'
-	jsr appendCharA
-	jsr computeNpcMaxHp
-	lda tmpHp
-	jsr appendByteAsDec
-	lda #<msgBuf
+	lda npcNameLo,x
 	sta ZP_PTR
-	lda #>msgBuf
+	lda npcNameHi,x
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -3986,8 +3955,22 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_tryCharacters
+	bcc @ec_tryFight
 	jmp cmdTalkWord
+
+@ec_tryFight:
+	// FIGHT word
+	txa
+	pha
+	lda #<kwFight
+	sta ZP_PTR2
+	lda #>kwFight
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_tryCharacters
+	jmp cmdFightWord
 
 @ec_tryCharacters:
 
@@ -4792,7 +4775,54 @@ parseNpcNoun:
 	sec
 	rts
 @nf:
+	// No built-in NPC noun matched; try dynamic given-name matching.
+	// X currently points at the start of the noun word in inputBuf.
+	stx tmpNounStart
+	ldy #0              // Y = candidate NPC id
+@ng_npcLoop:
+	cpy #NPC_COUNT
+	bcs @ng_fail
+	sty tmpNpcIdx       // save candidate NPC id
+	ldx tmpNpcIdx
+	lda npcGivenNamePtrLo,x
+	sta ZP_PTR
+	lda npcGivenNamePtrHi,x
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
+	beq @ng_nextNpc     // no given name for this NPC
+	// Compare inputBuf[tmpNounStart..] to this given name
+	ldx tmpNounStart
+	ldy #0
+@ng_cmpLoop:
+	lda (ZP_PTR),y
+	beq @ng_givenEnd    // reached end of given name
+	cmp inputBuf,x
+	bne @ng_nextNpc
+	inx
+	iny
+	jmp @ng_cmpLoop
+@ng_givenEnd:
+	// All given-name characters matched; ensure token ends here in input
+	lda inputBuf,x
+	cmp #' '
+	beq @ng_match
+	cmp #0
+	beq @ng_match
+	// Extra characters in token (e.g. BOBBY vs BOB) -> no match
+@ng_nextNpc:
+	ldy tmpNpcIdx
+	iny
+	jmp @ng_npcLoop
+
+@ng_match:
+	lda tmpNpcIdx       // return npcId in A
+	sec
+	rts
+
+@ng_fail:
 	clc
+	rts
 
 // Parse simple scenery noun starting at X. Returns A=sceneryId, carry set if found.
 // 0=STALL, 1=SIGN, 2=PORTAL
@@ -5043,8 +5073,6 @@ doMove:
 
 cmdCharactersMenu:
 	jsr clearScreen
-	lda #$0e
-	jsr CHROUT
 	// Title
 	lda #<strCharacters
 	sta ZP_PTR
@@ -5098,7 +5126,7 @@ cmdCharactersMenu:
 	bne @cc_present_lo_tramp
 	jmp @cc_check_hi_1
 @cc_present_lo_tramp:
-	// Prefer given name if present; otherwise use title
+	// Prefer given name if present; otherwise use title, showing GIVEN (TITLE) when present
 	lda npcGivenNamePtrLo,x
 	sta ZP_PTR
 	lda npcGivenNamePtrHi,x
@@ -5116,9 +5144,7 @@ cmdCharactersMenu:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	lda #$0e
-	jsr CHROUT
-	jsr printZ
+	jsr printNpcDisplayName
 	jsr newline
 	jmp @cc_npc_next
 @cc_use_title_low:
@@ -5151,14 +5177,12 @@ cmdCharactersMenu:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	lda #$0e
-	jsr CHROUT
-	jsr printZ
+	jsr printNpcDisplayName
 	jsr newline
 	jmp @cc_npc_next
 
 @cc_present_1:
-	// Prefer given name if present; otherwise use title
+	// Prefer given name if present; otherwise use title, showing GIVEN (TITLE) when present
 	lda npcGivenNamePtrLo,x
 	sta ZP_PTR
 	lda npcGivenNamePtrHi,x
@@ -5176,9 +5200,7 @@ cmdCharactersMenu:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	lda #$0e
-	jsr CHROUT
-	jsr printZ
+	jsr printNpcDisplayName
 	jsr newline
 	jmp @cc_npc_next
 @cc_use_title_hi:
@@ -5204,7 +5226,7 @@ cmdCharactersMenu:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	jsr printZ
+	jsr printNpcDisplayName
 	jsr newline
 
 @cc_npc_next:
@@ -5315,11 +5337,7 @@ showNpcSheet:
 	lda #>strName
 	sta ZP_PTR+1
 	jsr printZ
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
-	jsr printZ
+	jsr printNpcDisplayName
 	jsr newline
 
 	// CLASS:
@@ -5598,8 +5616,6 @@ cmdSheet:
 cmdTalk:
 	// Nested talk menu: list NPCs and pick one to talk to
 	jsr clearScreen
-	lda #$0e
-	jsr CHROUT
 	lda #<strCharacters
 	sta ZP_PTR
 	lda #>strCharacters
@@ -5656,7 +5672,7 @@ cmdTalk:
 	jsr CHROUT
 	lda #' '
 	jsr CHROUT
-	jsr printZ
+	jsr printNpcDisplayName
 	jsr newline
 	inc selCount
 
@@ -5792,6 +5808,39 @@ cmdTalkWord:
 	jsr conversationMenu
 	rts
 
+// FIGHT word handler: 'FIGHT <NPCNAME>' starts combat with that NPC
+cmdFightWord:
+	// X currently points just after the matched FIGHT keyword
+	jsr skipFillers
+	jsr parseNpcNoun
+	bcs @cfw_haveNpc
+	// require a specific target
+	lda #<msgDontKnow
+	sta lastMsgLo
+	lda #>msgDontKnow
+	sta lastMsgHi
+	rts
+@cfw_haveNpc:
+	// A = npcId
+	tax
+	// Check NPC presence at currentLoc (same mask logic as TALK word)
+	ldy currentLoc
+	lda npcMaskByLocLo,y
+	sta ZP_PTR2
+	lda npcMaskByLocHi,y
+	sta npcMaskHiTemp
+	lda ZP_PTR2
+	and npcBitLo,x
+	bne @cfw_present
+	lda npcMaskHiTemp
+	and npcBitHi,x
+	bne @cfw_present
+	// Not here
+	jmp @npcNotHere
+@cfw_present:
+	// Start combat with this NPC (does not return)
+	jmp combatStartWithNpc
+
 // SAY command: SAY <PHRASE> TO <NPC>
 cmdSay:
 	// X currently points just after the matched SAY keyword
@@ -5842,14 +5891,8 @@ conversationMenu:
 	stx tmpNpcIdx
 	jsr assignNpcTrinkets
 	jsr clearScreen
-	lda #$0e
-	jsr CHROUT
-	// Print NPC name as header
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
-	jsr printZ
+	// Print NPC name as header (GIVEN (TITLE) if given name exists)
+	jsr printNpcDisplayName
 	jsr newline
 
 conv_loop:
@@ -6136,6 +6179,19 @@ unseelyConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -6234,9 +6290,12 @@ unseelyConversation:
 	jmp unseelyConversation
 
 unseelyJumpLo:
-	.byte <@u_ask,<@u_request,<@u_offer,<@u_leave
+	.byte <@u_ask,<@u_request,<@u_offer,<@u_leave,<@u_fight
 unseelyJumpHi:
-	.byte >@u_ask,>@u_request,>@u_offer,>@u_leave
+	.byte >@u_ask,>@u_request,>@u_offer,>@u_leave,>@u_fight
+
+@u_fight:
+	jmp combatStartWithNpc
 
 // Apollonia conversation. Expects X = npc index.
 apolloniaConversation:
@@ -6278,6 +6337,19 @@ apolloniaConversation:
 	lda #<msgApolloniaOpt4
 	sta ZP_PTR
 	lda #>msgApolloniaOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 5. FIGHT
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -6428,9 +6500,12 @@ apolloniaConversation:
 	jmp apolloniaConversation
 
 apolloniaJumpLo:
-	.byte <@a_martyrs,<@a_teeth,<@a_fire,<@a_offer,<@a_leave
+	.byte <@a_martyrs,<@a_teeth,<@a_fire,<@a_offer,<@a_leave,<@a_fight
 apolloniaJumpHi:
-	.byte >@a_martyrs,>@a_teeth,>@a_fire,>@a_offer,>@a_leave
+	.byte >@a_martyrs,>@a_teeth,>@a_fire,>@a_offer,>@a_leave,>@a_fight
+
+@a_fight:
+	jmp combatStartWithNpc
 
 // Alyster conversation. Expects X = npc index.
 alysterConversation:
@@ -6472,6 +6547,19 @@ alysterConversation:
 	lda #<msgAlysterOpt4
 	sta ZP_PTR
 	lda #>msgAlysterOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 5. FIGHT
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -6602,9 +6690,12 @@ alysterConversation:
 	rts
 
 alysterJumpLo:
-	.byte <@ly_basics,<@ly_care,<@ly_practice,<@ly_advanced,<@ly_leave
+	.byte <@ly_basics,<@ly_care,<@ly_practice,<@ly_advanced,<@ly_leave,<@ly_fight
 alysterJumpHi:
-	.byte >@ly_basics,>@ly_care,>@ly_practice,>@ly_advanced,>@ly_leave
+	.byte >@ly_basics,>@ly_care,>@ly_practice,>@ly_advanced,>@ly_leave,>@ly_fight
+
+@ly_fight:
+	jmp combatStartWithNpc
 
 // Troll conversation. Expects X = npc index.
 trollConversation:
@@ -6640,6 +6731,19 @@ trollConversation:
 	lda #<msgTrollOpt3
 	sta ZP_PTR
 	lda #>msgTrollOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -6696,9 +6800,12 @@ trollConversation:
 	rts
 
 trollJumpLo:
-	.byte <@t_comp,<@t_insult,<@t_kevin,<@t_leave
+	.byte <@t_comp,<@t_insult,<@t_kevin,<@t_leave,<@t_fight
 trollJumpHi:
-	.byte >@t_comp,>@t_insult,>@t_kevin,>@t_leave
+	.byte >@t_comp,>@t_insult,>@t_kevin,>@t_leave,>@t_fight
+
+@t_fight:
+	jmp combatStartWithNpc
 
 // Tosh conversation. Expects X = npc index.
 toshConversation:
@@ -6734,6 +6841,19 @@ toshConversation:
 	lda #<msgToshOpt3
 	sta ZP_PTR
 	lda #>msgToshOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -6825,9 +6945,12 @@ toshConversation:
 	rts
 
 toshJumpLo:
-	.byte <@to_david,<@to_trade,<@to_work,<@to_leave
+	.byte <@to_david,<@to_trade,<@to_work,<@to_leave,<@to_fight
 toshJumpHi:
-	.byte >@to_david,>@to_trade,>@to_work,>@to_leave
+	.byte >@to_david,>@to_trade,>@to_work,>@to_leave,>@to_fight
+
+@to_fight:
+	jmp combatStartWithNpc
 
 // Louden conversation. Expects X = npc index.
 loudenConversation:
@@ -6860,6 +6983,19 @@ loudenConversation:
 	lda #<msgLoudenOpt3
 	sta ZP_PTR
 	lda #>msgLoudenOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -6940,9 +7076,12 @@ loudenConversation:
 	rts
 
 loudenJumpLo:
-	.byte <@lo_story,<@lo_accept,<@lo_offer,<@lo_leave
+	.byte <@lo_story,<@lo_accept,<@lo_offer,<@lo_leave,<@lo_fight
 loudenJumpHi:
-	.byte >@lo_story,>@lo_accept,>@lo_offer,>@lo_leave
+	.byte >@lo_story,>@lo_accept,>@lo_offer,>@lo_leave,>@lo_fight
+
+@lo_fight:
+	jmp combatStartWithNpc
 
 // Mermaid conversation. Expects X = npc index.
 mermaidConversation:
@@ -6975,6 +7114,19 @@ mermaidConversation:
 	lda #<msgMermaidOpt3
 	sta ZP_PTR
 	lda #>msgMermaidOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -7075,9 +7227,12 @@ mermaidConversation:
 	rts
 
 mermaidJumpLo:
-	.byte <@mm_sing,<@mm_ask,<@mm_offer,<@mm_leave
+	.byte <@mm_sing,<@mm_ask,<@mm_offer,<@mm_leave,<@mm_fight
 mermaidJumpHi:
-	.byte >@mm_sing,>@mm_ask,>@mm_offer,>@mm_leave
+	.byte >@mm_sing,>@mm_ask,>@mm_offer,>@mm_leave,>@mm_fight
+
+@mm_fight:
+	jmp combatStartWithNpc
 // Spider Princess conversation. Expects X = npc index.
 spiderConversation:
 	jsr clearScreen
@@ -7112,6 +7267,19 @@ spiderConversation:
 	lda #<msgSpiderOpt3
 	sta ZP_PTR
 	lda #>msgSpiderOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -7193,9 +7361,12 @@ spiderConversation:
 	rts
 
 spiderJumpLo:
-	.byte <@s_flirt,<@s_whisper,<@s_offer,<@s_leave
+	.byte <@s_flirt,<@s_whisper,<@s_offer,<@s_leave,<@s_fight
 spiderJumpHi:
-	.byte >@s_flirt,>@s_whisper,>@s_offer,>@s_leave
+	.byte >@s_flirt,>@s_whisper,>@s_offer,>@s_leave,>@s_fight
+
+@s_fight:
+	jmp combatStartWithNpc
 
 @conv_conductor:
 	jsr conductorConversation
@@ -7292,6 +7463,19 @@ pirateConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// 9. FIGHT
+	lda #'9'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -7314,9 +7498,9 @@ pirateConversation:
 
 	// Jump table: low/high word pairs for pirate choices
 	pirateJumpLo:
-		.byte <@pc_tale, <@pc_treasure, <@pc_join, <@pc_leave, <@pc_offer, <@pc_stance, <@pc_footwork, <@pc_parry, <@pc_lunge
+		.byte <@pc_tale, <@pc_treasure, <@pc_join, <@pc_leave, <@pc_offer, <@pc_stance, <@pc_footwork, <@pc_parry, <@pc_lunge, <@pc_fight
 	pirateJumpHi:
-		.byte >@pc_tale, >@pc_treasure, >@pc_join, >@pc_leave, >@pc_offer, >@pc_stance, >@pc_footwork, >@pc_parry, >@pc_lunge
+		.byte >@pc_tale, >@pc_treasure, >@pc_join, >@pc_leave, >@pc_offer, >@pc_stance, >@pc_footwork, >@pc_parry, >@pc_lunge, >@pc_fight
 
 @pc_tale:
 	// Different lines for captain vs first mate
@@ -7510,6 +7694,9 @@ pirateConversation:
 @pc_leave:
 	rts
 
+@pc_fight:
+	jmp combatStartWithNpc
+
 // Bartender-specific conversation tree. Expects X = npc index.
 bartenderConversation:
 	jsr clearScreen
@@ -7553,6 +7740,19 @@ bartenderConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// 5. FIGHT
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -7574,9 +7774,9 @@ bartenderConversation:
 	jmp bartenderConversation
 
 	bartenderJumpLo:
-		.byte <@b_job, <@b_buy, <@b_tip, <@b_quest, <@b_leave
+		.byte <@b_job, <@b_buy, <@b_tip, <@b_quest, <@b_leave, <@b_fight
 	bartenderJumpHi:
-		.byte >@b_job, >@b_buy, >@b_tip, >@b_quest, >@b_leave
+		.byte >@b_job, >@b_buy, >@b_tip, >@b_quest, >@b_leave, >@b_fight
 
 @b_job:
 	// If this is the Trading Company Owner and alpha wolfric quest active, complete it
@@ -7641,6 +7841,9 @@ bartenderConversation:
 	jsr setCursorPrompt
 	jsr readLine
 	jmp bartenderConversation
+
+@b_fight:
+	jmp combatStartWithNpc
 
 @b_tip:
 	// Tip: if player has a coin, take it and add 1 silver
@@ -7761,6 +7964,19 @@ bankerConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// 5. FIGHT
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -7782,9 +7998,12 @@ bankerConversation:
 	jmp bankerConversation
 
 	bankerJumpLo:
-		.byte <@bank_deposit, <@bank_withdraw, <@bank_balance, <@bank_vault, <@bank_leave
+		.byte <@bank_deposit, <@bank_withdraw, <@bank_balance, <@bank_vault, <@bank_leave, <@bank_fight
 	bankerJumpHi:
-		.byte >@bank_deposit, >@bank_withdraw, >@bank_balance, <@bank_vault, <@bank_leave
+		.byte >@bank_deposit, >@bank_withdraw, >@bank_balance, <@bank_vault, <@bank_leave, >@bank_fight
+
+@bank_fight:
+	jmp combatStartWithNpc
 
 @bank_deposit:
 	jsr clearScreen
@@ -8552,6 +8771,19 @@ conductorConversation:
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
+	// 5. FIGHT
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
 
 	jsr setCursorPrompt
 	jsr readLine
@@ -8573,9 +8805,9 @@ conductorConversation:
 	jmp conductorConversation
 
 	conductorJumpLo:
-		.byte <@c_about, <@c_tune, <@c_join, <@c_quest, <@c_leave
+		.byte <@c_about, <@c_tune, <@c_join, <@c_quest, <@c_leave, <@c_fight
 	conductorJumpHi:
-		.byte >@c_about, >@c_tune, >@c_join, >@c_quest, >@c_leave
+		.byte >@c_about, >@c_tune, >@c_join, >@c_quest, >@c_leave, >@c_fight
 
 @c_about:
 	lda #<msgConductorAbout
@@ -8685,6 +8917,9 @@ conductorConversation:
 @c_leave:
 	rts
 
+@c_fight:
+	jmp combatStartWithNpc
+
 // Knight-specific conversation tree. Expects X = npc index.
 knightConversation:
 	jsr clearScreen
@@ -8741,6 +8976,19 @@ knightConversation:
 	lda #<msgKnightOpt7
 	sta ZP_PTR
 	lda #>msgKnightOpt7
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 8. FIGHT
+	lda #'8'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -8823,6 +9071,9 @@ knightConversation:
 @k_leave:
 	rts
 
+@k_fight:
+	jmp combatStartWithNpc
+
 // Kendrick-specific conversation tree. Expects X = npc index.
 kendrickConversation:
 	jsr clearScreen
@@ -8861,6 +9112,19 @@ kendrickConversation:
 	lda #<msgKendrickOpt4
 	sta ZP_PTR
 	lda #>msgKendrickOpt4
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 5. FIGHT
+	lda #'5'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -8942,9 +9206,12 @@ kendrickConversation:
 	rts
 
 kendrickJumpLo:
-	.byte <@knd_about,<@knd_spider,<@knd_request,<@knd_give,<@knd_leave
+	.byte <@knd_about,<@knd_spider,<@knd_request,<@knd_give,<@knd_leave,<@knd_fight
 kendrickJumpHi:
-	.byte >@knd_about,>@knd_spider,>@knd_request,>@knd_give,>@knd_leave
+	.byte >@knd_about,>@knd_spider,>@knd_request,>@knd_give,>@knd_leave,>@knd_fight
+
+@knd_fight:
+	jmp combatStartWithNpc
 
 @k_guard:
 	lda #<msgKnightGuard
@@ -9042,9 +9309,9 @@ kendrickJumpHi:
 	jmp @k_noquest
 
 knightJumpLo:
-	.byte <@k_about,<@k_offer,<@k_join,<@k_leave,<@k_guard,<@k_footwork,<@k_parry,<@k_lunge
+	.byte <@k_about,<@k_offer,<@k_join,<@k_leave,<@k_guard,<@k_footwork,<@k_parry,<@k_lunge,<@k_fight
 knightJumpHi:
-	.byte >@k_about,>@k_offer,>@k_join,>@k_leave,>@k_guard,>@k_footwork,>@k_parry,>@k_lunge
+	.byte >@k_about,>@k_offer,>@k_join,>@k_leave,>@k_guard,>@k_footwork,>@k_parry,>@k_lunge,>@k_fight
 
 // Fairy-specific conversation tree. Expects X = npc index.
 fairyConversation:
@@ -9078,6 +9345,19 @@ fairyConversation:
 	lda #<msgFairyOpt3
 	sta ZP_PTR
 	lda #>msgFairyOpt3
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+ 	// 4. FIGHT
+	lda #'4'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -9169,9 +9449,12 @@ fairyConversation:
 	rts
 
 fairyJumpLo:
-	.byte <@f_bless,<@f_coin,<@f_trade,<@f_leave
+	.byte <@f_bless,<@f_coin,<@f_trade,<@f_leave,<@f_fight
 fairyJumpHi:
-	.byte >@f_bless,>@f_coin,>@f_trade,>@f_leave
+	.byte >@f_bless,>@f_coin,>@f_trade,>@f_leave,>@f_fight
+
+@f_fight:
+	jmp combatStartWithNpc
 
 // Pixie-specific conversation tree. Expects X = npc index.
 pixieConversation:
@@ -9199,6 +9482,19 @@ pixieConversation:
 	lda #<msgPixieOpt2
 	sta ZP_PTR
 	lda #>msgPixieOpt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	// 3. FIGHT
+	lda #'3'
+	jsr CHROUT
+	lda #'.'
+	jsr CHROUT
+	lda #' '
+	jsr CHROUT
+	lda #<strFightOption
+	sta ZP_PTR
+	lda #>strFightOption
 	sta ZP_PTR+1
 	jsr printZ
 	jsr newline
@@ -9247,9 +9543,12 @@ pixieConversation:
 	sta lastMsgHi
 	jsr render
 	jsr setCursorPrompt
-	jsr readLine
+	.byte <@p_trick,<@p_play,<@p_leave,<@p_fight
 	jmp pixieConversation
+	.byte >@p_trick,>@p_play,>@p_leave,>@p_fight
 
+@p_fight:
+	jmp combatStartWithNpc
 @p_play:
 	// Pixie's play: add score +1 and advance pixie stage
 	lda #1
@@ -10163,8 +10462,44 @@ cmdChart:
 	jsr chartPrintRow
 	jsr newline
 
-    
 	rts
+
+// Start combat with NPC whose index is in X. This routine does not return;
+// it shows a simple placeholder combat screen, waits for input, then jumps
+// back to mainLoop.
+combatStartWithNpc:
+	stx combatNpcIdx
+	// Leave conversation mode so the main render path shows the map again
+	lda #0
+	sta uiInConversation
+	// Simple placeholder combat screen
+	jsr clearScreen
+	// Header: "FIGHT: " + NPC name
+	lda #<strFightHeader
+	sta ZP_PTR
+	lda #>strFightHeader
+	sta ZP_PTR+1
+	jsr printZ
+	jsr printNpcDisplayName
+	jsr newline
+	jsr newline
+	// Body text
+	lda #<msgCombatStub
+	sta ZP_PTR
+	lda #>msgCombatStub
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr newline
+	lda #<msgPressEnter
+	sta ZP_PTR
+	lda #>msgPressEnter
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr setCursorPrompt
+	jsr readLine
+	jmp mainLoop
 
 cmdHelp:
 	// Refresh help HUD (always shown) and set a friendly message
@@ -10214,9 +10549,6 @@ cmdHelp:
 
 cmdInventory:
 	jsr clearScreen
-	// Force uppercase charset for inventory UI
-	lda #$15
-	sta $d018
 
 	// Ensure player has starting trinkets
 	lda playerTrinketsAssigned
@@ -10265,6 +10597,14 @@ cmdInventory:
 	jsr newline
 	jsr newline
 
+	// Items section header
+	lda #<strItems
+	sta ZP_PTR
+	lda #>strItems
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+
 	// Inventory items (objects carried)
 	lda #0
 	sta ZP_PTR2
@@ -10280,8 +10620,7 @@ cmdInventory:
 	lda objNameHi,x
 	sta ZP_PTR+1
 	jsr printZ
-	lda #' '
-	jsr printChar
+	jsr newline
 @inv_obj_next:
 	inx
 	cpx #OBJ_COUNT
@@ -10294,7 +10633,6 @@ cmdInventory:
 	sta ZP_PTR+1
 	jsr printZ
 @inv_items_done:
-	jsr newline
 	jsr newline
 
 	// Trinkets section
@@ -10318,8 +10656,7 @@ cmdInventory:
 	lda trinketNamesHi,y
 	sta ZP_PTR+1
 	jsr printZ
-	lda #' '
-	jsr printChar
+	jsr newline
 	lda #1
 	sta ZP_PTR2
 @inv_trinket_next:
@@ -11483,6 +11820,10 @@ msgPixieNoLan: .text "THE PIXIE LOOKS DISAPPOINTED."
 msgPixiePlay: .text "THE PIXIE LAUGHS AND DANCES; YOU GAIN A LITTLE JOY."
 	.byte 0
 
+// Combat placeholder text
+msgCombatStub: .text "YOU READY YOURSELF, BUT REAL COMBAT IS STILL IN TRAINING."
+	.byte 0
+
 // Spider Princess conversation/messages
 msgSpiderMenuHeader: .text "SPIDER PRINCESS"
 	.byte 0
@@ -12247,6 +12588,8 @@ kwGive:       .text "GIVE"
 	.byte 0
 kwTalk:       .text "TALK"
 	.byte 0
+kwFight:      .text "FIGHT"
+	.byte 0
 kwCharacters: .text "CHARACTERS"
 	.byte 0
 kwInventory:  .text "INVENTORY"
@@ -12391,6 +12734,12 @@ strCharacters: .text "CHARACTERS: "
 strInventory:  .text "INVENTORY: "
 strTrinkets:   .text "TRINKETS: "
 	.byte 0
+strItems:      .text "ITEMS: "
+	.byte 0
+strFightHeader: .text "FIGHT: "
+	.byte 0
+strFightOption: .text "FIGHT"
+	.byte 0
 strGold:       .text "GOLD: "
 	.byte 0
 strSilver:     .text "SILVER: "
@@ -12484,7 +12833,7 @@ npcNameHi:
 	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9,>npcName10,>npcName11,>npcName12,>npcName13,>npcName14,>npcName15
 	.byte >npcName16,>npcName17,>npcName18,>npcName19,>npcName20,>npcName21,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown
 
-msgWelcome:    .text "welcome to everland. type n e s w, or inspect/take/drop/give."
+msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
 	.byte 0
 msgOk:         .text ""
 	.byte 0
@@ -12781,11 +13130,16 @@ questNameWarlockWard: .text "PLACE THE WARLOCK'S WARD"
 	.byte 0
 questNameCandyWitch: .text "DISABLE THE WARLOCK'S WARD"
 	.byte 0
+questNameKoraJape: .text "KORA'S JAPE"
+	.byte 0
+questNameAlphaWolfric: .text "ALPHA WOLFRIC"
+	.byte 0
 
+// Quest name pointer table (indexed by quest id 0..14)
 questNameLo:
-	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName5,<questNameApollonia,<questNameLouden,<questNameMermaid,<questNameKendrickScotch,<questNameWarlockWard,<questNameCandyWitch
+	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName5,<questNameApollonia,<questNameLouden,<questNameMermaid,<questNameKendrickScotch,<questNameWarlockWard,<questNameCandyWitch,<questNameKoraJape,<questNameAlphaWolfric
 questNameHi:
-	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName5,>questNameApollonia,>questNameLouden,>questNameMermaid,>questNameKendrickScotch,>questNameWarlockWard,>questNameCandyWitch
+	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName5,>questNameApollonia,>questNameLouden,>questNameMermaid,>questNameKendrickScotch,>questNameWarlockWard,>questNameCandyWitch,>questNameKoraJape,>questNameAlphaWolfric
 
 questDetail0: .text "QUEST: GIVE COIN TO THE BARTENDER."
 	.byte 0
@@ -12811,8 +13165,13 @@ questDetailWarlock: .text "QUEST: TAKE THE WARLOCK'S WARD AND SET IT DOWN AT THE
 	.byte 0
 questDetailCandyWitch: .text "QUEST: BRING THE WARLOCK'S WARD TO THE CANDY WITCH TO HAVE IT DISABLED, THEN RETURN THE DISABLED WARD TO THE WARLOCK."
 	.byte 0
+questDetailKoraJape: .text "QUEST: SAY 'SCOTCH ON THE KNIGHT' TO KENDRICK IN THE PLAZA."
+	.byte 0
+questDetailAlphaWolfric: .text "QUEST: HELP VAN BEAULER SECURE SUPPLIES FOR THE WOLVES AND THE TOWN."
+	.byte 0
 
+// Quest detail pointer table (indexed by quest id 0..14)
 questDetailLo:
-	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5,<questDetail5,<questDetailApollonia,<questDetailLouden,<questDetailMermaid,<questDetailKendrick,<questDetailWarlock,<questDetailCandyWitch
+	.byte <questDetail0,<questDetail1,<questDetail2,<questDetail3,<questDetail4,<questDetail5,<questDetail5,<questDetailApollonia,<questDetailLouden,<questDetailMermaid,<questDetailKendrick,<questDetailWarlock,<questDetailCandyWitch,<questDetailKoraJape,<questDetailAlphaWolfric
 questDetailHi:
-	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5,>questDetail5,>questDetailApollonia,>questDetailLouden,>questDetailMermaid,>questDetailKendrick,>questDetailWarlock,>questDetailCandyWitch
+	.byte >questDetail0,>questDetail1,>questDetail2,>questDetail3,>questDetail4,>questDetail5,>questDetail5,>questDetailApollonia,>questDetailLouden,>questDetailMermaid,>questDetailKendrick,>questDetailWarlock,>questDetailCandyWitch,>questDetailKoraJape,>questDetailAlphaWolfric
