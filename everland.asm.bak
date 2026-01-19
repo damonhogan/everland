@@ -1432,13 +1432,55 @@ getSeason:
 	rts
 
 renderSeasonLine:
-	// Blank the season row (40 spaces); cursor is already at ROW_SEASON.
+	// Clear the entire season row, then print a compact season label.
+	// Cursor is already at ROW_SEASON when this is called.
 	ldx #40
 	lda #' '
 @rsl_clear_loop:
 	jsr CHROUT
 	dex
 	bne @rsl_clear_loop
+	// Reset cursor to start of season row and print label + season name.
+	jsr setCursorSeason
+	lda #<strSeason
+	sta ZP_PTR
+	lda #>strSeason
+	sta ZP_PTR+1
+	jsr printZ
+	jsr getSeason
+	cmp #SEASON_MYTHOS
+	beq @rsl_mythos
+	cmp #SEASON_LORE
+	beq @rsl_lore
+	cmp #SEASON_AURORA
+	beq @rsl_aurora
+@rsl_off:
+	lda #<strSeasonOff
+	sta ZP_PTR
+	lda #>strSeasonOff
+	sta ZP_PTR+1
+	jsr printZ
+	rts
+@rsl_mythos:
+	lda #<strSeasonMythos
+	sta ZP_PTR
+	lda #>strSeasonMythos
+	sta ZP_PTR+1
+	jsr printZ
+	rts
+@rsl_lore:
+	lda #<strSeasonLore
+	sta ZP_PTR
+	lda #>strSeasonLore
+	sta ZP_PTR+1
+	jsr printZ
+	rts
+@rsl_aurora:
+	lda #<strSeasonAurora
+	sta ZP_PTR
+	lda #>strSeasonAurora
+	sta ZP_PTR+1
+	jsr printZ
 	rts
 
 // --- HP Regeneration (1 HP per minute when not in combat) ---
@@ -12714,6 +12756,17 @@ strHelp1:  .text "N/E/S/W MOVE  I INV  C CHARS  T TALK"
 strHelp2:  .text "WAIT STATUS SAVE LOAD INSPECT M MUSIC"
 	.byte 0
 strPrompt: .text "> "
+	.byte 0
+
+strSeason: .text "SEASON "
+	.byte 0
+strSeasonOff: .text "OFF"
+	.byte 0
+strSeasonMythos: .text "MYTHOS"
+	.byte 0
+strSeasonLore: .text "LORE"
+	.byte 0
+strSeasonAurora: .text "AURORA"
 	.byte 0
 
 strWeek:  .text "WEEK "
