@@ -1259,6 +1259,14 @@ tryLoadGame:
 	rts
 
 saveGame:
+	// Show a friendly message while saving
+	jsr setCursorMsg
+	lda #<strSavingUser
+	sta ZP_PTR
+	lda #>strSavingUser
+	sta ZP_PTR+1
+	jsr printZ
+
 	lda #'W'
 	jsr buildSaveNameWithMode
 	lda saveNameLen
@@ -1689,15 +1697,18 @@ renderQuestLine:
 	sta ZP_PTR+1
 	jsr printZ
 
-	// Simple, safe quest label: show NONE or ACTIVE without using
-	// questName tables (which can mispoint and produce garbage).
+	// Show quest status: NONE, a valid quest name, or a safe fallback.
 	lda activeQuest
 	cmp #QUEST_NONE
 	beq @rql_none
-	// Any non-NONE quest just shows a generic ACTIVE label.
-	lda #<strQuestActive
+	// If activeQuest >= QUEST_COUNT, treat as no quest.
+	cmp #QUEST_COUNT
+	bcs @rql_none
+	// Look up quest name from questNameLo/Hi table.
+	tax
+	lda questNameLo,x
 	sta ZP_PTR
-	lda #>strQuestActive
+	lda questNameHi,x
 	sta ZP_PTR+1
 	jsr printZ
 	rts
@@ -2694,15 +2705,26 @@ render_game:
 	// Last message
 	jsr setCursorMsg
 	// Force a known-good default message here so the line under the map is always readable.
-	lda #<msgWelcome
-	sta lastMsgLo
-	lda #>msgWelcome
-	sta lastMsgHi
-	lda lastMsgLo
+	lda activeQuest
+	cmp #QUEST_NONE
+	beq @rg_show_welcome
+	cmp #QUEST_COUNT
+	bcs @rg_show_welcome
+	// Show quest detail for active quest
+	tax
+	lda questDetailLo,x
 	sta ZP_PTR
-	lda lastMsgHi
+	lda questDetailHi,x
 	sta ZP_PTR+1
 	jsr printZ
+	jmp @rg_after_msg
+@rg_show_welcome:
+	lda #<msgWelcome
+	sta ZP_PTR
+	lda #>msgWelcome
+	sta ZP_PTR+1
+	jsr printZ
+@rg_after_msg:
 
 	// Help (two fixed-width lines)
 	jsr setCursorHelp
@@ -12769,6 +12791,9 @@ strSeasonLore: .text "LORE"
 strSeasonAurora: .text "AURORA"
 	.byte 0
 
+strSavingUser: .text "(updating your user on the disk)"
+	.byte 0
+
 strWeek:  .text "WEEK "
 	.byte 0
 strScore: .text "  SCORE "
@@ -13173,14 +13198,16 @@ questName0: .text "PAY THE BARTENDER"
 	.byte 0
 questName1: .text "BRING KEY TO KNIGHT"
 	.byte 0
-	questName2: .text "LIGHT FOR THE MYSTIC"
-		.byte 0
-	questName3: .text "LURE THE MYSTIC"
-		.byte 0
-		questName4: .text "PLANT BLACK ROSES"
-			.byte 0
-			questName5: .text "RECOVER STOLEN NAME"
-				.byte 0
+questName2: .text "LIGHT FOR THE MYSTIC"
+	.byte 0
+questName3: .text "LURE THE MYSTIC"
+	.byte 0
+questName4: .text "PLANT BLACK ROSES"
+	.byte 0
+questName5: .text "RECOVER STOLEN NAME"
+	.byte 0
+questName6: .text "RECOVER STOLEN NAME"
+	.byte 0
 questNameApollonia: .text "LEAVE AN OFFERING"
 	.byte 0
 questNameLouden: .text "RESTORE LOUDEN'S HEART"
@@ -13200,9 +13227,9 @@ questNameAlphaWolfric: .text "ALPHA WOLFRIC"
 
 // Quest name pointer table (indexed by quest id 0..14)
 questNameLo:
-	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName5,<questNameApollonia,<questNameLouden,<questNameMermaid,<questNameKendrickScotch,<questNameWarlockWard,<questNameCandyWitch,<questNameKoraJape,<questNameAlphaWolfric
+	.byte <questName0,<questName1,<questName2,<questName3,<questName4,<questName5,<questName6,<questNameApollonia,<questNameLouden,<questNameMermaid,<questNameKendrickScotch,<questNameWarlockWard,<questNameCandyWitch,<questNameKoraJape,<questNameAlphaWolfric
 questNameHi:
-	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName5,>questNameApollonia,>questNameLouden,>questNameMermaid,>questNameKendrickScotch,>questNameWarlockWard,>questNameCandyWitch,>questNameKoraJape,>questNameAlphaWolfric
+	.byte >questName0,>questName1,>questName2,>questName3,>questName4,>questName5,>questName6,>questNameApollonia,>questNameLouden,>questNameMermaid,>questNameKendrickScotch,>questNameWarlockWard,>questNameCandyWitch,>questNameKoraJape,>questNameAlphaWolfric
 
 questDetail0: .text "QUEST: GIVE COIN TO THE BARTENDER."
 	.byte 0
