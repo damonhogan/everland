@@ -1699,12 +1699,12 @@ renderQuestLine:
 
 	// Show quest status: NONE, a valid quest name, or a safe fallback.
 	lda activeQuest
+	cmp #QUEST_COUNT
+	bcc @rql_check_none
+	jmp @rql_none
+@rql_check_none:
 	cmp #QUEST_NONE
 	beq @rql_none
-	// If activeQuest >= QUEST_COUNT, treat as no quest.
-	cmp #QUEST_COUNT
-	bcs @rql_none
-	// Look up quest name from questNameLo/Hi table.
 	tax
 	lda questNameLo,x
 	sta ZP_PTR
@@ -1712,7 +1712,6 @@ renderQuestLine:
 	sta ZP_PTR+1
 	jsr printZ
 	rts
-
 @rql_none:
 	lda #<strNone
 	sta ZP_PTR
@@ -1787,23 +1786,8 @@ appendCharA:
 
 // --- Quest system ---
 ensureQuest:
-	lda activeQuest
-	cmp #QUEST_NONE
-	bne @eq_ok
-	jsr assignQuestForWeek
-
-@eq_ok:
+	// ...existing code...
 	rts
-
-assignQuestForWeek:
-	// Simple weekly rotation: quest = week % 13 (core quests only)
-	lda week
-@mod:
-	cmp #13
-	bcc @set
-	sec
-	sbc #13
-	jmp @mod
 @set:
 	sta activeQuest
 	lda #1
@@ -2716,7 +2700,7 @@ render_game:
 	sta ZP_PTR
 	lda questDetailHi,x
 	sta ZP_PTR+1
-	jsr printZ
+	jsr printZ40
 	jmp @rg_after_msg
 @rg_show_welcome:
 	lda #<msgWelcome
@@ -2726,14 +2710,17 @@ render_game:
 	jsr printZ
 @rg_after_msg:
 
+
 	// Help (two fixed-width lines)
+	// Clear the entire help row before printing
 	jsr setCursorHelp
-	lda #<strHelp1
-	sta ZP_PTR
-	lda #>strHelp1
-	sta ZP_PTR+1
-	jsr printZ
-	jsr newline
+	ldx #40
+	lda #' '
+@rg_help_clear:
+	jsr CHROUT
+	dex
+	bne @rg_help_clear
+	jsr setCursorHelp
 	lda #<strHelp2
 	sta ZP_PTR
 	lda #>strHelp2
@@ -2741,6 +2728,14 @@ render_game:
 	jsr printZ
 
 	// Prompt
+	// Clear the entire prompt row before printing
+	jsr setCursorPrompt
+	ldx #40
+	lda #' '
+@rg_prompt_clear:
+	jsr CHROUT
+	dex
+	bne @rg_prompt_clear
 	jsr setCursorPrompt
 	lda #<strPrompt
 	sta ZP_PTR
@@ -2970,6 +2965,19 @@ printZ:
 	bne @pz_loop
 
 @pz_done:
+	rts
+
+// Print up to 40 chars from 0-terminated string at (ZP_PTR)
+printZ40:
+	ldy #0
+@pz40_loop:
+	lda (ZP_PTR),y
+	beq @pz40_done
+	jsr CHROUT
+	iny
+	cpy #40
+	bne @pz40_loop
+@pz40_done:
 	rts
 
 printChar:
