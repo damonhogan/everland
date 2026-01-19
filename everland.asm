@@ -64,23 +64,7 @@
 .const LFN    = 1
 .const SA     = 2
 
-// Regen timing zero-page variables (KERNAL RDTIM jiffies)
-lastRegen0: .byte 0
-lastRegen1: .byte 0
-lastRegen2: .byte 0
-nowRegen0:  .byte 0
-nowRegen1:  .byte 0
-nowRegen2:  .byte 0
-deltaReg0:  .byte 0
-deltaReg1:  .byte 0
-deltaReg2:  .byte 0
-regenInit:  .byte 0
-regenMinutes: .byte 0
-regenTotal: .byte 0
-hpChangedFlag: .byte 0
-healLeft: .byte 0
-
-// Location constants (Gate → Portal)
+// Location constants (Train  Bank)
 .const LOC_TRAIN     = 0
 .const LOC_MARKET    = 1
 .const LOC_PORTAL    = 2
@@ -112,7 +96,6 @@ healLeft: .byte 0
 .const ROW_AUTH_MSG    = 12
 .const ROW_AUTH_PROMPT = 14
 
-// Object constants
 .const OBJ_LANTERN     = 0
 .const OBJ_COIN        = 1
 .const OBJ_MUG         = 2
@@ -247,6 +230,22 @@ currentLevel: .byte 0
 playerGold: .byte 0
 playerSilver: .byte 0
 playerCopper: .byte 0
+
+// Regen / timing state (HP regen and encounters)
+lastRegen0:    .byte 0
+lastRegen1:    .byte 0
+lastRegen2:    .byte 0
+nowRegen0:     .byte 0
+nowRegen1:     .byte 0
+nowRegen2:     .byte 0
+deltaReg0:     .byte 0
+deltaReg1:     .byte 0
+deltaReg2:     .byte 0
+regenMinutes:  .byte 0
+regenTotal:    .byte 0
+regenInit:     .byte 0
+hpChangedFlag: .byte 0
+healLeft:      .byte 0
 
 // Bank variables
 bankCopper: .byte 0
@@ -1433,13 +1432,13 @@ getSeason:
 	rts
 
 renderSeasonLine:
-	jsr getSeason
-	tax
-	lda seasonLineLo,x
-	sta ZP_PTR
-	lda seasonLineHi,x
-	sta ZP_PTR+1
-	jsr printZ
+	// Blank the season row (40 spaces); cursor is already at ROW_SEASON.
+	ldx #40
+	lda #' '
+@rsl_clear_loop:
+	jsr CHROUT
+	dex
+	bne @rsl_clear_loop
 	rts
 
 // --- HP Regeneration (1 HP per minute when not in combat) ---
@@ -1616,42 +1615,47 @@ applyRegenIfDue:
 	rts
 
 renderQuestLine:
-	jsr clearMsgBuf
+	// Ensure cursor is at the quest row, then clear the full line
+	jsr setCursorQuest
+	ldx #40          // 40 columns per row
+@rql_clear_loop:
+	lda #' '
+	jsr CHROUT
+	dex
+	bne @rql_clear_loop
+	// Return cursor to start of quest row for fresh rendering
+	jsr setCursorQuest
+
+	// Print "WEEK <n>  SCORE <n>  QUEST <name|NONE>"
 	lda #<strWeek
 	sta ZP_PTR
 	lda #>strWeek
 	sta ZP_PTR+1
-	jsr appendToMsgBuf
-	// Append week number (2 digits)
+	jsr printZ
 	lda week
-	jsr appendByteAsDec
+	jsr printDecimal
 	lda #<strScore
 	sta ZP_PTR
 	lda #>strScore
 	sta ZP_PTR+1
-	jsr appendToMsgBuf
+	jsr printZ
 	lda scoreLo
-	jsr appendByteAsDec
+	jsr printDecimal
 	lda #<strQuest
 	sta ZP_PTR
 	lda #>strQuest
 	sta ZP_PTR+1
-	jsr appendToMsgBuf
+	jsr printZ
+
+	// Simple, safe quest label: show NONE or ACTIVE without using
+	// questName tables (which can mispoint and produce garbage).
 	lda activeQuest
 	cmp #QUEST_NONE
 	beq @rql_none
-	// Guard against out-of-range quest ids when looking up names
-	cmp #QUEST_COUNT
-	bcs @rql_none
-	tax
-	lda questNameLo,x
+	// Any non-NONE quest just shows a generic ACTIVE label.
+	lda #<strQuestActive
 	sta ZP_PTR
-	lda questNameHi,x
-	sta ZP_PTR+1
-	jsr appendToMsgBuf
-	lda #<msgBuf
-	sta ZP_PTR
-	lda #>msgBuf
+	lda #>strQuestActive
 	sta ZP_PTR+1
 	jsr printZ
 	rts
@@ -1660,11 +1664,6 @@ renderQuestLine:
 	lda #<strNone
 	sta ZP_PTR
 	lda #>strNone
-	sta ZP_PTR+1
-	jsr appendToMsgBuf
-	lda #<msgBuf
-	sta ZP_PTR
-	lda #>msgBuf
 	sta ZP_PTR+1
 	jsr printZ
 	rts
@@ -2631,6 +2630,15 @@ render_game:
 	lda uiHideExits
 	bne @render_skipExits
 	ldx #0
+	jsr setCursorExits
+	// Clear the entire exits row to avoid leftover characters.
+	ldx #40
+	lda #' '
+@rge_clear_exits:
+	jsr CHROUT
+	dex
+	bne @rge_clear_exits
+	// Reset cursor and print exits label + directions.
 	jsr setCursorExits
 	lda #<strExits
 	sta ZP_PTR
@@ -12725,6 +12733,8 @@ strRace:  .text "RACE: "
 strLevel: .text "LEVEL "
 	.byte 0
 strQuest: .text "  QUEST "
+	.byte 0
+strQuestActive: .text "ACTIVE"
 	.byte 0
 strHP:   .text "HP: "
 	.byte 0
