@@ -11191,19 +11191,19 @@ map0:  .text "            .-------------.            "
 	.byte 0
 map1:  .text "         .-'      TRN      '-.         "
 	.byte 0
-map2:  .text "       .'   NW  /  |  \\  NE   '.       "
+map2:  .text "       .'   NW  /  |  /  NE   '.       "
 	.byte 0
-map3:  .text "      /  DGH  /   |   \\  MKT    \\     "
+map3:  .text "      /  DGH  /   |   /  MKT    /     "
 	.byte 0
-map4:  .text "     ;       /   TMP    \\       ;     "
+map4:  .text "     ;       /   TMP    /       ;     "
 	.byte 0
 map5:  .text "     |  WGT |    PLA    |  ALY   |     "
 	.byte 0
-map6:  .text "     ;       \\    |    /        ;     "
+map6:  .text "     ;       /    |    /        ;     "
 	.byte 0
-map7:  .text "      \\  WCH  \\   |   /  FAY   /      "
+map7:  .text "      /  WCH  /   |   /  FAY   /      "
 	.byte 0
-map8:  .text "       '.   SW  \\  |  /  SE  .'       "
+map8:  .text "       '.   SW  /  |  /  SE  .'       "
 	.byte 0
 map9:  .text "         '-.     TAV     .-'           "
 	.byte 0
