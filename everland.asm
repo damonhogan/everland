@@ -11239,7 +11239,7 @@ locName1: .text "MARKET GREEN"
 	.byte 0
 locName2: .text "FRACTURED PORTAL"
 	.byte 0
-locName3: .text "DRAGON HAVEN"
+locName3: .text "LOUDEN'S REST"
 	.byte 0
 locName4: .text "CENTRAL PLAZA"
 	.byte 0
