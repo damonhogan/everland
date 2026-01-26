@@ -340,8 +340,48 @@ mainLoop:
 	jsr applyRegenIfDue
 	jsr render
 	jsr readLine
+    // Check for quit command (q, Q, quit, QUIT)
+    lda inputLen
+    beq @ml_continue
+    ldx #0
+    lda inputBuf,x
+    cmp #'q'
+    beq @ml_quit
+    cmp #'Q'
+    beq @ml_quit
+    // Check for 'quit' or 'QUIT'
+    lda inputLen
+    cmp #4
+    bne @ml_continue
+    lda inputBuf
+    cmp #'q'
+    beq check_quit_upper
+    cmp #'Q'
+    bne @ml_continue
+check_quit_upper:
+    lda inputBuf+1
+    cmp #'u'
+    beq check_quit_i
+    cmp #'U'
+    bne @ml_continue
+check_quit_i:
+    lda inputBuf+2
+    cmp #'i'
+    beq check_quit_t
+    cmp #'I'
+    bne @ml_continue
+check_quit_t:
+    lda inputBuf+3
+    cmp #'t'
+    beq @ml_quit
+    cmp #'T'
+    bne @ml_continue
+    jmp @ml_quit
+@ml_continue:
 	jsr executeCommand
 	jmp mainLoop
+@ml_quit:
+	jmp $A000 // Jump to BASIC READY prompt (ROM vector)
 
 // --- Profile / Save system ---
 // MVP: per-username save file on DEVICE 8.
@@ -2634,7 +2674,7 @@ render_game:
 	jsr drawMap
 @render_skip_map:
 
-	// UI title line
+	// UI title line (print only once, no extra newline)
 	jsr setCursorUi
 	ldx currentLoc
 	lda locNameLo,x
@@ -2642,8 +2682,6 @@ render_game:
 	lda locNameHi,x
 	sta ZP_PTR+1
 	jsr printZ
-	jsr newline
-
 	// Description (hand-wrapped// limited to description area)
 	jsr setCursorDesc
 	ldx currentLoc
@@ -12925,7 +12963,7 @@ npcNameHi:
 	.byte >npcName0,>npcName1,>npcName2,>npcName3,>npcName4,>npcName5,>npcName6,>npcName7,>npcName8,>npcName9,>npcName10,>npcName11,>npcName12,>npcName13,>npcName14,>npcName15
 	.byte >npcName16,>npcName17,>npcName18,>npcName19,>npcName20,>npcName21,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown,>npcNameUnknown
 
-msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE."
+msgWelcome:    .text "WELCOME TO EVERLAND. TYPE N E S W, OR INSPECT/TAKE/DROP/GIVE/QUIT."
 	.byte 0
 msgOk:         .text ""
 	.byte 0
