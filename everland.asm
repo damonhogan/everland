@@ -1,6 +1,24 @@
 // KICK ASSEMBLER C64 ADVENTURE ENGINE
 // Enhanced with location descriptions, extended commands, and NPCs
 :BasicUpstart2(start)
+// HP regeneration timer
+lastRegen0: .byte 0
+// Player race name and index
+raceName: .fill 12, 0
+playerRaceIdx: .byte 0
+// Player PIN and level
+pinLo: .byte 0
+pinHi: .byte 0
+currentLevel: .byte 0
+// Player score and quest state
+scoreLo: .byte 0
+scoreHi: .byte 0
+activeQuest: .byte 0
+questStatus: .byte 0
+// Player coin balances
+playerGold: .byte 0
+playerSilver: .byte 0
+playerCopper: .byte 0
 
 // KERNAL routines
 .label CHROUT = $FFD2
@@ -209,30 +227,9 @@ playerHpBonus: .byte 0
 playerGuildMember: .byte 0	// 1 = member of Order of the Emerald Sky
 // Player race (e.g. HUMAN, TROLL, ELF, DRAGON) - fixed 12-byte, 0-padded
 raceLen: .byte 0
-raceName:
-	.fill 12, 0
-playerRaceIdx: .byte 0
-pinLo: .byte 0
-pinHi: .byte 0
-
 // Calendar / progression
-month: .byte 4  // 1-12 (default APR)
-week:  .byte 14 // 1-52-ish (default mid-APR)
-
-// Quest state
-scoreLo: .byte 0
-scoreHi: .byte 0
-activeQuest: .byte QUEST_NONE
-questStatus: .byte 0 // 0=none/inactive, 1=active, 2=completed
-// Player level (single byte)
-currentLevel: .byte 0
-// Player coin balances
-playerGold: .byte 0
-playerSilver: .byte 0
-playerCopper: .byte 0
-
-// Regen / timing state (HP regen and encounters)
-lastRegen0:    .byte 0
+month: .byte 1  // 1-12 (default JAN)
+week:  .byte 1  // 1-52 (default week 1)
 lastRegen1:    .byte 0
 lastRegen2:    .byte 0
 nowRegen0:     .byte 0
@@ -412,23 +409,22 @@ loginOrCreate:
 	jsr readLine
 	jsr parsePinFromInput
 
-	// Prompt MONTH
-	lda #<msgAskMonth
-	sta lastMsgLo
-	lda #>msgAskMonth
-	sta lastMsgHi
-	jsr render
-	jsr readLine
-	jsr parseMonthFromInput
-
-	// Prompt WEEK
-	lda #<msgAskWeek
-	sta lastMsgLo
-	lda #>msgAskWeek
-	sta lastMsgHi
-	jsr render
-	jsr readLine
-	jsr parseWeekFromInput
+	// Set MONTH and WEEK from C64 clock (RDTIM)
+	jsr RDTIM
+	// RDTIM returns: A = 1/60 sec, X = seconds, Y = minutes
+	stx ZP_PTR    // save X (seconds) to ZP_PTR
+	sty ZP_PTR+1  // save Y (minutes) to ZP_PTR+1
+	lda ZP_PTR
+	and #$0F
+	clc
+	adc #1
+	sta month   // 1-12
+	lda ZP_PTR+1
+	lsr
+	lsr
+	clc
+	adc #1
+	sta week    // 1-52
 
 	// Defaults
 	lda #LOC_TRAIN
@@ -13155,9 +13151,10 @@ msgAskPinLogin: .text "PIN?"
 	.byte 0
 msgBadPin:      .text "WRONG PIN."
 	.byte 0
-msgAskMonth:    .text "MONTH (1-12)?"
+// msgAskMonth/msgAskWeek no longer used (month/week set from C64 clock)
+msgAskMonth:    .text ""
 	.byte 0
-msgAskWeek:     .text "WEEK (1-52)?"
+msgAskWeek:     .text ""
 	.byte 0
 msgCreated:     .text "PROFILE CREATED AND SAVED."
 	.byte 0
