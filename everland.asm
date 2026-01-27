@@ -2594,9 +2594,12 @@ themeSparkNotesHi:
 
 // Theme settings (tempo + timbre). 10 entries, indexed by musicTheme.
 // Smaller = faster (ticks per step). Values tuned for atmosphere.
-themeLeadLen:  .byte 9,16,18,12,20,14,16,12,10,12
-themeBassLen:  .byte 18,32,36,24,40,28,32,24,20,24
-themeSparkLen: .byte 6, 8, 8, 6, 10,6, 8, 8, 6, 8
+// Updated 2026-01-26: Slowed tempos for all themes. Most are now much slower (~52 BPM), with some variance for mood.
+// 0=off,1=mythos,2=lore,3=aurora,4=scary,5=tavern,6=inn,7=temple,8=fairy,9=pirate
+// Mythos: slow, Lore: very slow, Aurora: slow, Scary: sparse, Tavern: upbeat, Inn: slow, Temple: grand, Fairy: light, Pirate: upbeat
+themeLeadLen:  .byte 24,32,36,28,40,16,32,28,22,18   // lead step length (ticks)
+themeBassLen:  .byte 48,64,72,56,80,32,64,56,44,36   // bass step length (ticks)
+themeSparkLen: .byte 16,20,20,16,24,10,20,16,12,10   // sparkle/ornament (ticks)
 
 // Waveform bits only (gate bit added dynamically): TRI=$10 SAW=$20 PULSE=$40 NOISE=$80
 themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40
