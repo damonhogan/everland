@@ -1,6 +1,141 @@
-// KICK ASSEMBLER C64 ADVENTURE ENGINE
-// Enhanced with location descriptions, extended commands, and NPCs
+// Minimal C64 bitmap mode demo (KickAssembler)
 :BasicUpstart2(start)
+// Import shared constants
+.import source "constants.inc"
+// Build saveBaseBuf = username (up to 16 chars), sets saveBaseLen
+buildSaveNameBase:
+	ldx #0
+	ldy #0
+@bsb_loop:
+		lda username,y
+		beq @bsb_done
+		sta saveBaseBuf,x
+		inx
+		iny
+		cpx #16
+		bcc @bsb_loop
+@bsb_done:
+	stx saveBaseLen
+	rts
+// Routine: loadThemeFromDisk
+// Loads theme file for given index into $C000
+// Returns: Carry set on error, clear on success
+loadThemeFromDisk:
+// --- Theme Loader (Disk-based) ---
+// Loads a theme .bin file from disk into $C000 buffer
+// IN: A = theme index (0..9)
+// OUT: Carry set on error, clear on success
+// Uses: ZP_PTR, ZP_PTR2
+// File names: "THEME_MYTHOS.BIN", "THEME_LORE.BIN", ...
+themeFileNamesLo:
+	.byte <strThemeMythos, <strThemeLore, <strThemeAurora, <strThemeScary, <strThemeTavern, <strThemeInn, <strThemeTemple, <strThemeFairy, <strThemePirate, <strThemeMythosOld
+themeFileNamesHi:
+	.byte >strThemeMythos, >strThemeLore, >strThemeAurora, >strThemeScary, >strThemeTavern, >strThemeInn, >strThemeTemple, >strThemeFairy, >strThemePirate, >strThemeMythosOld
+
+strThemeMythos:    .text "THEME_MYTHOS.BIN"
+				  .byte 0
+strThemeLore:      .text "THEME_LORE.BIN"
+				  .byte 0
+strThemeAurora:    .text "THEME_AURORA.BIN"
+				  .byte 0
+strThemeScary:     .text "THEME_SCARY.BIN"
+				  .byte 0
+strThemeTavern:    .text "THEME_TAVERN.BIN"
+				  .byte 0
+strThemeInn:       .text "THEME_INN.BIN"
+				  .byte 0
+strThemeTemple:    .text "THEME_TEMPLE.BIN"
+				  .byte 0
+strThemeFairy:     .text "THEME_FAIRY.BIN"
+				  .byte 0
+strThemePirate:    .text "THEME_PIRATE.BIN"
+				  .byte 0
+strThemeMythosOld: .text "THEME_MYTHOS_OLD.BIN"
+				  .byte 0
+	sta ZP_PTR2         // Save theme index
+	ldx ZP_PTR2
+	lda themeFileNamesLo,x
+	sta ZP_PTR
+	lda themeFileNamesHi,x
+	sta ZP_PTR+1
+	lda #8              // Device 8 (disk)
+	ldx #$00            // Secondary address
+	jsr $FFBA           // SETLFS
+	lda #<($C000)
+	sta $C1             // Buffer address low
+	lda #>($C000)
+	sta $C2             // Buffer address high
+	ldy #$00
+	lda (ZP_PTR),y      // File name ptr
+	ldx ZP_PTR          // File name lo
+	ldy ZP_PTR+1        // File name hi
+	jsr $FFBD           // SETNAM
+	jsr $FFC0           // OPEN
+	bcs @fail           // Carry set = error
+	ldx #$02            // File number 2 (first available after keyboard)
+	jsr $FFC6           // CHKIN (set input channel)
+	bcs @fail
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+	// Read loop
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+	// Read bytes into $C000
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+	ldx #$00
+	ldy #$00
+	lda #$00
+	sta $C6             // Clear error
+		// Read loop: read bytes from file into $C000
+		ldx #0              // X = offset into $C000
+	@readloop:
+		jsr $FFB7           // READST: check status
+		bne @done           // If nonzero, EOF or error
+		jsr $FFCF           // CHRIN: read byte from file
+		sta $C000,x         // Store at $C000 + X
+		inx
+		bne @readloop       // Loop until X wraps (256 bytes at a time)
+		// If more than 256 bytes, use Y as high byte
+		ldy #1
+	@readloop_hi:
+		jsr $FFB7
+		bne @done
+		jsr $FFCF
+		sta $C000,x         // Store at $C000 + 256*Y + X
+		inx
+		bne @readloop_hi
+		iny
+		cpy #$10            // Up to $C000 + $1000 (4KB, adjust as needed)
+		bcc @readloop_hi
+	@done:
+		jsr $FFCC           // CLRCHN: close channel
+		clc                 // Success
+		rts
+	@fail:
+		sec
+		rts
+	@ok:
+		clc
+		rts
 // HP regeneration timer
 lastRegen0: .byte 0
 // Player race name and index
@@ -21,83 +156,12 @@ playerSilver: .byte 0
 playerCopper: .byte 0
 
 // KERNAL routines
-.label CHROUT = $FFD2
-.label SCNKEY = $FF9F
-.label GETIN  = $FFE4
-.label PLOT   = $FFF0
-.label SETNAM = $FFBD
-.label SETLFS = $FFBA
-.label OPEN   = $FFC0
-.label CLOSE  = $FFC3
-.label CHKIN  = $FFC6
-.label CHKOUT = $FFC9
-.label CLRCHN = $FFCC
-.label CHRIN  = $FFCF
-.label READST = $FFB7
 .label RDTIM  = $FFDE
 
 // SID registers
-.label SID_V1_FREQLO = $D400
-.label SID_V1_FREQHI = $D401
-.label SID_V1_PWLO   = $D402
-.label SID_V1_PWHI   = $D403
-.label SID_V1_CTRL   = $D404
-.label SID_V1_AD     = $D405
-.label SID_V1_SR     = $D406
-.label SID_V2_FREQLO = $D407
-.label SID_V2_FREQHI = $D408
-.label SID_V2_PWLO   = $D409
-.label SID_V2_PWHI   = $D40A
-.label SID_V2_CTRL   = $D40B
-.label SID_V2_AD     = $D40C
-.label SID_V2_SR     = $D40D
-.label SID_V3_FREQLO = $D40E
-.label SID_V3_FREQHI = $D40F
-.label SID_V3_PWLO   = $D410
-.label SID_V3_PWHI   = $D411
-.label SID_V3_CTRL   = $D412
-.label SID_V3_AD     = $D413
-.label SID_V3_SR     = $D414
-.label SID_MODE_VOL  = $D418
 
-// IRQ vectors
-.label IRQ_VEC_LO = $0314
-.label IRQ_VEC_HI = $0315
 
-// VIC raster IRQ
-.label VIC_IRQFLAG = $D019
-.label VIC_IRQMASK = $D01A
-.label VIC_RASTER  = $D012
-.label VIC_CTRL1   = $D011
 
-// Memory
-.label SCREEN = $0400
-
-// Zero page
-.label ZP_PTR  = $FB // $FB/$FC
-.label ZP_PTR2 = $FD // $FD/$FE
-
-// IEC/device constants
-.const DEVICE = 8
-.const LFN    = 1
-.const SA     = 2
-
-// Location constants (Train  Bank)
-.const LOC_TRAIN     = 0
-.const LOC_MARKET    = 1
-.const LOC_PORTAL    = 2
-.const LOC_GOLEM     = 3
-.const LOC_PLAZA     = 4
-.const LOC_ALLEY     = 5
-.const LOC_MYSTIC    = 6
-.const LOC_GROVE     = 7
-.const LOC_TAVERN    = 8
-.const LOC_GRAVE     = 9
-.const LOC_CATACOMBS = 10
-.const LOC_INN       = 11
-.const LOC_TEMPLE    = 12
-.const LOC_BANK      = 13
-.const LOC_COUNT     = 14
 
 // Screen row layout
 .const ROW_MAP_LAST   = 11
@@ -114,50 +178,7 @@ playerCopper: .byte 0
 .const ROW_AUTH_MSG    = 12
 .const ROW_AUTH_PROMPT = 14
 
-.const OBJ_LANTERN     = 0
-.const OBJ_COIN        = 1
-.const OBJ_MUG         = 2
-.const OBJ_KEY         = 3
-.const OBJ_TREASURE    = 4
-.const OBJ_STOLEN_NAME = 5
-.const OBJ_HEART       = 6
-.const OBJ_PINECONE    = 7
-.const OBJ_SHELL       = 8
-.const OBJ_SCOTCH      = 9
-.const OBJ_WARD        = 10
-.const OBJ_COUNT       = 11
-.const OBJ_INVENTORY   = $FE
-.const OBJ_NOWHERE     = $FF
 
-// NPC constants
-.const NPC_CONDUCTOR        = 0
-.const NPC_BARTENDER        = 1
-.const NPC_KNIGHT           = 2
-.const NPC_MYSTIC           = 3
-.const NPC_FAIRY            = 4
-.const NPC_KENDRICK         = 5
-.const NPC_SPIDER_PRINCESS  = 6
-.const NPC_PIRATE_CAPTAIN   = 7
-.const NPC_WARLOCK          = 8
-.const NPC_UNSEELY_FAE      = 9
-.const NPC_APOLLONIA        = 10
-.const NPC_ALYSTER          = 11
-.const NPC_TROLL            = 12
-.const NPC_TOSH             = 13
-.const NPC_LOUDEN           = 14
-.const NPC_MERMAID          = 15
-.const NPC_CANDY_WITCH      = 16
-.const NPC_KORA             = 17
-.const NPC_ALPHA_WOLFRIC    = 18
-.const NPC_VASHTEE          = 19
-.const NPC_TRADING_OWNER    = 20
-.const NPC_FROST_WEAVERS_QUEEN = 21
-.const NPC_BANKER           = 22
-// Legacy alias (maps PIXIE to FAIRY slot)
-.const NPC_PIXIE            = NPC_FAIRY
-// First mate alias; currently share captain slot
-.const NPC_PIRATE_FIRSTMATE = NPC_PIRATE_CAPTAIN
-.const NPC_COUNT            = 32
 
 // Max characters stored for each NPC given name
 .const NPC_GIVEN_NAME_LEN   = 16
@@ -873,52 +894,80 @@ copyInputToGivenName:
 @cign_pad_done:
 	rts
 
-// Interactive setup: ask the player for a given name for each known NPC
-setupNpcGivenNames:
-	// linear loop index stored in givenNameLoopIndex
-	lda #0
-	sta givenNameLoopIndex
-@sn_loop:
-	lda givenNameLoopIndex
-	cmp #NPC_COUNT
-	bcs @sn_continue
-	rts
-@sn_continue:
-	tax
-	// skip unknown named NPC slots
-	lda npcNameLo,x
-	cmp #<npcNameUnknown
-	bne @sn_hasname
-	lda npcNameHi,x
-	cmp #>npcNameUnknown
-	beq @sn_inc
-@sn_hasname:
-	// Prompt: "ENTER A GIVEN NAME FOR:" then print NPC title
-	lda #<msgAskNpcName
-	sta lastMsgLo
-	lda #>msgAskNpcName
-	sta lastMsgHi
-	jsr render
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
-	jsr printZ
-	// Read player's input and store into the slot
-	jsr readLine
-	lda givenNameLoopIndex
-	tax
-	jsr copyInputToGivenName
-@sn_inc:
-	// increment index
-	lda givenNameLoopIndex
-	clc
-	adc #1
-	sta givenNameLoopIndex
-	jmp @sn_loop
 
-// Parse 0-65535 from inputBuf into pinLo/pinHi
+setupNpcGivenNames:
+	// Assign hardcoded given names to all NPCs (no user input)
+	ldx #0
+@sn_loop:
+	cpx #NPC_COUNT
+	bcs @sn_done
+	lda npcDefaultGivenNameLo,x
+	sta npcGivenNameLo,x
+	lda npcDefaultGivenNameHi,x
+	sta npcGivenNameHi,x
+	inx
+	jmp @sn_loop
+@sn_done:
+	rts
+
+// --- Default NPC Given Names (template, expand as needed) ---
+npcDefaultGivenName0: .text "ALYS"; .byte 0
+npcDefaultGivenName1: .text "BART"; .byte 0
+npcDefaultGivenName2: .text "KENDRICK"; .byte 0
+npcDefaultGivenName3: .text "MYSTIC"; .byte 0
+npcDefaultGivenName4: .text "FAE"; .byte 0
+npcDefaultGivenName5: .text "SPIDER"; .byte 0
+npcDefaultGivenName6: .text "PIRATE"; .byte 0
+npcDefaultGivenName7: .text "WARLOCK"; .byte 0
+npcDefaultGivenName8: .text "UNSEELY"; .byte 0
+npcDefaultGivenName9: .text "APOLLONIA"; .byte 0
+npcDefaultGivenName10: .text "ALYSTER"; .byte 0
+npcDefaultGivenName11: .text "TROLL"; .byte 0
+npcDefaultGivenName12: .text "TOSH"; .byte 0
+npcDefaultGivenName13: .text "LOUDEN"; .byte 0
+npcDefaultGivenName14: .text "MERMAID"; .byte 0
+npcDefaultGivenName15: .text "CANDY"; .byte 0
+// ...add more as needed up to NPC_COUNT
+npcDefaultGivenNameLo:
+	.byte <npcDefaultGivenName0, <npcDefaultGivenName1, <npcDefaultGivenName2, <npcDefaultGivenName3, <npcDefaultGivenName4, <npcDefaultGivenName5, <npcDefaultGivenName6, <npcDefaultGivenName7, <npcDefaultGivenName8, <npcDefaultGivenName9, <npcDefaultGivenName10, <npcDefaultGivenName11, <npcDefaultGivenName12, <npcDefaultGivenName13, <npcDefaultGivenName14, <npcDefaultGivenName15
+npcDefaultGivenNameHi:
+	.byte >npcDefaultGivenName0, >npcDefaultGivenName1, >npcDefaultGivenName2, >npcDefaultGivenName3, >npcDefaultGivenName4, >npcDefaultGivenName5, >npcDefaultGivenName6, >npcDefaultGivenName7, >npcDefaultGivenName8, >npcDefaultGivenName9, >npcDefaultGivenName10, >npcDefaultGivenName11, >npcDefaultGivenName12, >npcDefaultGivenName13, >npcDefaultGivenName14, >npcDefaultGivenName15
+
+// --- Active NPC Given Name Pointers (populated at runtime by setupNpcGivenNames) ---
+npcGivenNameLo:
+	.fill 16, 0
+npcGivenNameHi:
+	.fill 16, 0
+
+// --- parsePinFromInput: Parse 0-65535 from inputBuf into pinLo/pinHi ---
 parsePinFromInput:
+	pinMul10:
+		// (pinHi:pinLo) *= 10
+		// tmp = pin*2
+		lda pinLo
+		asl
+		sta ZP_PTR
+		lda pinHi
+		rol
+		sta ZP_PTR+1
+		// pin*8 = pin*2*4
+		lda ZP_PTR
+		asl
+		asl
+		sta ZP_PTR2
+		lda ZP_PTR+1
+		rol
+		rol
+		sta ZP_PTR2+1
+		// pin*10 = pin*8 + pin*2
+		clc
+		lda ZP_PTR2
+		adc ZP_PTR
+		sta pinLo
+		lda ZP_PTR2+1
+		adc ZP_PTR+1
+		sta pinHi
+		rts
 	lda #0
 	sta pinLo
 	sta pinHi
@@ -933,7 +982,7 @@ parsePinFromInput:
 	bcs @pp_skip
 	sec
 	sbc #'0'
-	sta ZP_PTR // digit
+	sta ZP_PTR      // digit
 	// pin = pin*10 + digit
 	jsr pinMul10
 	clc
@@ -943,34 +992,33 @@ parsePinFromInput:
 	lda pinHi
 	adc #0
 	sta pinHi
-
 @pp_skip:
 	inx
 	cpx #48
 	bne @pp_loop
-
 @pp_done:
 	rts
-
-pinMul10:
-	// (pinHi:pinLo) *= 10
-	// tmp = pin*2
-	lda pinLo
-	asl
-	sta ZP_PTR
-	lda pinHi
-	rol
-	sta ZP_PTR+1
-	// pin*8 = pin*2*4
-	lda ZP_PTR
-	asl
-	asl
-	sta ZP_PTR2
-	lda ZP_PTR+1
-	rol
-	rol
-	sta ZP_PTR2+1
-	// pin*10 = pin*8 + pin*2
+		lda pinHi
+		rol
+		sta ZP_PTR+1
+		// pin*8 = pin*2*4
+		lda ZP_PTR
+		asl
+		asl
+		sta ZP_PTR2
+		lda ZP_PTR+1
+		rol
+		rol
+		sta ZP_PTR2+1
+		// pin*10 = pin*8 + pin*2
+		clc
+		lda ZP_PTR2
+		adc ZP_PTR
+		sta pinLo
+		lda ZP_PTR2+1
+		adc ZP_PTR+1
+		sta pinHi
+		rts
 	clc
 	lda ZP_PTR2
 	adc ZP_PTR
@@ -979,7 +1027,6 @@ pinMul10:
 	adc ZP_PTR+1
 	sta pinHi
 	rts
-
 parseMonthFromInput:
 	jsr parseSmallNumber
 	cmp #1
@@ -1034,42 +1081,13 @@ parseSmallNumber:
 	adc ZP_PTR
 	adc ZP_PTR2
 	sta ZP_PTR
-
 @ps_next:
 	inx
 	cpx #48
 	bne @ps_loop
-
 @ps_done:
 	lda ZP_PTR
 	rts
-
-// Build base save filename: "EV" + username (no extension)
-buildSaveNameBase:
-	ldx #0
-	lda #'E'
-	sta saveBaseBuf,x
-	inx
-	lda #'V'
-	sta saveBaseBuf,x
-	inx
-	ldy #0
-
-@bsb_loop:
-	cpy usernameLen
-	beq @bsb_done
-	lda username,y
-	beq @bsb_done
-	sta saveBaseBuf,x
-	inx
-	iny
-	cpx #16
-	bcc @bsb_loop
-
-@bsb_done:
-	stx saveBaseLen
-	rts
-
 // Build saveNameBuf = base + ",S,R" or ",S,W" (mode in A: 'R' or 'W')
 buildSaveNameWithMode:
 	pha
@@ -1362,50 +1380,6 @@ saveGame:
 	// pin
 	lda pinLo
 	jsr CHROUT
-	lda pinHi
-	jsr CHROUT
-	// score
-	lda scoreLo
-	jsr CHROUT
-	lda scoreHi
-	jsr CHROUT
-	// level
-	lda currentLevel
-	jsr CHROUT
-	// player current HP
-	lda playerCurHp
-	jsr CHROUT
-	// player class index
-	lda playerClassIdx
-	jsr CHROUT
-	// player race index
-	lda playerRaceIdx
-	jsr CHROUT
-	// player max HP at time of save (recomputed)
-	jsr computePlayerMaxHp
-	lda tmpHp
-	jsr CHROUT
-	// month/week/loc
-	lda month
-	jsr CHROUT
-	lda week
-	jsr CHROUT
-	lda currentLoc
-	jsr CHROUT
-	// objLoc
-	ldx #0
-@wo:
-	lda objLoc,x
-	jsr CHROUT
-	inx
-	cpx #OBJ_COUNT
-	bne @wo
-	// quest
-	lda activeQuest
-	jsr CHROUT
-	lda questStatus
-	jsr CHROUT
-	// player coins
 	lda playerGold
 	jsr CHROUT
 	lda playerSilver
@@ -1822,7 +1796,41 @@ appendCharA:
 
 // --- Quest system ---
 ensureQuest:
+	// --- All remaining music data moved to end of file at $C000. See: MUSIC DATA SECTION NEAR END OF FILE ---
 	// ...existing code...
+	// --- MUSIC DATA SECTION NEAR END OF FILE ---
+	// All SID music pattern and pointer tables, sparkle tables, and theme*Notes* tables are now loaded from disk at $C000. The static tables below are commented out to prevent memory overlap and crashes.
+
+	// --- MUSIC DATA TABLES REMOVED: Now loaded from disk ---
+	// myLeadPtr: .word myLead0,myLead1,myLead2
+	// loLeadPtr: .word loLead0,loLead1,loLead2
+	// auLeadPtr: .word auLead0,auLead1,auLead2
+	// ofLeadPtr: .word ofLead0,ofLead1,ofLead2
+	// scLeadPtr: .word scLead0,scLead1,scLead2
+	// tvLeadPtr: .word tvLead0,tvLead1,tvLead2
+	// inLeadPtr: .word inLead0,inLead1,inLead2
+	// tpLeadPtr: .word tpLead0,tpLead1,tpLead2
+	// faLeadPtr: .word faLead0,faLead1,faLead2
+	// piLeadPtr: .word piLead0,piLead1,piLead2
+
+	// myBassPtr: .word myBass0,myBass1,myBass2
+	// loBassPtr: .word loBass0,loBass1,loBass2
+	// auBassPtr: .word auBass0,auBass1,auBass2
+	// ofBassPtr: .word ofBass0,ofBass1,ofBass2
+	// scBassPtr: .word scBass0,scBass1,scBass2
+	// tvBassPtr: .word tvBass0,tvBass1,tvBass2
+	// inBassPtr: .word inBass0,inBass1,inBass2
+	// tpBassPtr: .word tpBass0,tpBass1,tpBass2
+	// faBassPtr: .word faBass0,faBass1,faBass2
+	// piBassPtr: .word piBass0,piBass1,piBass2
+
+	// loLead0: .byte ...
+	// loLead1: .byte ...
+	// loLead2: .byte ...
+	// loBass0: .byte ...
+	// loBass1: .byte ...
+	// loBass2: .byte ...
+	// ...all other music pattern, sparkle, and pointer tables, and theme*Notes* tables...
 	rts
 @set:
 	sta activeQuest
@@ -2133,32 +2141,83 @@ musicPickForLocation:
 	jsr getSeason
 	sta musicTheme
 @pick:
+	lda musicTheme
+	jsr loadThemeFromDisk
+	bcs @music_load_fail
 	jsr musicApplyThemeSettings
 	jsr musicAllNotesOff
 	jsr musicPickRandomPattern
 	jsr musicRestart
 	rts
 
+@music_load_fail:
+	// Optionally handle music load error (e.g., silence music, show message)
+	rts
+
 musicApplyThemeSettings:
-	ldx musicTheme
-	lda themeLeadLen,x
+	// All theme parameters are now in loaded buffer
+	lda #<($C000+OFFS_LEADLEN)
+	sta ZP_PTR
+	lda #>($C000+OFFS_LEADLEN)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta musicStepLen
-	lda themeBassLen,x
+	lda #<($C000+OFFS_BASSLEN)
+	sta ZP_PTR
+	lda #>($C000+OFFS_BASSLEN)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta musicBassLen
-	lda themeSparkLen,x
+	lda #<($C000+OFFS_SPKLEN)
+	sta ZP_PTR
+	lda #>($C000+OFFS_SPKLEN)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta musicSparkLen
-	lda themeLeadWave,x
+	lda #<($C000+OFFS_LEADWAV)
+	sta ZP_PTR
+	lda #>($C000+OFFS_LEADWAV)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta leadWave
-	lda themeBassWave,x
+	lda #<($C000+OFFS_BASSWAV)
+	sta ZP_PTR
+	lda #>($C000+OFFS_BASSWAV)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta bassWave
-	lda themeSparkWave,x
+	lda #<($C000+OFFS_SPKWAV)
+	sta ZP_PTR
+	lda #>($C000+OFFS_SPKWAV)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta sparkWave
-	// Per-theme envelopes (SR only// AD set once in init)
-	lda themeV1SR,x
+	lda #<($C000+OFFS_V1SR)
+	sta ZP_PTR
+	lda #>($C000+OFFS_V1SR)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta SID_V1_SR
-	lda themeV2SR,x
+	lda #<($C000+OFFS_V2SR)
+	sta ZP_PTR
+	lda #>($C000+OFFS_V2SR)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta SID_V2_SR
-	lda themeV3SR,x
+	lda #<($C000+OFFS_V3SR)
+	sta ZP_PTR
+	lda #>($C000+OFFS_V3SR)
+	sta ZP_PTR+1
+	ldy #0
+	lda (ZP_PTR),y
 	sta SID_V3_SR
 	rts
 
@@ -2274,13 +2333,11 @@ musicTickRoutine:
 	rts
 
 musicAdvanceLead:
-	ldx musicTheme
-	lda themeLeadNotesLo,x
+	// LeadPtr table: 3 words at OFFS_LEADPTR
+	lda #<($C000+OFFS_LEADPTR)
 	sta ZP_PTR
-	lda themeLeadNotesHi,x
+	lda #>($C000+OFFS_LEADPTR)
 	sta ZP_PTR+1
-
-	// ZP_PTR points to table of 3 pattern pointers (lo/hi pairs)
 	lda musicPattern
 	asl
 	tay
@@ -2289,7 +2346,6 @@ musicAdvanceLead:
 	iny
 	lda (ZP_PTR),y
 	sta ZP_PTR2+1
-
 	ldx musicStep
 	lda (ZP_PTR2),x
 	beq @mal_rest
@@ -2331,9 +2387,10 @@ musicAdvanceLead:
 
 musicAdvanceBass:
 	ldx musicTheme
-	lda themeBassNotesLo,x
+	// BassPtr table: 3 words at OFFS_BASSPTR
+	lda #<($C000+OFFS_BASSPTR)
 	sta ZP_PTR
-	lda themeBassNotesHi,x
+	lda #>($C000+OFFS_BASSPTR)
 	sta ZP_PTR+1
 	lda musicPattern
 	asl
@@ -2386,10 +2443,10 @@ musicAdvanceSparkle:
 	rts
 
 @mas_do:
-	ldx musicTheme
-	lda themeSparkNotesLo,x
+	// SparklePtr table: 3 words at OFFS_SPKPTR
+	lda #<($C000+OFFS_SPKPTR)
 	sta ZP_PTR
-	lda themeSparkNotesHi,x
+	lda #>($C000+OFFS_SPKPTR)
 	sta ZP_PTR+1
 	lda musicPattern
 	asl
@@ -2448,124 +2505,108 @@ noteFreqHi:
 
 // --- Music patterns (16 steps each// 0=rest// note index 1..12) ---
 // MYTHOS (soft, major, medieval slow)
-myLead0: .byte 1,0,3,0,5,0,8,0,6,0,5,0,3,0,1,0
-myLead1: .byte 3,0,5,0,8,0,10,0,8,0,6,0,5,0,3,0
-myLead2: .byte 5,0,6,0,8,0,10,0,11,0,10,0,8,0,6,0
-myBass0: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
-myBass1: .byte 1,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
-myBass2: .byte 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
-
-// LORE (minor-ish, slower feel, atmospheric)
-loLead0: .byte 6,0,5,0,3,0,2,0,3,0,5,0,6,0,5,0
-loLead1: .byte 5,0,3,0,2,0,1,0,2,0,3,0,5,0,6,0
-loLead2: .byte 6,0,8,0,7,0,6,0,5,0,3,0,2,0,1,0
-loBass0: .byte 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0
-loBass1: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0
-loBass2: .byte 6,0,0,0,7,0,0,0,5,0,0,0,3,0,0,0
+// Moved to end of file at $C000. See: MUSIC DATA SECTION NEAR END OF FILE
+// * = $C000   // (REMOVED: music now loaded dynamically)
+// MYTHOS (soft, major, medieval slow)
+// Expanded for longer, more varied medieval loop (4x original length)
+// ofLead0: .byte ...
+// ofLead1: .byte ...
+// ofLead2: .byte ...
+// ofBass0: .byte ...
+// ofBass1: .byte ...
+// ofBass2: .byte ...
+// MYTHOS (soft, major, medieval slow)
+// Expanded for longer, more varied medieval loop (4x original length)
+// myLead0: .byte ...
+myLead1: .byte 3,0,5,0,8,0,10,0,8,0,6,0,5,0,3,0, 5,0,8,0,10,0,12,0,10,0,8,0,6,0,5,0, 8,0,10,0,11,0,13,0,11,0,10,0,8,0,6,0, 10,0,8,0,6,0,5,0,3,0,1,0,3,0,5,0
+myLead2: .byte 5,0,6,0,8,0,10,0,11,0,10,0,8,0,6,0, 8,0,10,0,11,0,13,0,11,0,10,0,8,0,6,0, 10,0,11,0,13,0,15,0,13,0,11,0,10,0,8,0, 11,0,10,0,8,0,6,0,5,0,3,0,1,0,3,0
+myBass0: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0, 3,0,0,0,1,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+myBass1: .byte 1,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 5,0,0,0,8,0,0,0,6,0,0,0,5,0,0,0, 3,0,0,0,1,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+myBass2: .byte 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0, 8,0,0,0,10,0,0,0,8,0,0,0,6,0,0,0, 5,0,0,0,3,0,0,0,1,0,0,0,3,0,0,0, 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
 
 // AURORA (sparkly, higher notes, ethereal)
-auLead0: .byte 8,0,0,0,10,0,0,0,11,0,0,0,12,0,0,0
-auLead1: .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
-auLead2: .byte 8,0,0,0,9,0,0,0,10,0,0,0,11,0,0,0
-auBass0: .byte 1,0,0,0,5,0,0,0,8,0,0,0,5,0,0,0
-auBass1: .byte 3,0,0,0,6,0,0,0,10,0,0,0,6,0,0,0
-auBass2: .byte 1,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
+// Expanded for longer, more varied medieval/ethereal loop (4x original length)
+auLead0: .byte 8,0,0,0,10,0,0,0,11,0,0,0,12,0,0,0, 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0, 8,0,0,0,9,0,0,0,10,0,0,0,11,0,0,0, 12,0,0,0,11,0,0,0,10,0,0,0,9,0,0,0
+auLead1: .byte 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0, 8,0,0,0,10,0,0,0,11,0,0,0,12,0,0,0, 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0, 8,0,0,0,9,0,0,0,10,0,0,0,11,0,0,0
+auLead2: .byte 8,0,0,0,9,0,0,0,10,0,0,0,11,0,0,0, 12,0,0,0,11,0,0,0,10,0,0,0,9,0,0,0, 8,0,0,0,10,0,0,0,11,0,0,0,12,0,0,0, 10,0,0,0,11,0,0,0,12,0,0,0,11,0,0,0
+auBass0: .byte 1,0,0,0,5,0,0,0,8,0,0,0,5,0,0,0, 3,0,0,0,1,0,0,0,5,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,1,0,0,0, 5,0,0,0,8,0,0,0,6,0,0,0,5,0,0,0
+auBass1: .byte 3,0,0,0,6,0,0,0,10,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,5,0,0,0,8,0,0,0,6,0,0,0, 5,0,0,0,3,0,0,0,1,0,0,0,5,0,0,0
+auBass2: .byte 1,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0, 5,0,0,0,3,0,0,0,1,0,0,0,5,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,5,0,0,0,8,0,0,0,6,0,0,0
 
+// Aurora sparkle ornaments (ethereal trills)
 auSpk0:  .byte 12,0,11,0,10,0,11,0,12,0,11,0,10,0,11,0
 auSpk1:  .byte 11,0,12,0,11,0,10,0,11,0,10,0,9,0,10,0
 auSpk2:  .byte 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0
+// --- End of MUSIC DATA SECTION ---
 
-// OFF SEASON (simple, airy, minimal)
-ofLead0: .byte 1,0,0,0,2,0,0,0,3,0,0,0,2,0,0,0
-ofLead1: .byte 3,0,0,0,2,0,0,0,1,0,0,0,0,0,0,0
-ofLead2: .byte 2,0,0,0,1,0,0,0,2,0,0,0,3,0,0,0
-ofBass0: .byte 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0
-ofBass1: .byte 3,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0
-ofBass2: .byte 5,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0
 
 // SCARY (dissonant steps, sparse, eerie)
-scLead0: .byte 7,0,0,0,4,0,0,0,7,0,0,0,4,0,0,0
-scLead1: .byte 4,0,0,0,7,0,0,0,4,0,0,0,7,0,0,0
-scLead2: .byte 7,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0
-scBass0: .byte 1,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0
-scBass1: .byte 2,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0
-scBass2: .byte 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0
+// Expanded for longer, more varied medieval/atmospheric loop (4x original length)
+scLead0: .byte 7,0,0,0,4,0,0,0,7,0,0,0,4,0,0,0, 0,0,0,0,4,0,0,0,7,0,0,0,4,0,0,0, 7,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0, 4,0,0,0,7,0,0,0,4,0,0,0,7,0,0,0
+scLead1: .byte 4,0,0,0,7,0,0,0,4,0,0,0,7,0,0,0, 0,0,0,0,4,0,0,0,7,0,0,0,4,0,0,0, 7,0,0,0,4,0,0,0,0,0,0,0,4,0,0,0, 7,0,0,0,4,0,0,0,7,0,0,0,0,0,0,0
+scLead2: .byte 7,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0, 4,0,0,0,7,0,0,0,4,0,0,0,7,0,0,0, 0,0,0,0,4,0,0,0,7,0,0,0,4,0,0,0, 7,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0
+scBass0: .byte 1,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0, 5,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0
+scBass1: .byte 2,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0, 5,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0
+scBass2: .byte 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0, 2,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0, 5,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0
 
 // TAVERN (indoor, cozy, warm)
-tvLead0: .byte 5,0,6,0,5,0,3,0,2,0,3,0,5,0,6,0
-tvLead1: .byte 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0
-tvLead2: .byte 3,0,5,0,6,0,5,0,3,0,2,0,1,0,2,0
-tvBass0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
-tvBass1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0
-tvBass2: .byte 5,0,0,0,6,0,0,0,8,0,0,0,10,0,0,0
+// Expanded for longer, more varied medieval/folk loop (4x original length)
+tvLead0: .byte 5,0,6,0,5,0,3,0,2,0,3,0,5,0,6,0, 8,0,6,0,5,0,3,0,2,0,1,0,3,0,5,0, 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0, 10,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0
+tvLead1: .byte 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0, 10,0,8,0,6,0,5,0,3,0,2,0,1,0,3,0, 5,0,6,0,8,0,10,0,8,0,6,0,5,0,3,0, 2,0,1,0,3,0,5,0,6,0,8,0,10,0,8,0
+tvLead2: .byte 3,0,5,0,6,0,5,0,3,0,2,0,1,0,2,0, 5,0,6,0,8,0,6,0,5,0,3,0,5,0,6,0, 8,0,10,0,8,0,6,0,5,0,3,0,2,0,1,0, 3,0,5,0,6,0,8,0,10,0,8,0,6,0,5,0
+tvBass0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+tvBass1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 10,0,0,0,8,0,0,0,6,0,0,0,5,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 10,0,0,0,8,0,0,0,6,0,0,0,5,0,0,0
+tvBass2: .byte 5,0,0,0,6,0,0,0,8,0,0,0,10,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
 
 tvSpk0:  .byte 8,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0
 tvSpk1:  .byte 10,0,0,0,0,0,0,0,11,0,0,0,0,0,0,0
 tvSpk2:  .byte 11,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0
 
 // INN (warm, restful, soothing)
-inLead0: .byte 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
-inLead1: .byte 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0
-inLead2: .byte 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0
-inBass0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,3,0,0,0
-inBass1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
-inBass2: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0
+// Expanded for longer, more varied medieval/restful loop (4x original length)
+inLead0: .byte 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+inLead1: .byte 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0, 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0
+inLead2: .byte 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+inBass0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+inBass1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+inBass2: .byte 5,0,0,0,3,0,0,0,2,0,0,0,1,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,2,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
 
 // TEMPLE (martial, grand)
-tpLead0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
-tpLead1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0
-tpLead2: .byte 5,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
-tpBass0: .byte 1,0,0,0,1,0,0,0,1,0,0,0,3,0,0,0
-tpBass1: .byte 3,0,0,0,3,0,0,0,5,0,0,0,5,0,0,0
-tpBass2: .byte 5,0,0,0,5,0,0,0,6,0,0,0,6,0,0,0
+// Expanded for longer, more varied medieval/grand loop (4x original length)
+tpLead0: .byte 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+tpLead1: .byte 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,1,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,1,0,0,0
+tpLead2: .byte 5,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+tpBass0: .byte 1,0,0,0,1,0,0,0,1,0,0,0,3,0,0,0, 5,0,0,0,3,0,0,0,1,0,0,0,1,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,1,0,0,0
+tpBass1: .byte 3,0,0,0,3,0,0,0,5,0,0,0,5,0,0,0, 3,0,0,0,1,0,0,0,1,0,0,0,3,0,0,0, 5,0,0,0,6,0,0,0,8,0,0,0,6,0,0,0, 5,0,0,0,3,0,0,0,1,0,0,0,1,0,0,0
+tpBass2: .byte 5,0,0,0,5,0,0,0,6,0,0,0,6,0,0,0, 5,0,0,0,3,0,0,0,1,0,0,0,1,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,1,0,0,0
 
 // FAIRY (light, sparkly, magical)
-faLead0: .byte 8,0,10,0,12,0,11,0,10,0,9,0,8,0,9,0
-faLead1: .byte 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0
-faLead2: .byte 8,0,9,0,10,0,11,0,12,0,11,0,10,0,9,0
-faBass0: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
-faBass1: .byte 3,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
-faBass2: .byte 1,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0
+// Expanded for longer, more varied medieval/magical loop (4x original length)
+faLead0: .byte 8,0,10,0,12,0,11,0,10,0,9,0,8,0,9,0, 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0, 9,0,10,0,11,0,12,0,11,0,10,0,9,0,8,0, 10,0,12,0,11,0,10,0,9,0,8,0,9,0,10,0
+faLead1: .byte 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0, 9,0,10,0,11,0,12,0,11,0,10,0,9,0,8,0, 10,0,12,0,11,0,10,0,9,0,8,0,9,0,10,0, 11,0,12,0,0,0,11,0,10,0,9,0,8,0,9,0
+faLead2: .byte 8,0,9,0,10,0,11,0,12,0,11,0,10,0,9,0, 8,0,10,0,12,0,11,0,10,0,9,0,8,0,9,0, 10,0,11,0,12,0,0,0,11,0,10,0,9,0,8,0, 9,0,10,0,11,0,12,0,11,0,10,0,9,0,8,0
+faBass0: .byte 1,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0, 3,0,0,0,1,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
+faBass1: .byte 3,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 6,0,0,0,5,0,0,0,3,0,0,0,1,0,0,0, 3,0,0,0,5,0,0,0,6,0,0,0,5,0,0,0
+faBass2: .byte 1,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0, 8,0,0,0,6,0,0,0,5,0,0,0,3,0,0,0, 1,0,0,0,3,0,0,0,5,0,0,0,6,0,0,0
 
 faSpk0:  .byte 12,0,0,0,0,0,11,0,0,0,0,0,12,0,0,0
 faSpk1:  .byte 11,0,0,0,0,0,12,0,0,0,0,0,11,0,0,0
 faSpk2:  .byte 10,0,0,0,0,0,11,0,0,0,0,0,12,0,0,0
 
 // PIRATE (jaunty, sea shanty)
-piLead0: .byte 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0
-piLead1: .byte 6,0,6,0,8,0,6,0,5,0,3,0,5,0,6,0
-piLead2: .byte 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0
-piBass0: .byte 1,0,0,0,5,0,0,0,1,0,0,0,6,0,0,0
-piBass1: .byte 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0
-piBass2: .byte 5,0,0,0,8,0,0,0,5,0,0,0,6,0,0,0
+// Expanded for longer, more varied medieval/jaunty loop (4x original length)
+piLead0: .byte 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0, 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0, 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0, 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0
+piLead1: .byte 6,0,6,0,8,0,6,0,5,0,3,0,5,0,6,0, 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0, 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0, 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0
+piLead2: .byte 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0, 5,0,5,0,6,0,5,0,3,0,2,0,3,0,5,0, 6,0,8,0,6,0,5,0,3,0,5,0,6,0,8,0, 8,0,8,0,6,0,5,0,3,0,2,0,1,0,2,0
+piBass0: .byte 1,0,0,0,5,0,0,0,1,0,0,0,6,0,0,0, 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0, 5,0,0,0,8,0,0,0,5,0,0,0,6,0,0,0, 1,0,0,0,5,0,0,0,1,0,0,0,6,0,0,0
+piBass1: .byte 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0, 1,0,0,0,5,0,0,0,6,0,0,0,8,0,0,0, 5,0,0,0,3,0,0,0,6,0,0,0,8,0,0,0, 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0
+piBass2: .byte 5,0,0,0,8,0,0,0,5,0,0,0,6,0,0,0, 1,0,0,0,5,0,0,0,1,0,0,0,6,0,0,0, 3,0,0,0,6,0,0,0,3,0,0,0,5,0,0,0, 5,0,0,0,8,0,0,0,5,0,0,0,6,0,0,0
 
 // INN sparkle ornaments (soft trills)
 inSpk0: .byte 0,0,9,0,0,0,10,0,0,0,9,0,0,0,10,0
 inSpk1: .byte 9,0,0,0,10,0,0,0,9,0,0,0,10,0,0,0
 inSpk2: .byte 0,0,10,0,0,0,9,0,0,0,10,0,0,0,9,0
 
-// Theme pointer tables: each theme entry points to 3 patterns
-myLeadPtr: .word myLead0,myLead1,myLead2
-loLeadPtr: .word loLead0,loLead1,loLead2
-auLeadPtr: .word auLead0,auLead1,auLead2
-ofLeadPtr: .word ofLead0,ofLead1,ofLead2
-scLeadPtr: .word scLead0,scLead1,scLead2
-tvLeadPtr: .word tvLead0,tvLead1,tvLead2
-inLeadPtr: .word inLead0,inLead1,inLead2
-tpLeadPtr: .word tpLead0,tpLead1,tpLead2
-faLeadPtr: .word faLead0,faLead1,faLead2
-piLeadPtr: .word piLead0,piLead1,piLead2
-
-myBassPtr: .word myBass0,myBass1,myBass2
-loBassPtr: .word loBass0,loBass1,loBass2
-auBassPtr: .word auBass0,auBass1,auBass2
-ofBassPtr: .word ofBass0,ofBass1,ofBass2
-scBassPtr: .word scBass0,scBass1,scBass2
-tvBassPtr: .word tvBass0,tvBass1,tvBass2
-inBassPtr: .word inBass0,inBass1,inBass2
-tpBassPtr: .word tpBass0,tpBass1,tpBass2
-faBassPtr: .word faBass0,faBass1,faBass2
-piBassPtr: .word piBass0,piBass1,piBass2
 
 auSpkPtr:  .word auSpk0,auSpk1,auSpk2
 tvSpkPtr:  .word tvSpk0,tvSpk1,tvSpk2
@@ -2576,40 +2617,21 @@ inSpkPtr: .word inSpk0,inSpk1,inSpk2
 noSpk0: .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 noSpkPtr: .word noSpk0,noSpk0,noSpk0
 
-// Tables indexed by musicTheme (0..9) of pointers to pointer-tables above
-themeLeadNotesLo:
-	.byte <ofLeadPtr,<myLeadPtr,<loLeadPtr,<auLeadPtr,<scLeadPtr,<tvLeadPtr,<inLeadPtr,<tpLeadPtr,<faLeadPtr,<piLeadPtr
-themeLeadNotesHi:
-	.byte >ofLeadPtr,>myLeadPtr,>loLeadPtr,>auLeadPtr,>scLeadPtr,>tvLeadPtr,>inLeadPtr,>tpLeadPtr,>faLeadPtr,>piLeadPtr
 
-themeBassNotesLo:
-	.byte <ofBassPtr,<myBassPtr,<loBassPtr,<auBassPtr,<scBassPtr,<tvBassPtr,<inBassPtr,<tpBassPtr,<faBassPtr,<piBassPtr
-themeBassNotesHi:
-	.byte >ofBassPtr,>myBassPtr,>loBassPtr,>auBassPtr,>scBassPtr,>tvBassPtr,>inBassPtr,>tpBassPtr,>faBassPtr,>piBassPtr
+// --- Music Table Indirection ---
+// All music engine table accesses now use the loaded buffer at $C000
 
-themeSparkNotesLo:
-    	.byte <noSpkPtr,<noSpkPtr,<noSpkPtr,<auSpkPtr,<noSpkPtr,<tvSpkPtr,<inSpkPtr,<noSpkPtr,<faSpkPtr,<noSpkPtr
-themeSparkNotesHi:
-    	.byte >noSpkPtr,>noSpkPtr,>noSpkPtr,>auSpkPtr,>noSpkPtr,>tvSpkPtr,>inSpkPtr,>noSpkPtr,>faSpkPtr,>noSpkPtr
 
-// Theme settings (tempo + timbre). 10 entries, indexed by musicTheme.
-// Smaller = faster (ticks per step). Values tuned for atmosphere.
-// Updated 2026-01-26: Slowed tempos for all themes. Most are now much slower (~52 BPM), with some variance for mood.
-// 0=off,1=mythos,2=lore,3=aurora,4=scary,5=tavern,6=inn,7=temple,8=fairy,9=pirate
-// Mythos: slow, Lore: very slow, Aurora: slow, Scary: sparse, Tavern: upbeat, Inn: slow, Temple: grand, Fairy: light, Pirate: upbeat
-themeLeadLen:  .byte 24,32,36,28,40,16,32,28,22,18   // lead step length (ticks)
-themeBassLen:  .byte 48,64,72,56,80,32,64,56,44,36   // bass step length (ticks)
-themeSparkLen: .byte 16,20,20,16,24,10,20,16,12,10   // sparkle/ornament (ticks)
-
-// Waveform bits only (gate bit added dynamically): TRI=$10 SAW=$20 PULSE=$40 NOISE=$80
-themeLeadWave: .byte $10,$10,$20,$10,$20,$10,$10,$40,$10,$40
-themeBassWave: .byte $10,$10,$10,$10,$10,$10,$10,$10,$10,$10
-themeSparkWave:.byte $40,$40,$40,$40,$80,$40,$40,$40,$40,$40
-
-// Release-heavy for scary// otherwise smooth.
-themeV1SR: .byte $C8,$C8,$D8,$C8,$46,$C8,$C8,$A8,$98,$C8
-themeV2SR: .byte $C8,$C8,$C8,$C8,$46,$C8,$C8,$C8,$98,$C8
-themeV3SR: .byte $88,$98,$98,$98,$28,$98,$88,$88,$98,$88
+// Inline THEME_PTR(offset):
+//   lda #<($C000+offset)
+//   sta ZP_PTR
+//   lda #>($C000+offset)
+//   sta ZP_PTR+1
+// Example usage in code:
+//   lda #<($C000+OFFS_LEADPTR)
+//   sta ZP_PTR
+//   lda #>($C000+OFFS_LEADPTR)
+//   sta ZP_PTR+1
 
 init:
 	// Start music early so the login screen has its own theme.
@@ -2636,10 +2658,17 @@ musicStartLoginTheme:
 	// Happy welcome theme (fairy).
 	lda #8
 	sta musicTheme
+	lda #8
+	jsr loadThemeFromDisk
+	bcs @music_load_fail_login
 	jsr musicApplyThemeSettings
 	jsr musicAllNotesOff
 	jsr musicPickRandomPattern
 	jsr musicRestart
+	rts
+
+@music_load_fail_login:
+	// Optionally handle music load error (e.g., silence music, show message)
 	rts
 
 // --- Rendering ---

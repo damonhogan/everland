@@ -1,3 +1,23 @@
+.const NPC_KORA             = 17
+.const NPC_ALPHA_WOLFRIC    = 18
+.const NPC_VASHTEE          = 19
+.const NPC_TRADING_OWNER    = 20
+.const NPC_FROST_WEAVERS_QUEEN = 21
+.const NPC_BANKER           = 22
+.const LOC_BANK             = 13
+// Music theme buffer offsets (must match .bin layout)
+.const OFFS_LEADLEN  = 0
+.const OFFS_BASSLEN  = 1
+.const OFFS_SPKLEN   = 2
+.const OFFS_LEADWAV  = 3
+.const OFFS_BASSWAV  = 4
+.const OFFS_SPKWAV   = 5
+.const OFFS_V1SR     = 6
+.const OFFS_V2SR     = 7
+.const OFFS_V3SR     = 8
+.const OFFS_LEADPTR  = 9
+.const OFFS_BASSPTR  = 15
+.const OFFS_SPKPTR   = 21
 // Core labels and constants for Everland
 
 // KERNAL routines
