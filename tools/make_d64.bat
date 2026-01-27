@@ -1,5 +1,5 @@
 @echo off
-REM Generate/refresh EVERLAND.D64 with the latest PRG
+REM Generate/refresh EVERLAND.D64 with the latest PRG and all music .bin files
 REM Usage: make_d64.bat [path\to\everland.prg] [outdir]
 
 SETLOCAL
@@ -24,6 +24,14 @@ IF NOT EXIST "%PRG%" ECHO PRG not found: %PRG% & ENDLOCAL & EXIT /B 1
 ECHO Creating D64: %D64%
 "%C1541%" -format "EVERLAND,00" d64 "%D64%"
 "%C1541%" -attach "%D64%" -write "%PRG%" "EVERLAND"
+
+REM Add all music .bin files from bin/music/
+FOR %%F IN ("%~dp0..\bin\music\*.bin") DO (
+    IF EXIST "%%F" (
+        ECHO Adding music file: %%~nxF
+        "%C1541%" -attach "%D64%" -write "%%F" "%%~nxF"
+    )
+)
 
 ENDLOCAL
 EXIT /B %ERRORLEVEL%
