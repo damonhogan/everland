@@ -5752,35 +5752,23 @@ cmdTalk:
 	lda #0
 	sta selCount
 	ldx #0
+
 @tt_npc_loop:
 	lda ZP_PTR2
 	and npcBitLo,x
-	beq @tt_check_hi_2
-	jsr printNpcEntry
+	bne @tt_talk_present
+	lda npcMaskHiTemp
+	and npcBitHi,x
+	bne @tt_talk_present
+	lda npcMaskB2Temp
+	and npcBitB2,x
+	bne @tt_talk_present
+	lda npcMaskB3Temp
+	and npcBitB3,x
+	bne @tt_talk_present
 	jmp @tt_npc_next
 
-@tt_present_2:
-	// Prefer given name if present; otherwise use title
-	lda npcGivenNamePtrLo,x
-	sta ZP_PTR
-	lda npcGivenNamePtrHi,x
-	sta ZP_PTR+1
-	ldy #0
-	lda (ZP_PTR),y
-	bne @tt_print
-	// No given name, fall back to title
-	lda npcNameLo,x
-	sta ZP_PTR
-	lda npcNameHi,x
-	sta ZP_PTR+1
-	// skip unknown entries
-	lda ZP_PTR
-	cmp #<npcNameUnknown
-	bne @tt_print
-	lda ZP_PTR+1
-	cmp #>npcNameUnknown
-	beq @tt_npc_next
-@tt_print:
+@tt_talk_present:
 	lda selCount
 	clc
 	adc #'0'
@@ -5792,34 +5780,13 @@ cmdTalk:
 	jsr printNpcDisplayName
 	jsr newline
 	inc selCount
-
 @tt_npc_next:
 	inx
 	cpx #NPC_COUNT
 	bne @tt_npc_loop
 
+
 	jmp @tt_npc_done
-
-@tt_check_hi_2:
-	lda npcMaskHiTemp
-	and npcBitHi,x
-	beq @tt_check_b2
-	jsr printNpcEntry
-	jmp @tt_npc_next
-
-@tt_check_b2:
-	lda npcMaskB2Temp
-	and npcBitB2,x
-	beq @tt_check_b3
-	jsr printNpcEntry
-	jmp @tt_npc_next
-
-@tt_check_b3:
-	lda npcMaskB3Temp
-	and npcBitB3,x
-	beq @tt_npc_next
-	jsr printNpcEntry
-	jmp @tt_npc_next
 
 @tt_npc_done:
 
