@@ -1,0 +1,39 @@
+#include "ui_strings.hpp"
+#include <string>
+
+const std::string strExits = "EXITS: ";
+const std::string strHelp1 = "N/E/S/W MOVE  I INV  C CHARS  T TALK";
+const std::string strHelp2 = "WAIT STATUS SAVE LOAD INSPECT M MUSIC";
+const std::string strPrompt = "> ";
+const std::string strSeason = "SEASON ";
+const std::string strSeasonOff = "OFF";
+const std::string strSeasonMythos = "MYTHOS";
+const std::string strSeasonLore = "LORE";
+const std::string strSeasonAurora = "AURORA";
+const std::string strSavingUser = "(updating your user on the disk)";
+const std::string strWeek = "WEEK ";
+const std::string strScore = "  SCORE ";
+const std::string strSheetTitle = "CHARACTER SHEET";
+const std::string strName = "NAME: ";
+const std::string strDisplay = "DISPLAY: ";
+const std::string strClass = "CLASS: ";
+const std::string strRace = "RACE: ";
+const std::string strLevel = "LEVEL ";
+const std::string strQuest = "  QUEST ";
+const std::string strQuestActive = "ACTIVE";
+const std::string strHP = "HP: ";
+const std::string strCharacters = "CHARACTERS: ";
+const std::string strInventory = "INVENTORY: ";
+const std::string strTrinkets = "TRINKETS: ";
+const std::string strItems = "ITEMS: ";
+const std::string strFightHeader = "FIGHT: ";
+const std::string strFightOption = "FIGHT";
+const std::string strGold = "GOLD: ";
+const std::string strSilver = "SILVER: ";
+const std::string strCopper = "COPPER: ";
+const std::string strNone = "(NONE)";
+const std::string strEmpty = "(EMPTY)";
+const std::string strSpace = " ";
+const std::string strPlus = "+";
+const std::string strMaxHpSession = " MAX HP (SESSION)";
+const std::string strNoData = "(no data)";
