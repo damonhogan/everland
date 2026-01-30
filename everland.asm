@@ -211,7 +211,11 @@ debug_print_coin_info:
 // Player profile (fixed-length text, 0 padded)
 usernameLen: .byte 0
 username:
-	.fill 12, 0
+	.fill 16, 0
+
+// --- Achievements System (persistent flags, 8 slots) ---
+achievementFlags:
+	.fill 8, 0 ; 8 achievements (expand as needed)
 displayLen: .byte 0
 displayName:
 	.fill 16, 0
@@ -1867,6 +1871,7 @@ questComplete:
 	sta currentLevel
 
 @qc_msg:
+	jsr showQuestArtAndSfx
 	lda #<msgQuestDone
 	sta lastMsgLo
 	lda #>msgQuestDone
@@ -1884,6 +1889,42 @@ questComplete:
 	lda questRewardHi,y
 	sta ZP_PTR+1
 	jmp (ZP_PTR)
+
+; --- PETSCII Art and SFX for Quest Completion ---
+showQuestArtAndSfx:
+	jsr clearScreen
+	lda #<strQuestArt1
+	sta ZP_PTR
+	lda #>strQuestArt1
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	lda #<strQuestArt2
+	sta ZP_PTR
+	lda #>strQuestArt2
+	sta ZP_PTR+1
+	jsr printZ
+	jsr newline
+	jsr playQuestSfx
+	rts
+strQuestArt1: .text "  ░▒▓ QUEST COMPLETE ▓▒░"
+	.byte 0
+strQuestArt2: .text "  ✧✧✧ Congratulations! ✧✧✧"
+	.byte 0
+playQuestSfx:
+	lda #$11
+	sta $D412 ; V3 control: gate on, triangle
+	lda #$80
+	sta $D40E ; V3 freq lo
+	lda #$40
+	sta $D40F ; V3 freq hi
+	ldx #80
+@qsf_wait:
+	dex
+	bne @qsf_wait
+	lda #$10
+	sta $D412 ; gate off
+	rts
 
 @qc_reward_bartender:
 	// Give player the mug (OBJ_MUG)
@@ -4119,6 +4160,34 @@ executeCommand:
 	bcc @ec_trySave
 	jmp cmdInventory
 
+@ec_tryCraft:
+
+	; CRAFT/MAKE
+	txa
+	pha
+	lda #<kwCraft
+	sta ZP_PTR2
+	lda #>kwCraft
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_tryMake
+	jmp cmdCraft
+
+@ec_tryMake:
+	txa
+	pha
+	lda #<kwMake
+	sta ZP_PTR2
+	lda #>kwMake
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_trySave
+	jmp cmdCraft
+
 @ec_trySave:
 
 	// SAVE
@@ -4248,8 +4317,33 @@ executeCommand:
 	pla
 	tax
 	jsr matchKeywordAtX
-	bcc @ec_unknown
+	bcc @ec_tryJournal
 	jmp cmdHelp
+
+@ec_tryJournal:
+		; ACHIEVEMENTS command
+		txa
+		pha
+		lda #<kwAchievements
+		sta ZP_PTR2
+		lda #>kwAchievements
+		sta ZP_PTR2+1
+		pla
+		tax
+		jsr matchKeywordAtX
+		bcc @ec_unknown
+		jmp cmdAchievements
+	txa
+	pha
+	lda #<kwJournal
+	sta ZP_PTR2
+	lda #>kwJournal
+	sta ZP_PTR2+1
+	pla
+	tax
+	jsr matchKeywordAtX
+	bcc @ec_unknown
+	jmp cmdJournal
 
 @ec_unknown:
 
@@ -12528,15 +12622,19 @@ objName10: .text "PROTECTION WARD"
 
 objNameLo:
 	.byte <objName0,<objName1,<objName2,<objName3,<objName4,<objName5,<objName6,<objName7,<objName8,<objName9,<objName10
+	.byte <objName11,<objName12
 objNameHi:
 	.byte >objName0,>objName1,>objName2,>objName3,>objName4,>objName5,>objName6,>objName7,>objName8,>objName9,>objName10
+	.byte >objName11,>objName12
 
 trinketNamesLo:
 	.byte <trinket0,<trinket1,<trinket2,<trinket3,<trinket4,<trinket5,<trinket6,<trinket7,<trinket8,<trinket9,<trinket10,<trinket11,<trinket12,<trinket13,<trinket14,<trinket15
 	.byte <trinket16,<trinket17,<trinket18,<trinket19,<trinket20,<trinket21,<trinket22,<trinket23,<trinket24,<trinket25,<trinket26,<trinket27,<trinket28,<trinket29,<trinket30,<trinket31
+	.byte <trinket32
 trinketNamesHi:
 	.byte >trinket0,>trinket1,>trinket2,>trinket3,>trinket4,>trinket5,>trinket6,>trinket7,>trinket8,>trinket9,>trinket10,>trinket11,>trinket12,>trinket13,>trinket14,>trinket15
 	.byte >trinket16,>trinket17,>trinket18,>trinket19,>trinket20,>trinket21,>trinket22,>trinket23,>trinket24,>trinket25,>trinket26,>trinket27,>trinket28,>trinket29,>trinket30,>trinket31
+	.byte >trinket32
 
 trinket0: .text "LUCKY RABBIT FOOT"
 	.byte 0
@@ -12603,7 +12701,15 @@ trinket30: .text "CLOTH SASH"
 trinket31: .text "METAL NAIL"
 	.byte 0
 
+; --- New trinket: MOONSTONE CHARM (ID 32) ---
+trinket32: .text "MOONSTONE CHARM"
+	.byte 0
+
 objInspect0: .text "A BRASS LANTERN. IT COULD LIGHT DARK PATHS."
+	.byte 0
+objName11: .text "ANCIENT RELIC"
+	.byte 0
+objName12: .text "ELIXIR OF NIGHT"
 	.byte 0
 objInspect1: .text "A SMALL COIN, WARM FROM MANY HANDS."
 	.byte 0
@@ -12625,14 +12731,264 @@ objInspect9: .text "A WELL-SEALED BOTTLE OF SCOTCH. SMELLS STRONG."
 	.byte 0
 objInspect10: .text "A RUNED TALISMAN THAT THRUMS WITH QUIET POWER."
 	.byte 0
+objInspect11: .text "A RELIC FROM AN AGE LONG FORGOTTEN. IT GLOWS FAINTLY."
+	.byte 0
+objInspect12: .text "A SHIMMERING ELIXIR THAT WHISPERS OF THE MOON."
+	.byte 0
 
 objInspectLo:
 	.byte <objInspect0,<objInspect1,<objInspect2,<objInspect3,<objInspect4,<objInspect5,<objInspect6,<objInspect7,<objInspect8,<objInspect9,<objInspect10
+	.byte <objInspect11,<objInspect12
 objInspectHi:
 	.byte >objInspect0,>objInspect1,>objInspect2,>objInspect3,>objInspect4,>objInspect5,>objInspect6,>objInspect7,>objInspect8,>objInspect9,>objInspect10
+	.byte >objInspect11,>objInspect12
 
 // --- Keywords ---
 kwNorth:      .text "NORTH"
+	.byte 0
+kwCraft:      .text "CRAFT"
+	.byte 0
+kwMake:       .text "MAKE"
+	kwElixirNight: .text "ELIXIR OF NIGHT"
+		.byte 0
+	kwElixirDay: .text "ELIXIR OF DAY"
+		.byte 0
+	kwPhantomDraught: .text "PHANTOM DRAUGHT"
+		.byte 0
+	kwHealingTonic: .text "HEALING TONIC"
+		.byte 0
+	.byte 0
+; --- Crafting command: combine GLASS VIAL + MOONSTONE CHARM -> ELIXIR OF NIGHT ---
+cmdCraft:
+	; Check for specific recipe keywords after CRAFT/MAKE
+	jsr skipFillers
+	; Check for "ELIXIR OF NIGHT"
+	lda #<kwElixirNight
+	sta ZP_PTR2
+	lda #>kwElixirNight
+	sta ZP_PTR2+1
+	jsr matchKeywordAtX
+	bcc @try_craft_day
+	jmp @craft_main
+@try_craft_day:
+	lda #<kwElixirDay
+	sta ZP_PTR2
+	lda #>kwElixirDay
+	sta ZP_PTR2+1
+	jsr matchKeywordAtX
+	bcc @try_craft_phantom
+	jmp @craft_sunstone
+@try_craft_phantom:
+	lda #<kwPhantomDraught
+	sta ZP_PTR2
+	lda #>kwPhantomDraught
+	sta ZP_PTR2+1
+	jsr matchKeywordAtX
+	bcc @try_craft_tonic
+	jmp @craft_phantom
+@try_craft_tonic:
+	lda #<kwHealingTonic
+	sta ZP_PTR2
+	lda #>kwHealingTonic
+	sta ZP_PTR2+1
+	jsr matchKeywordAtX
+	bcc @craft_default
+	jmp @craft_tonic
+@craft_default:
+	; Default: try main recipe (ELIXIR OF NIGHT)
+	ldx #0
+@find_vial:
+	lda playerTrinkets,x
+	cmp #23
+	beq @found_vial
+	inx
+	cpx #5
+	bne @find_vial
+	jmp @craft_fail
+@found_vial:
+	stx tmpCnt ; save vial slot
+	ldx #0
+@find_moon:
+	lda playerTrinkets,x
+	cmp #32
+	beq @found_moon
+	inx
+	cpx #5
+	bne @find_moon
+	jmp @craft_fail
+@found_moon:
+	stx tmpCnt2 ; save moon slot
+	; Remove both trinkets
+	ldx tmpCnt
+	lda #$FF
+	sta playerTrinkets,x
+	ldx tmpCnt2
+	lda #$FF
+	sta playerTrinkets,x
+	; Add ELIXIR OF NIGHT (object 12) to inventory
+	lda #OBJ_INVENTORY
+	sta objLoc+12
+; Add ELIXIR OF DAY (object 13), PHANTOM DRAUGHT (object 14), HEALING TONIC (object 15) to object tables if not present
+	lda #<msgCraftSuccess
+	sta lastMsgLo
+	lda #>msgCraftSuccess
+	sta lastMsgHi
+	jsr render
+	jmp cmdInventory
+
+; --- NEW CRAFTING RECIPES ---
+; 1. SUNSTONE CHARM + GLASS VIAL -> ELIXIR OF DAY (object 13)
+@craft_sunstone:
+	ldx #0
+@find_vial2:
+	lda playerTrinkets,x
+	cmp #23 ; GLASS VIAL
+	beq @found_vial2
+	inx
+	cpx #5
+	bne @find_vial2
+	jmp @craft_fail2
+@found_vial2:
+	stx tmpCnt ; save vial slot
+	ldx #0
+@find_sun:
+	lda playerTrinkets,x
+	cmp #33 ; SUNSTONE CHARM
+	beq @found_sun
+	inx
+	cpx #5
+	bne @find_sun
+	jmp @craft_fail2
+@found_sun:
+	stx tmpCnt2 ; save sun slot
+	; Remove both trinkets
+	ldx tmpCnt
+	lda #$FF
+	sta playerTrinkets,x
+	ldx tmpCnt2
+	lda #$FF
+	sta playerTrinkets,x
+	; Add ELIXIR OF DAY (object 13) to inventory
+	lda #OBJ_INVENTORY
+	sta objLoc+13
+	lda #<msgCraftSuccessDay
+	sta lastMsgLo
+	lda #>msgCraftSuccessDay
+	sta lastMsgHi
+	jsr render
+	jmp cmdInventory
+@craft_fail2:
+	lda #<msgCraftFailDay
+	sta lastMsgLo
+	lda #>msgCraftFailDay
+	sta lastMsgHi
+	jsr render
+	rts
+
+; 2. ELIXIR OF NIGHT + ANCIENT RELIC -> PHANTOM DRAUGHT (object 14, rare, multi-step)
+@craft_phantom:
+	ldx #0
+@find_elixir:
+	lda objLoc+12
+	cmp #OBJ_INVENTORY
+	beq @found_elixir
+	jmp @craft_fail3
+@found_elixir:
+	ldx #0
+@find_relic:
+	lda objLoc+14
+	cmp #OBJ_INVENTORY
+	beq @found_relic
+	jmp @craft_fail3
+@found_relic:
+	; Remove both items
+	lda #OBJ_NOWHERE
+	sta objLoc+12
+	sta objLoc+14
+	; Add PHANTOM DRAUGHT (object 15) to inventory
+	lda #OBJ_INVENTORY
+	sta objLoc+15
+	lda #<msgCraftSuccessPhantom
+	sta lastMsgLo
+	lda #>msgCraftSuccessPhantom
+	sta lastMsgHi
+	jsr render
+	jmp cmdInventory
+@craft_fail3:
+	lda #<msgCraftFailPhantom
+	sta lastMsgLo
+	lda #>msgCraftFailPhantom
+	sta lastMsgHi
+	jsr render
+	rts
+
+; 3. MYSTIC HERB + GLASS VIAL -> HEALING TONIC (object 16, combat use)
+@craft_tonic:
+	ldx #0
+@find_vial3:
+	lda playerTrinkets,x
+	cmp #23 ; GLASS VIAL
+	beq @found_vial3
+	inx
+	cpx #5
+	bne @find_vial3
+	jmp @craft_fail4
+@found_vial3:
+	stx tmpCnt ; save vial slot
+	ldx #0
+@find_herb:
+	lda playerTrinkets,x
+	cmp #34 ; MYSTIC HERB
+	beq @found_herb
+	inx
+	cpx #5
+	bne @find_herb
+	jmp @craft_fail4
+@found_herb:
+	stx tmpCnt2 ; save herb slot
+	; Remove both trinkets
+	ldx tmpCnt
+	lda #$FF
+	sta playerTrinkets,x
+	ldx tmpCnt2
+	lda #$FF
+	sta playerTrinkets,x
+	; Add HEALING TONIC (object 16) to inventory
+	lda #OBJ_INVENTORY
+	sta objLoc+16
+	lda #<msgCraftSuccessTonic
+	sta lastMsgLo
+	lda #>msgCraftSuccessTonic
+	sta lastMsgHi
+	jsr render
+	jmp cmdInventory
+@craft_fail4:
+	lda #<msgCraftFailTonic
+	sta lastMsgLo
+	lda #>msgCraftFailTonic
+	sta lastMsgHi
+	jsr render
+	rts
+@craft_fail:
+	lda #<msgCraftFail
+	sta lastMsgLo
+	lda #>msgCraftFail
+	sta lastMsgHi
+	jsr render
+	rts
+msgCraftSuccess: .text "You combine the vial and charm. The ELIXIR OF NIGHT shimmers in your hand!"
+	.byte 0
+msgCraftSuccessDay: .text "You combine the vial and sunstone. The ELIXIR OF DAY glows with radiant energy!"
+	.byte 0
+msgCraftFailDay: .text "You lack the right items. (Need GLASS VIAL and SUNSTONE CHARM)"
+	.byte 0
+msgCraftSuccessPhantom: .text "You merge the elixir and relic. The PHANTOM DRAUGHT pulses with spectral power!"
+	.byte 0
+msgCraftFailPhantom: .text "You lack the right items. (Need ELIXIR OF NIGHT and ANCIENT RELIC)"
+	.byte 0
+msgCraftSuccessTonic: .text "You blend the herb and vial. The HEALING TONIC smells fresh and potent!"
+	.byte 0
+msgCraftFailTonic: .text "You lack the right items. (Need GLASS VIAL and MYSTIC HERB)"
 	.byte 0
 kwSouth:      .text "SOUTH"
 	.byte 0
@@ -12776,6 +13132,348 @@ kwChart:     .text "CHART"
 	.byte 0
 
 kwHelp:      .text "HELP"
+	kwLore:       .text "LORE"
+		.byte 0
+	; --- Lore System: Scrollable Chapter-Based Reader ---
+	NUM_LORE_CHAPTERS = 3
+
+	cmdLore:
+		jsr clearScreen
+		lda #<strLoreTitle
+		sta ZP_PTR
+		lda #>strLoreTitle
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		ldx #0
+	@lore_menu_loop:
+		cpx #NUM_LORE_CHAPTERS
+		bge @lore_menu_done
+		lda loreChapterTitleLo,x
+		sta ZP_PTR
+		lda loreChapterTitleHi,x
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		inx
+		jmp @lore_menu_loop
+	@lore_menu_done:
+		lda #<strLorePrompt
+		sta ZP_PTR
+		lda #>strLorePrompt
+		sta ZP_PTR+1
+		jsr printZ
+		jsr setCursorPrompt
+		jsr readLine
+		lda inputBuf
+		sec
+		sbc #'1'
+		cmp #NUM_LORE_CHAPTERS
+		bcs @lore_exit
+		tax
+		jsr showLoreChapter
+		jmp cmdLore
+	@lore_exit:
+		rts
+
+	showLoreChapter:
+		jsr clearScreen
+		lda loreChapterTitleLo,x
+		sta ZP_PTR
+		lda loreChapterTitleHi,x
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		lda loreChapterTextLo,x
+		sta ZP_PTR
+		lda loreChapterTextHi,x
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		lda #<strLoreBack
+		sta ZP_PTR
+		lda #>strLoreBack
+		sta ZP_PTR+1
+		jsr printZ
+		jsr setCursorPrompt
+		jsr readLine
+		rts
+
+	strLoreTitle: .text "EVERLAND LORE: CHAPTERS"
+		.byte 0
+	strLorePrompt: .text "Enter chapter number (1-3) or Q to quit: "
+		.byte 0
+	strLoreBack: .text "(Press Enter to return to chapters)"
+		.byte 0
+	loreChapterTitleLo: .byte <loreTitle1, <loreTitle2, <loreTitle3
+	loreChapterTitleHi: .byte >loreTitle1, >loreTitle2, >loreTitle3
+	loreChapterTextLo: .byte <loreText1, <loreText2, <loreText3
+	loreChapterTextHi: .byte >loreText1, >loreText2, >loreText3
+	loreTitle1: .text "1. The Founding of Everland"
+		.byte 0
+	loreTitle2: .text "2. The Fracture and the Portal"
+		.byte 0
+	loreTitle3: .text "3. The Age of Spirits"
+		.byte 0
+	loreText1: .text "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec, ultricies sed, dolor."
+		.byte 0
+	loreText2: .text "Cras elementum ultrices diam. Maecenas ligula massa, varius a, semper congue, euismod non, mi. Proin porttitor, orci nec nonummy molestie."
+		.byte 0
+	loreText3: .text "Phasellus ultrices nulla quis nibh. Quisque a lectus. Donec consectetuer ligula vulputate sem tristique cursus. Nam nulla quam, gravida non, commodo a, sodales sit amet, nisi."
+		.byte 0
+		; LORE command
+		txa
+		pha
+		lda #<kwLore
+		sta ZP_PTR2
+		lda #>kwLore
+		sta ZP_PTR2+1
+		pla
+		tax
+		jsr matchKeywordAtX
+		bcc @ec_unknown
+		jmp cmdLore
+	kwSecret:     .text "SECRET"
+		.byte 0
+	; --- Secret PETSCII Art Easter Egg ---
+	cmdSecret:
+		jsr clearScreen
+		lda #<strSecretArt1
+		sta ZP_PTR
+		lda #>strSecretArt1
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		lda #<strSecretArt2
+		sta ZP_PTR
+		lda #>strSecretArt2
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		jsr setCursorPrompt
+		jsr readLine
+		rts
+	strSecretArt1: .text "  ░▒▓★ SECRET FOUND ★▓▒░"
+		.byte 0
+	strSecretArt2: .text "  (You are a true explorer!)"
+		.byte 0
+		; SECRET command
+		txa
+		pha
+		lda #<kwSecret
+		sta ZP_PTR2
+		lda #>kwSecret
+		sta ZP_PTR2+1
+		pla
+		tax
+		jsr matchKeywordAtX
+		bcc @ec_unknown
+		jmp cmdSecret
+	kwSfx:        .text "SFX"
+		.byte 0
+	; --- Simple Sound Effect Command ---
+	cmdSfx:
+		jsr playTestSfx
+		lda #<msgSfxPlayed
+		sta lastMsgLo
+		lda #>msgSfxPlayed
+		sta lastMsgHi
+		jsr render
+		rts
+
+	playTestSfx:
+		; Play a short beep on SID voice 3
+		lda #$11
+		sta $D412 ; V3 control: gate on, triangle
+		lda #$40
+		sta $D40E ; V3 freq lo
+		lda #$20
+		sta $D40F ; V3 freq hi
+		ldx #30
+	@sfx_wait:
+		dex
+		bne @sfx_wait
+		lda #$10
+		sta $D412 ; gate off
+		rts
+	msgSfxPlayed: .text "(A sound effect plays!)"
+		.byte 0
+		; SFX command
+		txa
+		pha
+		lda #<kwSfx
+		sta ZP_PTR2
+		lda #>kwSfx
+		sta ZP_PTR2+1
+		pla
+		tax
+		jsr matchKeywordAtX
+		bcc @ec_unknown
+		jmp cmdSfx
+	kwArt:        .text "ART"
+		.byte 0
+	kwTitle:      .text "TITLE"
+		.byte 0
+	; --- PETSCII Art Title Screen ---
+	cmdArt:
+		jsr clearScreen
+		jsr drawTitleArt
+		jsr setCursorPrompt
+		jsr readLine
+		rts
+
+	drawTitleArt:
+		; Example PETSCII art (replace with full art as desired)
+		lda #<strTitleArt1
+		sta ZP_PTR
+		lda #>strTitleArt1
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		lda #<strTitleArt2
+		sta ZP_PTR
+		lda #>strTitleArt2
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		rts
+	strTitleArt1: .text "  ██████╗ ███████╗██╗   ██╗███████╗██╗      █████╗ ███╗   ██╗"
+		.byte 0
+	strTitleArt2: .text "  ██╔══██╗██╔════╝██║   ██║██╔════╝██║     ██╔══██╗████╗  ██║"
+		.byte 0
+		; ART/TITLE command
+		txa
+		pha
+		lda #<kwArt
+		sta ZP_PTR2
+		lda #>kwArt
+		sta ZP_PTR2+1
+		pla
+		tax
+		jsr matchKeywordAtX
+		bcc @ec_tryTitle
+		jmp cmdArt
+	@ec_tryTitle:
+		txa
+		pha
+		lda #<kwTitle
+		sta ZP_PTR2
+		lda #>kwTitle
+		sta ZP_PTR2+1
+		pla
+		tax
+		jsr matchKeywordAtX
+		bcc @ec_unknown
+		jmp cmdArt
+	kwJournal:    .text "JOURNAL"
+		.byte 0
+	; --- JOURNAL command: show all quests and their status ---
+	cmdJournal:
+		jsr clearScreen
+		lda #<strJournalTitle
+		sta ZP_PTR
+		lda #>strJournalTitle
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		lda #<strJournalFilter
+		sta ZP_PTR
+		lda #>strJournalFilter
+		sta ZP_PTR+1
+		jsr printZ
+		jsr setCursorPrompt
+		jsr readLine
+		lda inputBuf
+		cmp #'A'
+		beq @journal_active
+		cmp #'C'
+		beq @journal_completed
+		; Default: show all
+		ldx #0
+	@journal_all_loop:
+		cpx #QUEST_COUNT
+		bge @journal_done
+		jsr printQuestJournalLine
+		inx
+		jmp @journal_all_loop
+	@journal_active:
+		ldx #0
+	@journal_active_loop:
+		cpx #QUEST_COUNT
+		bge @journal_done
+		lda questStatusTable,x
+		cmp #1
+		bne @journal_active_next
+		jsr printQuestJournalLine
+	@journal_active_next:
+		inx
+		jmp @journal_active_loop
+	@journal_completed:
+		ldx #0
+	@journal_completed_loop:
+		cpx #QUEST_COUNT
+		bge @journal_done
+		lda questStatusTable,x
+		cmp #2
+		bne @journal_completed_next
+		jsr printQuestJournalLine
+	@journal_completed_next:
+		inx
+		jmp @journal_completed_loop
+	@journal_done:
+		jsr setCursorPrompt
+		jsr readLine
+		rts
+
+	; Print a single quest line in the journal (X = quest index)
+	printQuestJournalLine:
+		lda questNameLo,x
+		sta ZP_PTR
+		lda questNameHi,x
+		sta ZP_PTR+1
+		jsr printZ
+		lda #' '
+		jsr CHROUT
+		lda x
+		cmp activeQuest
+		bne @journal_check_completed2
+		lda #<strActive
+		sta ZP_PTR
+		lda #>strActive
+		sta ZP_PTR+1
+		jsr printZ
+		jmp @journal_show_detail2
+	@journal_check_completed2:
+		lda questStatusTable,x
+		cmp #2
+		bne @journal_show_detail2
+		lda #<strCompleted
+		sta ZP_PTR
+		lda #>strCompleted
+		sta ZP_PTR+1
+		jsr printZ
+	@journal_show_detail2:
+		lda questDetailLo,x
+		sta ZP_PTR
+		lda questDetailHi,x
+		sta ZP_PTR+1
+		jsr printZ
+		jsr newline
+		rts
+	strJournalFilter: .text "Filter: (A)ctive, (C)ompleted, (Enter=All): "
+		.byte 0
+	; Add JOURNAL keyword for parser
+	kwJournal:    .text "JOURNAL"
+		.byte 0
+	strJournalTitle: .text "QUEST JOURNAL"
+		.byte 0
+	strActive: .text "(ACTIVE) "
+		.byte 0
+	strCompleted: .text "(COMPLETED) "
+		.byte 0
+	; Table to track quest completion status for journal (0=not started, 1=active, 2=completed)
+	questStatusTable:
+		.fill QUEST_COUNT, 0
 	.byte 0
 kwSay:       .text "SAY"
 	.byte 0
@@ -13229,6 +13927,59 @@ questNameMermaid: .text "TRADE LAND FOR SEA"
 	.byte 0
 questNameKendrickScotch: .text "FETCH SCOTCH FOR KENDRICK"
     .byte 0
+; --- Object descriptions for new crafted items ---
+objDescElixirDay: .text "A radiant potion that glows with the power of the sun. Restores HP and cures status."
+	.byte 0
+objDescPhantomDraught: .text "A spectral draught, pulsing with ghostly energy. Grants invisibility in combat."
+	.byte 0
+objDescHealingTonic: .text "A fresh, potent tonic. Restores a large amount of HP."
+	.byte 0
+
+; --- Object effect routines (stubs for now) ---
+objUseElixirDay:
+	; Restore HP to max, cure status
+	jsr computePlayerMaxHp
+	lda tmpHp
+	sta playerCurHp
+	lda #0
+	sta playerStatus
+	lda #<msgUseElixirDay
+	sta lastMsgLo
+	lda #>msgUseElixirDay
+	sta lastMsgHi
+	jsr render
+	rts
+objUsePhantomDraught:
+	; Grant invisibility (set playerStatus = 2 for 3 turns)
+	lda #2
+	sta playerStatus
+	lda #3
+	sta playerStatusTurns
+	lda #<msgUsePhantom
+	sta lastMsgLo
+	lda #>msgUsePhantom
+	sta lastMsgHi
+	jsr render
+	rts
+objUseHealingTonic:
+	; Restore large HP (max + 5)
+	jsr computePlayerMaxHp
+	lda tmpHp
+	clc
+	adc #5
+	sta playerCurHp
+	lda #<msgUseTonic
+	sta lastMsgLo
+	lda #>msgUseTonic
+	sta lastMsgHi
+	jsr render
+	rts
+msgUseElixirDay: .text "You drink the ELIXIR OF DAY. Warmth floods your body!"
+	.byte 0
+msgUsePhantom: .text "You drink the PHANTOM DRAUGHT. You feel unseen!"
+	.byte 0
+msgUseTonic: .text "You drink the HEALING TONIC. Your wounds close!"
+	.byte 0
 questNameWarlockWard: .text "PLACE THE WARLOCK'S WARD"
 	.byte 0
 questNameCandyWitch: .text "DISABLE THE WARLOCK'S WARD"

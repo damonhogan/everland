@@ -87,7 +87,7 @@
 .const OBJ_SHELL       = 8
 .const OBJ_SCOTCH      = 9
 .const OBJ_WARD        = 10
-.const OBJ_COUNT       = 11
+.const OBJ_COUNT       = 13
 .const OBJ_INVENTORY   = $FE
 .const OBJ_NOWHERE     = $FF
 
