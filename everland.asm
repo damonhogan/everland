@@ -153,6 +153,35 @@ playerCopper: .byte 0
 .const NPC_TRADING_OWNER    = 20
 .const NPC_FROST_WEAVERS_QUEEN = 21
 .const NPC_BANKER           = 22
+; Lore-driven NPC flavor text
+npcLoreTextLo:
+	.byte <npcLoreConductor, <npcLoreBartender, <npcLoreKnight, <npcLoreMystic, <npcLoreFairy, <npcLoreKendrick, <npcLoreSpiderPrincess, <npcLorePirateCaptain, <npcLoreWarlock, <npcLoreUnseelyFae, <npcLoreApollonia, <npcLoreAlyster, <npcLoreTroll, <npcLoreTosh, <npcLoreLouden, <npcLoreMermaid, <npcLoreCandyWitch, <npcLoreKora, <npcLoreAlphaWolfric, <npcLoreVashtee, <npcLoreTradingOwner, <npcLoreFrostQueen, <npcLoreBanker
+npcLoreTextHi:
+	.byte >npcLoreConductor, >npcLoreBartender, >npcLoreKnight, >npcLoreMystic, >npcLoreFairy, >npcLoreKendrick, >npcLoreSpiderPrincess, >npcLorePirateCaptain, >npcLoreWarlock, >npcLoreUnseelyFae, >npcLoreApollonia, >npcLoreAlyster, >npcLoreTroll, >npcLoreTosh, >npcLoreLouden, >npcLoreMermaid, >npcLoreCandyWitch, >npcLoreKora, >npcLoreAlphaWolfric, >npcLoreVashtee, >npcLoreTradingOwner, >npcLoreFrostQueen, >npcLoreBanker
+; Example flavor texts (expand as needed)
+npcLoreConductor: .text "The Conductor guides lost souls to Everland, his lantern a beacon in the mist."; .byte 0
+npcLoreBartender: .text "The Bartender knows every tale and secret, pouring wisdom with every drink."; .byte 0
+npcLoreKnight: .text "A Knight of the Black Rose, sworn to memory and honor, protector of Lore."; .byte 0
+npcLoreMystic: .text "The Mystic whispers riddles, keeper of lanterns and ancient truths."; .byte 0
+npcLoreFairy: .text "A mischievous Fairy, weaving spells and laughter through the woods."; .byte 0
+npcLoreKendrick: .text "Kendrick, the old guard, loyal to Everland’s heart and its secrets."; .byte 0
+npcLoreSpiderPrincess: .text "The Spider Princess spins webs of fate, her palace hidden in shadow."; .byte 0
+npcLorePirateCaptain: .text "The Pirate Captain sails the misty waters, treasure and danger in tow."; .byte 0
+npcLoreWarlock: .text "A Warlock, master of wards and forbidden magic, feared by many."; .byte 0
+npcLoreUnseelyFae: .text "Unseely Fae, wild and unpredictable, their names hold power."; .byte 0
+npcLoreApollonia: .text "Apollonia, the moon priestess, demands offerings for her favor."; .byte 0
+npcLoreAlyster: .text "Alyster, the oathkeeper, tests the resolve of all who seek the Order."; .byte 0
+npcLoreTroll: .text "The Troll guards the bridge, wisdom hidden beneath gruff words."; .byte 0
+npcLoreTosh: .text "Tosh, the wandering bard, brings music and news from distant lands."; .byte 0
+npcLoreLouden: .text "Louden, the gentle giant, his heart a mystery to all but the brave."; .byte 0
+npcLoreMermaid: .text "The Mermaid trades in secrets and shells, her song haunting the shore."; .byte 0
+npcLoreCandyWitch: .text "The Candy Witch tempts with sweets, but her magic is bittersweet."; .byte 0
+npcLoreKora: .text "Kora, the jester, delights in clever wordplay and riddles."; .byte 0
+npcLoreAlphaWolfric: .text "Alpha Wolfric leads the winter pack, fierce and loyal."; .byte 0
+npcLoreVashtee: .text "Vashtee, the silent watcher, sees all from the shadows."; .byte 0
+npcLoreTradingOwner: .text "The Trading Owner barters for rare trinkets and lost memories."; .byte 0
+npcLoreFrostQueen: .text "The Frost Weaver Queen rules Aurora, her magic woven from ice and light."; .byte 0
+npcLoreBanker: .text "The Banker guards Everland’s fortunes, his ledger older than time."; .byte 0
 // Legacy alias (maps PIXIE to FAIRY slot)
 .const NPC_PIXIE            = NPC_FAIRY
 // First mate alias; currently share captain slot
@@ -11279,7 +11308,11 @@ locDesc0: .text "A SMALL PLATFORM AND A WHISTLING SIGN."
 	.byte 0
 locDesc1: .text "MERCHANTS TRADE TALES AND TRINKETS."
 	.byte $0D
-	.text "A COIN GLINTS NEAR A STALL."
+	.text "MARKET: MERCHANTS TRADE TALES, TRINKETS, AND LEGENDS."
+	.byte $0D
+	.text "A COIN GLINTS NEAR A STALL, AND BARGAINS WHISPER THROUGH THE CROWD."
+	.byte $0D
+	.text "SOMETIMES, THE AIR SHIMMERS WITH THE MEMORY OF ANCIENT DEALS AND LOST FORTUNES."
 	.byte 0
 locDesc2: .text "IRON BANNERS AND WOODEN PALISADES."
 	.byte $0D
@@ -11291,19 +11324,41 @@ locDesc3: .text "LOUDEN'S REST"
 	.byte 0
 locDesc4: .text "THE HEART OF THE PARK."
 	.byte $0D
-	.text "PATHS RADIATE LIKE PIE SLICES."
+	.text "PLAZA: THE HEART OF THE PARK, WHERE PATHS RADIATE LIKE PIE SLICES AND DEFENDERS GATHERED FOR ALLIANCES."
+	.byte $0D
+	.text "STONES HOLD THE MEMORY OF ANCIENT GATHERINGS, SECRET PACTS, AND THE COURAGE OF EVERLAND’S GUARDIANS."
+	.byte $0D
+	.text "SOMETIMES, THE AIR THRUMS WITH THE PRESENCE OF PAST HEROES AND THE CHOICE TO UNITE OR DIVIDE."
 	.byte 0
 locDesc5: .text "GEARS, BELLS, AND BRASS SIGNS."
 	.byte $0D
-	.text "A WORKSHOP HUMS QUIETLY."
+	.text "CLOCKWORK ALLEY: GEARS TURN IN THE SHADOWS, BRASS SIGNS WHISPER OLD NAMES."
+	.byte $0D
+	.text "ALLEY: GEARS TURN IN THE SHADOWS, BRASS SIGNS WHISPER OLD NAMES, AND SECRET TRADES PASS BETWEEN LOST SOULS."
+	.byte $0D
+	.text "A BREEZE CARRIES THE SCENT OF OIL, FORGOTTEN STORIES, AND SHADOWS THAT SHIFT WITH EVERY DEAL."
+	.byte $0D
+	.text "A WORKSHOP HUMS QUIETLY, BELLS RING WITHOUT WIND, AND SOMETIMES THE AIR SHIVERS WITH THE MEMORY OF CHOICES MADE IN THE DARK."
 	.byte 0
 locDesc6: .text "DARK TREES AND PAPER CHARMS."
 	.byte $0D
-	.text "THE AIR SMELLS OF HERBS."
+	.text "THE GROVE: DARK TREES CROWD TOGETHER, PAPER CHARMS SWAY FROM BRANCHES."
+	.byte $0D
+	.text "MYSTICWOOD: DARK TREES CROWD TOGETHER, PAPER CHARMS SWAY FROM BRANCHES."
+	.byte $0D
+	.text "HERBS AND MOSS BLANKET THE GROUND, AND the air is thick with whispered lore."
+	.byte $0D
+	.text "RITUALS ARE SOMETIMES PERFORMED HERE, AND SPIRITS ARE SAID TO WATCH FROM THE SHADOWS."
+	.byte $0D
+	.text "IF YOU LISTEN CLOSELY, YOU MAY FEEL THE PRESENCE OF ANCIENT MAGIC AND GLIMPSE A VISION OF THE WOOD'S PAST."
 	.byte 0
 locDesc7: .text "GLASSY PETALS AND LANTERN DEW."
 	.byte $0D
-	.text "QUIET LAUGHTER IN THE HEDGES."
+	.text "FAIRY GARDENS: GLASSY PETALS SHIMMER IN THE LIGHT, LANTERN DEW SPARKLES ON THE LEAVES."
+	.byte $0D
+	.text "QUIET LAUGHTER ECHOES THROUGH THE HEDGES, AND SOMETIMES FAIRIES DANCE IN CELEBRATION."
+	.byte $0D
+	.text "MAGIC FILLS THE AIR, AND IF YOU LISTEN CLOSELY, YOU MAY WITNESS A VISION OF ANCIENT FAIRY FESTIVALS."
 	.byte 0
 locDesc8: .text "LAUGHTER, MUSIC, AND FOAMING MUGS."
 	.byte $0D
@@ -11311,11 +11366,19 @@ locDesc8: .text "LAUGHTER, MUSIC, AND FOAMING MUGS."
 	.byte 0
 locDesc9:  .text "MEETING PLACE FOR THE ORDER OF THE EMERALD SKY"
 	.byte $0D
-	.text "DRAGON TRAINERS GATHER HERE."
+	.text "DRAGON HAVEN: ANCIENT STONES FORM A CIRCLE, SCORCHED BY FIRES LONG PAST."
+	.byte $0D
+	.text "DRAGON TRAINERS GATHER UNDER THE EMERALD SKY, SHARING TALES OF FLIGHT AND FLAME."
+	.byte $0D
+	.text "SOMETIMES, THE AIR SHIMMERS WITH HEAT AND YOU SENSE THE PRESENCE OF ANCIENT DRAGONS WATCHING FROM ABOVE."
 	.byte 0
 locDesc10: .text "COLD STEPS DESCEND BENEATH THE TOMB."
 	.byte $0D
-	.text "EVERY SOUND RETURNS TWICE."
+	.text "CATACOMBS: COLD STEPS DESCEND BENEATH THE TOMB, ECHOES TWISTING IN THE DARK."
+	.byte $0D
+	.text "LOST SOULS WHISPER FROM THE SHADOWS, AND GUARDIANS WATCH OVER ANCIENT RELICS."
+	.byte $0D
+	.text "SOMETIMES, THE AIR SHIVERS WITH THE MEMORY OF SECRETS BURIED DEEP AND THE CHOICE TO PROTECT OR RELEASE THEM."
 	.byte 0
 locDesc11: .text "WARM LAMPLIGHT AND POLISHED WOOD."
 	.byte $0D
@@ -13228,7 +13291,9 @@ questNameLouden: .text "RESTORE LOUDEN'S HEART"
 questNameMermaid: .text "TRADE LAND FOR SEA"
 	.byte 0
 questNameKendrickScotch: .text "FETCH SCOTCH FOR KENDRICK"
-    .byte 0
+	.byte 0
+msgMermaidShellLore: .text "The shell glows in your palm. A breeze stirs, and you glimpse a vision of Everland’s ancient shore."
+	.byte 0
 questNameWarlockWard: .text "PLACE THE WARLOCK'S WARD"
 	.byte 0
 questNameCandyWitch: .text "DISABLE THE WARLOCK'S WARD"
@@ -13260,10 +13325,88 @@ questDetailApollonia: .text "QUEST: LEAVE ANY ITEM AS AN OFFERING AT SAINT APOLL
 	.byte 0
 questDetailLouden: .text "QUEST: BRING THE HEART FROM THE CATACOMBS TO LOUDEN."
 	.byte 0
+questDetailGrove: .text "QUEST: GATHER THREE HERBS FROM EVERLAND, PLACE CHARMS IN THE GROVE, AND PERFORM THE RITUAL TO UNLOCK A VISION OF THE ANCIENT PARK."
+	.byte 0
+questDetailClockwork: .text "QUEST: FIND THE MISSING GEAR, REPAIR THE BELLS IN CLOCKWORK ALLEY, AND DISCOVER THE SECRET MESSAGE THAT UNLOCKS A LORE EVENT."
+	.byte 0
+questDetailTavern: .text "QUEST CHAIN: 1) WIN THE DRINKING CONTEST IN THE TAVERN, 2) HELP THE BARTENDER SOLVE HIS RIDDLE, 3) UNLOCK THE SECRET RECIPE, 4) EXPERIENCE THE TAVERN'S LORE EVENT."
+	.byte 0
+questDetailCatacombs: .text "QUEST CHAIN: 1) FIND THE HIDDEN PASSAGE IN THE CATACOMBS, 2) SOLVE THE ANCIENT PUZZLE, 3) RECOVER THE LOST RELIC, 4) EXPERIENCE THE CATACOMBS' LORE EVENT."
+	.byte 0
+questDetailPlaza: .text "QUEST ARC: 1) HELP KENDRICK DEFEND THE SPIDER PRINCESS IN THE PLAZA, 2) SOLVE THE PLAZA RIDDLE, 3) UNCOVER THE HIDDEN PASSAGE, 4) EXPERIENCE THE PLAZA'S LORE EVENT."
+	.byte 0
+questDetailPortal: .text "QUEST ARC: 1) STABILIZE THE FRACTURED PORTAL, 2) RETRIEVE A LOST MEMORY FROM THE OTHER SIDE, 3) MEET A VISITOR FROM LORE, 4) EXPERIENCE THE PORTAL'S LORE EVENT."
+	.byte 0
+questDetailBank: .text "QUEST BRANCHES: 1) DEPOSIT A RARE COIN IN THE BANK, 2) UNLOCK THE SECRET VAULT, 3) CHOOSE TO HELP OR ROB THE BANKER, 4) EXPERIENCE THE BANK'S LORE EVENT."
+	.byte 0
+questDetailTavernPaths: .text "QUEST MULTI-PATH: 1) WIN THE TAVERN CONTEST, 2) CHOOSE TO SHARE OR KEEP THE SECRET RECIPE, 3) UNLOCK THE BARTENDER’S SECRET, 4) EXPERIENCE ALTERNATE TAVERN LORE EVENTS BASED ON YOUR CHOICE."
+	.byte 0
+questDetailMysticPaths: .text "QUEST MULTI-PATH: 1) SOLVE THE MYSTIC’S RIDDLE, 2) CHOOSE TO REVEAL OR CONCEAL THE TRUTH, 3) UNLOCK ANCIENT MAGIC, 4) EXPERIENCE ALTERNATE MYSTIC LORE EVENTS BASED ON YOUR CHOICE."
+	.byte 0
+questDetailPiratePaths: .text "QUEST MULTI-PATH: 1) JOIN THE PIRATE CREW OR BETRAY THEM, 2) SEEK THE HIDDEN TREASURE, 3) DECIDE THE FATE OF THE LOOT, 4) EXPERIENCE ALTERNATE PIRATE LORE EVENTS BASED ON YOUR CHOICE."
+	.byte 0
+questDetailFairyPaths: .text "QUEST MULTI-PATH: 1) ACCEPT OR REFUSE THE FAIRY’S BLESSING, 2) TRADE FOR A SECRET, 3) CHOOSE TO REVEAL OR KEEP THE FAIRY NAME, 4) EXPERIENCE ALTERNATE FAIRY LORE EVENTS BASED ON YOUR CHOICE."
+	.byte 0
+questDetailKnightPaths: .text "QUEST MULTI-PATH: 1) UPHOLD OR BREAK THE KNIGHT’S OATH, 2) DUEL FOR HONOR OR PEACE, 3) CHOOSE TO PROTECT OR CHALLENGE LORE, 4) EXPERIENCE ALTERNATE KNIGHT LORE EVENTS BASED ON YOUR CHOICE."
+	.byte 0
+questDetailMysticwoodPaths: .text "QUEST MULTI-PATH: 1) JOIN OR DISRUPT THE MYSTICWOOD RITUAL, 2) SEEK SPIRIT GUIDANCE, 3) CHOOSE TO PRESERVE OR CHANGE TRADITION, 4) EXPERIENCE ALTERNATE MYSTICWOOD LORE EVENTS BASED ON YOUR CHOICE."
+	.byte 0
+questDetailGolem: .text "QUEST BRANCHES: 1) REPAIR THE GOLEM IN THE PARK, 2) CHOOSE TO AWAKEN OR LEAVE IT DORMANT, 3) DISCOVER THE GOLEM’S SECRET, 4) EXPERIENCE THE GOLEM'S LORE EVENT."
+	.byte 0
 questDetailMermaid: .text "QUEST: TRADE A PINECONE FOR A SPARKLY SHELL WITH THE MERMAID IN THE ALLEY."
 	.byte 0
+msgGroveRitualLore: .text "As the ritual ends, the charms shimmer and the herbs release their scent. A vision unfolds: Everland’s Grove as it was, ancient and wild, with voices whispering secrets through the leaves."
+	.byte 0
+msgClockworkLore: .text "As the last bell rings, gears align and a hidden inscription glows: 'Time remembers all stories.' The alley hums with ancient energy, and you glimpse Everland’s clockwork heart beating beneath the brass."
+	.byte 0
+msgDragonHavenLore: .text "A vision blazes before you: dragons soaring through fire and sky, their scales gleaming with the memory of Everland’s oldest legends. The Emerald Sky glows, and you feel the ancient bond between trainer and dragon."
+	.byte 0
+msgTavernLore: .text "As the last mug is drained and the riddle solved, the bartender reveals the secret recipe. The tavern glows with warmth, and you glimpse Everland’s revelers from ages past, their laughter echoing through time."
+	.byte 0
+msgCatacombsLore: .text "As the relic is claimed, the catacombs tremble and ancient voices rise. Shadows swirl, revealing Everland’s forgotten guardians and the secrets they swore to protect beneath the stone."
+	.byte 0
+msgMysticwoodLore: .text "A hush falls over the Mysticwood. Charms flutter, and spectral figures gather in the mist. You witness a ritual from ages past, the spirits weaving magic into the roots and branches of Everland."
+	.byte 0
+msgPlazaLore: .text "As Kendrick stands guard and the riddle is solved, the plaza stones shift, revealing a hidden passage. You glimpse Everland’s defenders from centuries past, their courage echoing in the heart of the park."
+	.byte 0
+msgPortalLore: .text "As the portal stabilizes and a memory returns, fractured light swirls and a visitor from Lore steps through. You witness Everland’s history woven between worlds, the portal humming with ancient power."
+	.byte 0
+msgFairyGardensLore: .text "The gardens glow as fairies gather for a festival. Petals swirl, lanterns float, and you glimpse Everland’s oldest celebrations, magic weaving joy through every leaf and song."
+	.byte 0
+msgBankLore: .text "As the vault opens, the banker reveals a ledger older than Everland itself. You glimpse the fortunes and secrets of generations, and must choose: protect the legacy or claim it for yourself. The bank’s history echoes in every coin and shadow."
+	.byte 0
+msgGolemLore: .text "As the golem stirs, ancient runes glow and a memory awakens. You witness Everland’s first guardians, stone and spirit bound together, and must decide: restore the old protector or let new stories shape the park."
+	.byte 0
+msgMarketLore: .text "The market bustles as merchants recall legendary trades. You glimpse Everland’s oldest bargains, fortunes won and lost, and the secrets that still linger in every coin and promise."
+	.byte 0
+msgTavernLoreAlt: .text "Depending on your choice, the tavern either fills with laughter as the recipe is shared, or grows quiet as you keep the secret. The bartender reveals a hidden story, and you glimpse Everland’s revelers in a new light—joy or mystery echoing through the ages."
+	.byte 0
+msgMysticLoreAlt: .text "If you reveal the truth, the Mystic shares ancient wisdom and the wood glows with magic. If you conceal it, shadows gather and you glimpse Everland’s secrets kept for generations, the spirits watching in silence or celebration."
+	.byte 0
+msgCatacombsLoreAlt: .text "Depending on your actions, the catacombs either fill with light as lost souls are freed, or grow darker as secrets remain hidden. Guardians rise or fade, and you glimpse Everland’s legacy shaped by your choices beneath the stone."
+	.byte 0
+msgPirateLoreAlt: .text "If you join the crew, the river echoes with songs and shared gold. If you betray, the treasure vanishes and legends twist. You glimpse Everland’s pirates in triumph or regret, their tales forever changed by your choices."
+	.byte 0
+msgFairyLoreAlt: .text "If you accept the blessing, the gardens bloom and fairies celebrate. If you refuse or keep the name secret, the air grows quiet and magic fades. You glimpse Everland’s fairy tales in joy or longing, shaped by your choices."
+	.byte 0
+msgPlazaLoreAlt: .text "If you unite the defenders, the plaza glows with strength and hope. If you divide, shadows linger and alliances fade. You glimpse Everland’s heroes in triumph or sorrow, their legacy shaped by your choices in the heart of the park."
+	.byte 0
+msgKnightLoreAlt: .text "If you uphold the oath, Lore flourishes and the knight’s legend grows. If you break it, the park trembles and new stories rise. You glimpse Everland’s guardians in glory or regret, their fate shaped by your choices for honor or peace." 
+	.byte 0
+msgMysticwoodLoreAlt: .text "If you join the ritual, spirits bless the wood and tradition endures. If you disrupt, new magic stirs and old spirits fade. You glimpse Everland’s Mysticwood in harmony or transformation, shaped by your choices for guidance or change."
+	.byte 0
+msgAlleyLoreAlt: .text "If you trade in secret, the alley fills with whispers and fortunes shift. If you seek the lost souls, shadows part and old stories are revealed. You glimpse Everland’s alley in mystery or revelation, shaped by your choices in the shifting dark."
+	.byte 0
 questDetailKendrick: .text "QUEST: FETCH A BOTTLE OF SCOTCH FROM THE TIPTSEY MAIDEN TAVERN AND RETURN IT TO KENDRICK IN THE PLAZA."
-    .byte 0
+	.byte $0D
+	.text "STAGE 1: FIND LANDBOUND CORAL (A DRY, PERFUMED PINECONE) IN THE PARK."
+	.byte $0D
+	.text "STAGE 2: OFFER THE PINECONE TO THE MERMAID IN THE ALLEY."
+	.byte $0D
+	.text "STAGE 3: RECEIVE A SPARKLY SHELL FROM THE MERMAID."
+	.byte $0D
+	.text "STAGE 4: THE SHELL GLOWS IN YOUR PALM. A BREEZE STIRS, AND YOU GLIMPSE A VISION OF EVERLAND'S ANCIENT SHORE (SEE LORE EVENT)."
+	.byte 0
 questDetailWarlock: .text "QUEST: TAKE THE WARLOCK'S WARD AND SET IT DOWN AT THE PORTAL."
 	.byte 0
 questDetailCandyWitch: .text "QUEST: BRING THE WARLOCK'S WARD TO THE CANDY WITCH TO HAVE IT DISABLED, THEN RETURN THE DISABLED WARD TO THE WARLOCK."
