@@ -161,12 +161,706 @@ print_menu_done:
     RTS
 
 main_menu_msg:
-    .byte "\r\nEVERLAND MAIN MENU:\r\n(Where memory and magic entwine)\r\n1. Play Everland\r\n2. Inventory\r\n3. High Scores\r\n4. Message Board\r\n5. Async PvP\r\n6. Save Game\r\n7. Load Game\r\n8. Portal Travel\r\n9. Quit\r\nL. Library\r\n\r\nLore: The portal shimmers with fractured memories. Quests shape the fate of Everland.\r\n> ",0
+    .byte "\r\nEVERLAND MAIN MENU:\r\n(Where memory and magic entwine)\r\n1. Play Everland\r\n2. Inventory\r\n3. High Scores\r\n4. Message Board\r\n5. Async PvP\r\n6. Save Game\r\n7. Load Game\r\n8. Portal Travel\r\n9. Quit\r\nL. Library\r\nU. User Customization\r\n\r\nLore: The portal shimmers with fractured memories. Quests shape the fate of Everland.\r\n> ",0
 
 get_menu_input:
     ; Get a key from modem
     JSR modem_in
+    CMP #'U'
+    BEQ user_customization_menu
     RTS
+; --- User Customization ---
+user_avatar: .byte 0
+user_nickname: .res 16,0 ; PETSCII nickname
+user_color: .byte 0
+user_settings: .byte 0
+
+user_customization_menu:
+
+    ; Display current selections
+    LDX #0
+show_current_customization:
+        LDA show_current_customization_msg,X
+        BEQ show_current_customization_done
+        JSR modem_out
+        INX
+        BNE show_current_customization
+show_current_customization_done:
+    LDA user_avatar
+    JSR print_avatar_name
+    LDX #0
+show_nickname_loop:
+        LDA user_nickname,X
+        BEQ show_nickname_done
+        JSR modem_out
+        INX
+        CPX #16
+        BNE show_nickname_loop
+show_nickname_done:
+    LDA user_color
+    JSR print_color_name
+    LDA user_settings
+    JSR print_settings_name
+    LDX #0
+user_customization_menu_msg_loop:
+        LDA user_customization_menu_msg,X
+        BEQ user_customization_menu_msg_done
+        JSR modem_out
+        INX
+        BNE user_customization_menu_msg_loop
+user_customization_menu_msg_done:
+    JSR get_user_customization_input
+    JMP main_loop
+
+; --- Customization Help Routine ---
+customization_help:
+    LDX #0
+customization_help_msg_loop:
+        LDA customization_help_msg,X
+        BEQ customization_help_msg_done
+        JSR modem_out
+        INX
+        BNE customization_help_msg_loop
+customization_help_msg_done:
+    JSR wait_for_key
+    RTS
+
+customization_help_msg:
+    .byte "\r\nCUSTOMIZATION HELP:\r\nUse 1-9, A, B to select options.\r\nSet your avatar, color, nickname, and more.\r\n'B' is a temporary session override.\r\n'6' previews color.\r\n'0' returns to main menu.\r\nPress any key to return.\r\n",0
+
+show_current_customization_msg:
+    .byte "\r\nCURRENT CUSTOMIZATION:\r\nAvatar: ",0
+    .byte "Nickname: ",0
+
+print_avatar_name:
+    CMP #0
+    BEQ avatar_knight
+    CMP #1
+    BEQ avatar_wizard
+    CMP #2
+    BEQ avatar_elf
+    CMP #3
+    BEQ avatar_dragon
+    RTS
+avatar_knight:
+    LDX #0
+    .byte "Knight\r\nA brave defender, excels at melee combat.\r\n",0
+    RTS
+avatar_wizard:
+    LDX #0
+    .byte "Wizard\r\nA master of arcane arts, wise and clever.\r\n",0
+    RTS
+avatar_elf:
+    LDX #0
+    .byte "Elf\r\nSwift and agile, attuned to nature.\r\n",0
+    RTS
+avatar_dragon:
+    LDX #0
+    .byte "Dragon\r\nMysterious and powerful, breathes fire.\r\n",0
+    RTS
+avatar_knight:
+    LDX #0
+    .byte "Knight\r\n",0
+    RTS
+avatar_wizard:
+    LDX #0
+    .byte "Wizard\r\n",0
+    RTS
+avatar_elf:
+    LDX #0
+    .byte "Elf\r\n",0
+    RTS
+avatar_dragon:
+    LDX #0
+    .byte "Dragon\r\n",0
+    RTS
+
+print_color_name:
+    LDX #0
+    .byte "Color: ",0
+    LDA user_color
+    CMP #0
+    BEQ color_blue
+    CMP #1
+    BEQ color_green
+    CMP #2
+    BEQ color_red
+    CMP #3
+    BEQ color_gold
+    RTS
+color_blue:
+    LDX #0
+    .byte "Blue\r\n",0
+    RTS
+color_green:
+    LDX #0
+    .byte "Green\r\n",0
+    RTS
+color_red:
+    LDX #0
+    .byte "Red\r\n",0
+    RTS
+color_gold:
+    LDX #0
+    .byte "Gold\r\n",0
+    RTS
+
+print_settings_name:
+    LDX #0
+    .byte "Settings: ",0
+    LDA user_settings
+    CMP #0
+    BEQ settings_normal
+    CMP #1
+    BEQ settings_hardcore
+    CMP #2
+    BEQ settings_relaxed
+    RTS
+settings_normal:
+    LDX #0
+    .byte "Normal\r\n",0
+    RTS
+settings_hardcore:
+    LDX #0
+    .byte "Hardcore\r\n",0
+    RTS
+settings_relaxed:
+    LDX #0
+    .byte "Relaxed\r\n",0
+    RTS
+
+user_customization_menu_msg:
+    .byte "\r\nUSER CUSTOMIZATION:\r\n1. Choose Avatar\r\n2. Choose Color Scheme\r\n3. Game Settings\r\n4. Set Nickname\r\n5. Randomize Avatar/Color\r\n6. Color Test Mode\r\n7. Save Customization\r\n8. Load Customization\r\n9. Reset to Defaults\r\nA. Copy Customization to Another Slot\r\nB. Temporary Session Override\r\n0. Back to Main Menu\r\n> ",0
+
+get_user_customization_input:
+get_user_customization_input_loop:
+    JSR modem_in
+    CMP #'1'
+    BEQ choose_avatar
+    CMP #'2'
+    BEQ choose_color
+    CMP #'3'
+    BEQ choose_settings
+    CMP #'4'
+    BEQ set_nickname
+    CMP #'5'
+    BEQ randomize_avatar_color
+    CMP #'6'
+    BEQ color_test_mode
+    CMP #'7'
+    BEQ save_user_customization
+    CMP #'8'
+    BEQ load_user_customization
+    CMP #'9'
+    BEQ reset_customization
+    CMP #'A'
+    BEQ copy_customization_to_slot
+    CMP #'B'
+    BEQ session_override
+    CMP #'0'
+    BEQ main_loop
+    CMP #'?'
+    BEQ customization_help_call
+    ; Invalid key: beep and loop
+    LDA #$07 ; PETSCII bell
+    JSR modem_out
+    JMP get_user_customization_input_loop
+customization_help_call:
+    JSR customization_help
+    JMP get_user_customization_input_loop
+    RTS
+color_test_mode:
+    LDA user_color
+    JSR apply_color_to_ui
+    LDX #0
+color_test_msg_loop:
+        LDA color_test_msg,X
+        BEQ color_test_msg_done
+        JSR modem_out
+        INX
+        BNE color_test_msg_loop
+color_test_msg_done:
+    RTS
+color_test_msg:
+    .byte "\r\nColor test mode: UI color applied!\r\n",0
+apply_color_to_ui:
+    ; Simulate by outputting PETSCII color code (real UI would set color RAM)
+    CMP #0
+    BEQ ui_blue
+    CMP #1
+    BEQ ui_green
+    CMP #2
+    BEQ ui_red
+    CMP #3
+    BEQ ui_gold
+    RTS
+ui_blue:
+    LDA #$1F ; PETSCII blue
+    JSR modem_out
+    RTS
+ui_green:
+    LDA #$05 ; PETSCII green
+    JSR modem_out
+    RTS
+ui_red:
+    LDA #$1C ; PETSCII red
+    JSR modem_out
+    RTS
+ui_gold:
+    LDA #$1D ; PETSCII yellow/gold
+    JSR modem_out
+    RTS
+
+session_override:
+    LDX #0
+session_override_msg_loop:
+        LDA session_override_msg,X
+        BEQ session_override_msg_done
+        JSR modem_out
+        INX
+        BNE session_override_msg_loop
+session_override_msg_done:
+    ; Prompt for temp avatar
+    JSR choose_avatar
+    ; Prompt for temp color
+    JSR choose_color
+    ; Prompt for temp settings
+    JSR choose_settings
+    LDX #0
+session_override_done_msg_loop:
+        LDA session_override_done_msg,X
+        BEQ session_override_done_msg_done
+        JSR modem_out
+        INX
+        BNE session_override_done_msg_loop
+session_override_done_msg_done:
+    RTS
+session_override_msg:
+    .byte "\r\nTemporary session override: choose avatar, color, and settings. These will not be saved.\r\n",0
+session_override_done_msg:
+    .byte "\r\nSession override applied!\r\n",0
+randomize_avatar_color:
+    JSR random
+    AND #3
+    STA user_avatar
+    JSR random
+    AND #3
+    STA user_color
+    LDX #0
+randomize_msg_loop:
+        LDA randomize_msg,X
+        BEQ randomize_msg_done
+        JSR modem_out
+        INX
+        BNE randomize_msg_loop
+randomize_msg_done:
+    ; Show preview after randomization
+    LDA user_avatar
+    JSR print_avatar_name
+    LDA user_color
+    JSR print_color_name
+    RTS
+randomize_msg:
+    .byte "\r\nAvatar and color randomized!\r\n",0
+random:
+    LDA $D012 ; use raster as a simple random seed
+    RTS
+set_nickname:
+    LDX #0
+set_nickname_msg_loop:
+        LDA set_nickname_msg,X
+        BEQ set_nickname_msg_done
+        JSR modem_out
+        INX
+        BNE set_nickname_msg_loop
+set_nickname_msg_done:
+    LDX #0
+set_nickname_input_loop:
+        JSR modem_in
+        CMP #13 ; Enter
+        BEQ set_nickname_input_done
+        STA user_nickname,X
+        INX
+        CPX #16
+        BNE set_nickname_input_loop
+set_nickname_input_done:
+    RTS
+set_nickname_msg:
+    .byte "\r\nEnter your nickname (max 16 chars, Enter to finish): ",0
+
+choose_avatar:
+    LDX #0
+choose_avatar_preview:
+        LDA choose_avatar_msg,X
+        BEQ choose_avatar_preview_done
+        JSR modem_out
+        INX
+        BNE choose_avatar_preview
+choose_avatar_preview_done:
+    LDA user_avatar
+    JSR show_avatar_art
+    JSR modem_out
+    LDX #0
+choose_avatar_input_msg_loop:
+        LDA choose_avatar_input_msg,X
+        BEQ choose_avatar_input_msg_done
+        JSR modem_out
+        INX
+        BNE choose_avatar_input_msg_loop
+choose_avatar_input_msg_done:
+    JSR modem_in
+    CMP #'N'
+    BEQ avatar_next
+    CMP #'P'
+    BEQ avatar_prev
+    CMP #'S'
+    BEQ avatar_select
+    RTS
+avatar_next:
+    INC user_avatar
+    LDA user_avatar
+    CMP #4
+    BNE choose_avatar
+    LDA #0
+    STA user_avatar
+    JMP choose_avatar
+avatar_prev:
+    LDA user_avatar
+    BEQ avatar_prev_wrap
+    DEC user_avatar
+    JMP choose_avatar
+avatar_prev_wrap:
+    LDA #3
+    STA user_avatar
+    JMP choose_avatar
+avatar_select:
+    RTS
+choose_avatar_msg:
+    .byte "\r\nChoose Avatar (N=Next, P=Prev, S=Select):\r\n",0
+choose_avatar_input_msg:
+    .byte "N=Next, P=Prev, S=Select\r\n",0
+show_avatar_art:
+    CMP #0
+    BEQ avatar_art_knight
+    CMP #1
+    BEQ avatar_art_wizard
+    CMP #2
+    BEQ avatar_art_elf
+    CMP #3
+    BEQ avatar_art_dragon
+    RTS
+avatar_art_knight:
+    LDX #0
+    .byte "[K]  o>\r\n    /|\r\n   / \\ Knight\r\n",0
+    RTS
+avatar_art_wizard:
+    LDX #0
+    .byte "[W]  /\\\r\n    ( )\r\n    /_\\ Wizard\r\n",0
+    RTS
+avatar_art_elf:
+    LDX #0
+    .byte "[E]  /\\\r\n    |o|\r\n    / \\ Elf\r\n",0
+    RTS
+avatar_art_dragon:
+    LDX #0
+    .byte "[D]  /\\_/\\\r\n   ( o.o )\r\n    > ^ < Dragon\r\n",0
+    RTS
+set_avatar_knight:
+    LDA #0
+    STA user_avatar
+    RTS
+set_avatar_wizard:
+    LDA #1
+    STA user_avatar
+    RTS
+set_avatar_elf:
+    LDA #2
+    STA user_avatar
+    RTS
+set_avatar_dragon:
+    LDA #3
+    STA user_avatar
+    RTS
+choose_avatar_msg:
+    .byte "\r\nChoose Avatar (0=Knight, 1=Wizard, 2=Elf, 3=Dragon): ",0
+
+choose_color:
+    LDX #0
+choose_color_preview:
+        LDA choose_color_msg,X
+        BEQ choose_color_preview_done
+        JSR modem_out
+        INX
+        BNE choose_color_preview
+choose_color_preview_done:
+    LDA user_color
+    JSR show_color_preview
+    JSR show_color_petscii
+    JSR modem_out
+    LDX #0
+choose_color_input_msg_loop:
+        LDA choose_color_input_msg,X
+        BEQ choose_color_input_msg_done
+        JSR modem_out
+        INX
+        BNE choose_color_input_msg_loop
+choose_color_input_msg_done:
+    JSR modem_in
+    CMP #'N'
+    BEQ color_next
+    CMP #'P'
+    BEQ color_prev
+    CMP #'S'
+    BEQ color_select
+    RTS
+show_color_petscii:
+    LDA user_color
+    CMP #0
+    BEQ petscii_blue
+    CMP #1
+    BEQ petscii_green
+    CMP #2
+    BEQ petscii_red
+    CMP #3
+    BEQ petscii_gold
+    RTS
+petscii_blue:
+    LDX #0
+    .byte "\x9e\x9e\x9e\x9e\x9e\x9e\x9e\x9e\x9e\x9e\r\n",0
+    RTS
+petscii_green:
+    LDX #0
+    .byte "\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\r\n",0
+    RTS
+petscii_red:
+    LDX #0
+    .byte "\x1c\x1c\x1c\x1c\x1c\x1c\x1c\x1c\x1c\x1c\r\n",0
+    RTS
+petscii_gold:
+    LDX #0
+    .byte "\x1d\x1d\x1d\x1d\x1d\x1d\x1d\x1d\x1d\x1d\r\n",0
+    RTS
+color_next:
+    INC user_color
+    LDA user_color
+    CMP #4
+    BNE choose_color
+    LDA #0
+    STA user_color
+    JMP choose_color
+color_prev:
+    LDA user_color
+    BEQ color_prev_wrap
+    DEC user_color
+    JMP choose_color
+color_prev_wrap:
+    LDA #3
+    STA user_color
+    JMP choose_color
+color_select:
+    LDX #0
+set_nickname_msg_loop:
+        LDA set_nickname_msg,X
+        BEQ set_nickname_msg_done
+        JSR modem_out
+        INX
+        BNE set_nickname_msg_loop
+set_nickname_msg_done:
+    LDX #0
+    LDY #0
+set_nickname_input_loop:
+        JSR modem_in
+        CMP #13 ; Enter
+        BEQ set_nickname_input_done
+        STA user_nickname,Y
+        INY
+        CPY #16
+        BNE set_nickname_input_loop
+set_nickname_input_done:
+    ; Validate nickname is not empty
+    LDY #0
+    LDA user_nickname,Y
+    BEQ nickname_empty
+    RTS
+nickname_empty:
+    LDX #0
+nickname_empty_msg_loop:
+        LDA nickname_empty_msg,X
+        BEQ nickname_empty_msg_done
+        JSR modem_out
+        INX
+        BNE nickname_empty_msg_loop
+nickname_empty_msg_done:
+    JMP set_nickname
+nickname_empty_msg:
+    .byte "\r\nNickname cannot be empty!\r\n",0
+copy_customization_to_slot:
+    LDX #0
+copy_slot_msg_loop:
+        LDA copy_slot_msg,X
+        BEQ copy_slot_msg_done
+        JSR modem_out
+        INX
+        BNE copy_slot_msg_loop
+copy_slot_msg_done:
+    JSR modem_in
+    SEC
+    SBC #'0'
+    TAX
+    ; Save current customization to selected slot (simulate by writing to profile file for slot)
+    ; Update user_profile_filename for slot
+    LDA #'0'
+    CLC
+    ADC X
+    STA user_profile_filename+7
+    JSR save_user_customization
+    LDX #0
+copy_slot_done_msg_loop:
+        LDA copy_slot_done_msg,X
+        BEQ copy_slot_done_msg_done
+        JSR modem_out
+        INX
+        BNE copy_slot_done_msg_loop
+copy_slot_done_msg_done:
+    RTS
+copy_slot_msg:
+    .byte "\r\nCopy customization to which slot (0-7)? ",0
+copy_slot_done_msg:
+    .byte "\r\nCustomization copied to slot!\r\n",0
+color_preview_green:
+    LDX #0
+    .byte "[Green] \x1e\x05\x1f\r\n",0 ; PETSCII green
+    RTS
+color_preview_red:
+    LDX #0
+    .byte "[Red] \x1c\x05\x1f\r\n",0 ; PETSCII red
+    RTS
+color_preview_gold:
+    LDX #0
+    .byte "[Gold] \x1d\x05\x1f\r\n",0 ; PETSCII yellow/gold
+    RTS
+set_color_blue:
+    LDA #0
+    STA user_color
+    RTS
+set_color_green:
+    LDA #1
+    STA user_color
+    RTS
+set_color_red:
+    LDA #2
+    STA user_color
+    RTS
+set_color_gold:
+    LDA #3
+    STA user_color
+    RTS
+choose_color_msg:
+    .byte "\r\nChoose Color Scheme (0=Blue, 1=Green, 2=Red, 3=Gold): ",0
+
+choose_settings:
+    LDX #0
+choose_settings_msg_loop:
+        LDA choose_settings_msg,X
+        BEQ choose_settings_msg_done
+        JSR modem_out
+        INX
+        BNE choose_settings_msg_loop
+choose_settings_msg_done:
+    JSR modem_in
+    CMP #'0'
+    BEQ set_settings_normal
+    CMP #'1'
+    BEQ set_settings_hardcore
+    CMP #'2'
+    BEQ set_settings_relaxed
+    RTS
+reset_customization:
+    LDA #0
+    STA user_avatar
+    STA user_color
+    STA user_settings
+    LDX #0
+reset_customization_msg_loop:
+        LDA reset_customization_msg,X
+        BEQ reset_customization_msg_done
+        JSR modem_out
+        INX
+        BNE reset_customization_msg_loop
+reset_customization_msg_done:
+    RTS
+reset_customization_msg:
+    .byte "\r\nCustomization reset to defaults!\r\n",0
+set_settings_normal:
+    LDA #0
+    STA user_settings
+    RTS
+set_settings_hardcore:
+    LDA #1
+    STA user_settings
+    RTS
+set_settings_relaxed:
+    LDA #2
+    STA user_settings
+    RTS
+choose_settings_msg:
+    .byte "\r\nGame Settings (0=Normal, 1=Hardcore, 2=Relaxed): ",0
+
+save_user_customization:
+    JSR open_profile_file_write
+    LDA user_avatar
+    JSR $FFD2
+    LDA user_color
+    JSR $FFD2
+    LDA user_settings
+    JSR $FFD2
+    LDY #0
+save_nickname_loop:
+        LDA user_nickname,Y
+        JSR $FFD2
+        INY
+        CPY #16
+        BNE save_nickname_loop
+    JSR close_lore_file
+    LDX #0
+save_customization_msg_loop:
+        LDA save_customization_msg,X
+        BEQ save_customization_msg_done
+        JSR modem_out
+        INX
+        BNE save_customization_msg_loop
+save_customization_msg_done:
+    RTS
+save_customization_msg:
+    .byte "\r\nCustomization saved!\r\n",0
+
+load_user_customization:
+    JSR open_profile_file_read
+    JSR $FFD2
+    STA user_avatar
+    JSR $FFD2
+    STA user_color
+    JSR $FFD2
+    STA user_settings
+    LDY #0
+load_nickname_loop:
+        JSR $FFD2
+        STA user_nickname,Y
+        INY
+        CPY #16
+        BNE load_nickname_loop
+    JSR close_lore_file
+    LDX #0
+load_customization_msg_loop:
+        LDA load_customization_msg,X
+        BEQ load_customization_msg_done
+        JSR modem_out
+        INX
+        BNE load_customization_msg_loop
+load_customization_msg_done:
+    RTS
+load_customization_msg:
+    .byte "\r\nCustomization loaded!\r\n",0
 
 library_menu:
     LDX #0
