@@ -428,11 +428,9 @@ Notes and recommendations
 - Docker provides a fully reproducible environment if you cannot or do not wish to install TeX or `wkhtmltopdf` locally.
 
 2) Build wrapper (text copy)
-
 The repository includes `tools/build_manual.ps1`, a PowerShell wrapper that detects available engines and builds `MANUAL.pdf` if possible (falling back to `MANUAL.html` otherwise). The full script is below:
 
 ---- begin `build_manual.ps1` ----
-
 <inserted-script>
 
 ---- end `build_manual.ps1` ----
