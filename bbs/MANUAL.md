@@ -1,598 +1,1430 @@
-Everland — Manual
-=================
+# Everland BBS Door Game — Complete Manual
 
-Overview
---------
-Everland is a single-file Commodore 64 text-adventure written in Kick Assembler. Build with KickAssembler and run in the VICE C64 emulator on Windows.
+## Overview
 
-Screenshots
------------
-The following screenshots are included from the `images/` folder.
+Everland BBS Door Game is a text-adventure door game for BBS systems, written in Kick Assembler for the Commodore 64. This is a multi-user online game designed to run as a BBS door, featuring rich lore, quests, NPCs, and social features.
 
-![Screenshot 1](../images/screenshot1.png)
-![Screenshot 2](../images/screenshot2.png)
+**Build:** Memory Map $c000-$200aa (~65KB)
 
-Fully Working Features
-----------------------
-- Save/Load (EV4): Per-username profile saved to device 8. EV4 stores username, display, class, race, pin, score, level, current HP, class/race indices, max HP (for reference), calendar, location, object locations, quest state, and coin balances (gold, silver, copper). Backward-compatible loader accepts EV1/EV2/EV3.
-- Login/Profile: Username, display name, class, and race are selected at first login. New users start with 1 silver and 9 copper and are assigned 5 random starting trinkets.
-- Class & Level System: Class base HP and HP-per-level; new profiles start at Level 1.
-- HP System: Character sheet shows current and max HP; max HP is based on class, level, and session bonuses. Current HP is saved; max HP is recomputed and also persisted in EV3.
-- Coin System: Inventory displays gold, silver, and copper balances. Many quest rewards pay out 1 silver; new users begin with 1 silver and 9 copper to ensure they can participate in early quests. Balances are saved in the user record.
-- Idle Regeneration: While idle at prompts (i.e., not in a fight), HP regenerates at 1 HP per real-time minute (uses KERNAL jiffy clock; handles midnight wrap).
-- Inventory: Full-screen Inventory with `I`; shows coin balances, carried items, and trinkets, and returns to the game when you press Enter.
-- Characters & Sheets: `C` opens character menu; view player or NPC sheets with stats and HP.
-- Talk/NPC Selection: `T` opens talk screen; select any present NPC.
-- Direct TALK: `TALK <NPCNAME>` jumps straight to that NPC if present.
-- Conversation Menu: Options like speak/ask/comment/quests/end; many branches apply effects (heals, score, quests).
-- Movement: Cardinal (`N/S/E/W`) and diagonal (`NE/NW/SE/SW`) movement, with full words supported. Cardinal directions work even if not directly shown in exits, using reverse connections.
-- Rendering & I/O: PETSCII message-buffer rendering; KERNAL file and console I/O; music IRQ scaffolding.
-- Trinket Collection: Players collect up to 5 random trinkets at creation; NPCs have up to 3 trinkets each. Trinkets are unique items for social trading.
-- NPC Trinket Trading: Trade trinkets with NPCs via conversation menus; select and swap trinkets to build relationships.
-- Banking Vault: Secure storage for items (10 slots, rent for 10 silver); items saved and retrievable.
-- Dynamic Exchange Rates: Bank rates fluctuate based on supply; deposit/withdraw gold, silver, copper with current rates.
+---
 
-Recent Additions (confirmed working)
-- Direct TALK: `TALK <NPCNAME>` parsing and dispatch.
-- Diagonal movement: `NE/NW/SE/SW` (and full words) plus exits display updates.
-- New NPC content:
-	- Saint Apollonia (Inn): Multi-step stories; offering quest that heals to max and grants +score; leaving without offering may penalize score.
-	- Dragon Trainer Alyster (Dragon Haven): Basics, care, practice; Advanced training grants a session-only +2 Max HP bonus, heals to the new max, and +2 score.
-	- Pirate Swordplay (Clockwork Alley): Stance/footwork guidance; practice parry/lunge grants +1 HP (capped) and +1 score.
-	- Knight Arena Training (Gate): Guard stance/footwork; practice parry/lunge grants +1 HP (capped) and +1 score.
-	- Mermaid (Clockwork Alley): Trade a land-based item (pinecone) for a sea-based item (sparkly shell); starts a themed trade quest and grants the shell upon completion.
-- Character Sheet: Displays “HP: current / max” and shows “+N MAX HP (SESSION)” when a temporary bonus is active.
-- Save Format EV3: Saves current HP and the computed max HP; compatible with older EV1/EV2 saves.
-- Idle HP regen: 1 HP per minute at prompts; persists when HP changes.
-- Manual build helpers: PDF via pandoc/TeX or pandoc+wkhtmltopdf; Dockerfile available.
+## Table of Contents
 
-What's New In This Release
----------------------------
-- TALK improvements: Case-insensitive parsing and direct `TALK <NPCNAME>`.
-- Character sheet HP line: Labeled “HP: current / max”; session HP bonus note.
-- HP regeneration: 1 HP/min while idle, auto-saves on change.
-- EV3 saves: Persist current HP and max HP; EV1/EV2 remain readable.
-- New/updated NPC content: Saint Apollonia, Alyster, Pirate Captain/First Mate, Knight (training).
- - New/updated NPC content: Saint Apollonia, Alyster, Pirate Captain/First Mate, Knight (training), Mermaid (trade quest).
-- Diagonal movement and exits display.
+1. [Complete Feature List](#complete-feature-list)
+2. [Portal System & Realms](#portal-system--realms)
+3. [Town of Everland Locations](#town-of-everland-locations)
+4. [NPC Directory](#npc-directory)
+5. [Social & Room Features](#social--room-features)
+6. [Events System](#events-system)
+7. [Economy & Trading](#economy--trading)
+8. [Mini-Games & Activities](#mini-games--activities)
+9. [Build Instructions](#build-instructions)
+10. [Appendix A: Complete Quest Walkthrough](#appendix-a-complete-quest-walkthrough)
 
-This Update — New Features
---------------------------
-- NPC cap increased to 32: the NPC tables and presence masks were expanded so more characters can be present at once.
-- New NPCs and quests:
-	- Knight Kendrick (Plaza): a jovial, Scottish knight who keeps a bottle of scotch. Kendrick offers a fetch quest — bring him a bottle of scotch (from the Tiptsey Maiden tavern) to complete the quest and receive a small reward.
-	- Warlock (Plaza): gives the player a protective ward and requests it be placed at the Portal fracture (the location formerly called the Gate; the game now uses "Portal").
-	- Candy Witch (Alley): an opposing quest to the Warlock — she can disable a ward; returning a disabled ward to the Warlock is a separate flow and ties into a shared backstory.
-	- Kora (Plaza): offers a playful jape quest — she asks the player to SAY a phrase to Knight Kendrick. Use the new `SAY` command to deliver the phrase and complete the quest.
-	- Alyster oath (Order of the Emerald Sky): Alyster now offers an oath quest with an explicit Y/N acceptance flow; accepting sets a guild-membership flag in your profile.
+---
 
-- New command: `SAY <phrase> TO <NPC>` — a text-say parser was added to validate phrases for specific NPC quests (example: the Kora jape requires the phrase "SCOTCH ON THE KNIGHT" said to Kendrick).
-- Portal rename: all references to the old "Gate" location were renamed to "Portal" in the game and manual.
-- EVLOG quest logging: quest completions are recorded to an `EVLOG` file (device 8 / PRG directory when virtual device traps are enabled). Use the helper scripts in `tools/` to extract/view `EVLOG` from the D64 or PRG directory.
-- Input improvements: username and other prompts now accept multi-character input until Enter and echo typed characters (previous single-char prompt behavior fixed).
-- UI fixes: the Characters/Talk lists no longer show a stray "(UNKNOWN)" entry and the Conductor menu option text was restored.
+## Complete Feature List
 
-- NPC Hitpoints & Levels: NPCs now have level and current/max HP like players. NPC level is used with the same class base/level HP formula to compute an NPC's max HP; current HP is stored in saves (EV3). NPCs heal passively at the same rate as players (1 HP per real minute while idle) and their current HP is auto-saved when it changes. The Characters/Talk lists now display each NPC as "LV <n> HP <cur>/<max>" where applicable.
+### Core Systems (50+ Features)
 
-- Trinket System: Players and NPCs can collect up to 32 unique trinkets. Players start with 5 random trinkets assigned at character creation. NPCs have up to 3 trinkets each, randomly assigned when first encountered. Trinkets are displayed in the inventory screen. Players can trade trinkets with NPCs using the "TRADE TRINKETS" option in conversations, selecting one trinket from their inventory and one from the NPC's collection to swap.
+#### Portal & Travel System
+- **5 Portal Destinations**: Aurora, Lore, Mythos, Town of Everland, England
+- **25 Town Locations**: Full town with shops, taverns, landmarks, and NPCs
+- **Realm Calendar**: 12 monthly seasonal events including October's Dragon Lantern Festival
 
-- Advanced Banking: The Banker NPC now offers expanded services including secure item vault storage (rent for 10 silver, 10 slots), dynamic exchange rates that fluctuate based on bank supply, and full deposit/withdraw menus for gold, silver, and copper. Vault items are saved and can be retrieved later. Exchange rates adjust automatically to simulate economic activity.
+#### NPC & Quest System
+- **40+ Unique NPCs** with dialogue, quests, and lore
+- **Multi-step Quest Chains**: 4-step quest progressions for most NPCs
+- **Branching Choices**: Fight/Negotiate, Help/Betray decision points
+- **Guild Memberships**: Order of Black Rose, Frost Weavers, Order of Emerald Sky, Unseely Court, Order of the Owls, Wolves of Winter
 
+#### Room & Social Features
+- **Personal Rooms**: Customizable player rooms with descriptions and decorations
+- **ASCII Art Editor**: Create and display custom room art
+- **Guestbook System**: Leave and read visitor messages
+- **Privacy Settings**: Control who can visit your room
+- **Friends List**: Manage friend connections
+- **Visitor Log**: Track who visited your room
+- **Messaging System**: Send messages to other players
+- **Profile System**: Customizable player profiles
 
- Latest Operational Updates
----------------------------
-- Build helper: `tools/build_prg_simple.bat` compiles `everland.asm` with your KickAssembler JAR, then refreshes a D64 via `tools/make_d64.bat`.
-- Disk runner: `tools/run_from_d64.bat` mounts `bin/everland.d64` on drive 8 and performs a simple `load"*",8,1` then `run`.
-- TALK flow: Case-insensitive; `TALK <NPCNAME>` opens that NPC if present. Menu indices start at 0 on the list.
-- HELP: Type `HELP` (or `?`) anytime to show controls.
-- Conductor quest: Train Station option “3. Any quests?” starts the coin quest and grants a coin.
-- Apollonia: “Leave an offering” — heals to max and grants +score; leaving without offering may reduce score.
-- Alyster: “Advanced training” (after basics) — session-only +2 Max HP, full heal, +2 score.
-- Diagonals: `NE/NW/SE/SW` movement and exits display.
-- Pirate/Knight practice: Each practice grants +1 HP (capped) and +1 score.
+#### Events System
+- **Personal Events**: Create, view, and cancel personal events
+- **Event Types**: Party, Game, Meeting, Contest, Lantern (festival), Feast
+- **Realm Calendar**: 12 monthly events tied to lore
+- **Browse Events**: See all events across the realm
 
-Coin / Bartender Quest (player walkthrough)
--------------------------------------------
-This release includes a small quest where the Conductor gives you a special coin and asks you to tip the Bartender.
+#### Economy & Trade
+- **Coin System**: Gold, Silver, Copper currencies
+- **Trade System**: Create and browse trade offers
+- **Inventory Management**: 8-slot inventory with item tracking
+- **Bank System**: Deposit, withdraw, and exchange currencies
+- **Auction House**: Buy and sell items
+- **Shop System**: Purchase room decorations and items
+- **Dynamic Exchange Rates**: Fluctuating currency values
 
-1) Accept the quest from the Conductor
-	- `TALK CONDUCTOR` then select the "Any quests?" menu option (`3`) at the Train Station to accept `QUEST_COIN_BARTENDER`. When accepted, you will also receive a coin (an inventory object) and see a confirmation message that you received it.
+#### Mini-Games & Activities
+- **Lottery System**: Weekly drawings with prizes
+- **Dice Games**: Gambling mini-game
+- **Fishing**: Catch fish for rewards
+- **Racing**: Compete in races
+- **Treasure Hunting**: Find hidden treasures
+- **Cooking**: Craft food items
+- **Dueling**: PvP combat system
+- **Arena**: Combat challenges
+- **Riddles**: Puzzle challenges
+- **Scavenging**: Find random items
 
-2) Check your starting money
-	- New users now start with 1 silver and 9 copper in addition to the special quest coin from the Conductor. You can verify this with `I` (Inventory), which shows GOLD / SILVER / COPPER at the top of the screen.
+#### Character Progression
+- **Daily Rewards**: Login streak bonuses (7-day cycle)
+- **Quests System**: Track and complete quests for rewards
+- **Achievements**: Unlock accomplishments
+- **Badges**: Collectible badges
+- **Titles**: Earn titles for accomplishments
+- **Reputation System**: Build standing with factions
+- **Hall of Fame**: Leaderboards
 
-3) Tip the Bartender with the quest coin
-	- Go to the Tavern and either:
-	  - Use a direct command like `GIVE COIN TO BARTENDER`, or
-	  - `TALK BARTENDER` and choose the tip option when it is offered.
+#### Pets & Companions
+- **Pet System**: Adopt and care for pets
+- **Companion System**: AI companions that assist
+- **Garden System**: Grow plants and herbs
 
-	- If you are carrying the quest coin, the Bartender will take the coin, add +1 silver to your balance, and, if `QUEST_COIN_BARTENDER` is active, mark the quest complete.
+#### Crafting & Production
+- **Crafting Menu**: Create items from materials
+- **Potion Brewing**: Create magical potions
+- **Weather System**: Dynamic weather affecting gameplay
 
-4) Verify
-	- `I` should show that your silver increased by 1, and the last messages will indicate that your tip was accepted and the quest is complete.
+#### Administrative Features
+- **Admin Menu**: User management tools
+- **Ban/Unban System**: Moderation controls
+- **User Slot System**: Multi-user profile management
 
-Developer pointers (where to look in the source)
-- Coin system: `playerGold`, `playerSilver`, `playerCopper` store balances; `cmdInventory` displays them; saved in EV4 format.
-- `cmdTake` and `cmdGive` implement TAKE/GIVE parsing and behavior.
-- `questCheckGive` looks up (object,npc) pairs for active quests and calls `questComplete` when matched.
-- NPC HP/level and regen:
-	- `npcLevel`, `npcCurHp`, and `npcClassIdx` tables define NPC level, current HP and class.
-	- `computeNpcMaxHp` computes NPC max HP from class & level (same formula as players).
-	 - `applyRegenIfDue` now heals NPCs the same way as players; look for the NPC-healing loop.
+---
 
+## Portal System & Realms
 
-Partially Working / Needs Attention
-----------------------------------
-- Assembler Branch/Label Issues: Trampolines added where needed; recommend a full assemble and focused review for remaining long-branch patterns.
-- Conversation tree expansion: Per-npc/quest tables are in place but branching trees and larger dialogue flows need more content and testing.
-- SID Music: IRQ handler and new Celtic patterns added; full soundtrack integration and voice balancing still in progress.
-- Quest edge-cases: Multi-stage quests persist, but complex state transitions need playtesting.
-- UI polish: PETSCII art, pacing and transitions need refinement for better immersion.
-- Automated emulator tests: Playtest scripts exist but comprehensive deterministic harness (screenshots, long flows) is TODO.
+### Main Portal Destinations
 
-Beginner Player Manual
-----------------------
-Startup / Compile / Run
+#### 1. Aurora (Land of Frost and Light)
+- **Theme**: Snow-capped peaks, ice magic, winter
+- **Key NPCs**: Frost Weaver Queen, Winter Wolf
+- **Quests**: Frost spell mastery, wolf challenge survival
+- **Guild**: Frost Weavers Guild
 
-- Assemble with KickAssembler on Windows (example):
+#### 2.Ore (Kingdom of Knights and Memory)
+- **Theme**: Medieval kingdom, knights, ancient oaths
+- **Key NPCs**: Lady Cordelia, Grim the Blackheart
+- **Quests**: Knight's oath, Battle for the Cursed Garden
+- **Guild**: Order of the Black Rose
+- **Special Location**: Cursed Garden (Pumpkin King battle)
 
+#### 3. Mythos (Realm of Jungles and Secrets)
+- **Theme**: Lush jungles, dragons, ancient mysteries
+- **Key NPCs**: Dragon Queen, Ancient Mystic
+- **Quests**: Dragon scale retrieval, trainer initiation
+- **Guild**: Order of the Emerald Sky
+
+#### 4. Town of Everland (Hub World)
+- **Theme**: Central town with 25 sub-locations
+- **See**: [Town of Everland Locations](#town-of-everland-locations)
+
+#### 5. England (Whitecastle)
+- **Theme**: Countryside and castle
+- **Locations**: Whitecastle, Countryside
+
+---
+
+## Town of Everland Locations
+
+### Complete Location Directory (25 Locations)
+
+| Key | Location | Description | Key NPCs |
+|-----|----------|-------------|----------|
+| 1 | Train Station | Grand clock tower, steam trains | Damsel of the Mist |
+| 2 | Tipsy Maiden Tavern | Laughter, song, ale | Bartender |
+| 3 | Kettle Cafe | Tea, pastries, warmth | - |
+| 4 | Copper Confection | Candies, frozen treats | - |
+| 5 | Glass House | Exotic creatures, phoenix | - |
+| 6 | Dragon Haven | Dragon training, obsidian spires | Dragon Trainers |
+| 7 | Temple Ruins | Ancient faith, Order of Emerald Sky | Alister, Torin |
+| 8 | Louden's Rest | Graveyard, honored dead | Tosh |
+| 9 | The Moselem | Domed towers, ancient wisdom | Kasimere |
+| A | Fairy Gardens | Pumpkin fairies, magical grove | Lezule, Marmalade, Marigold, Butterscotch |
+| B | Arena | Combat challenges, glory | - |
+| C | Pirate Ship (Black Siren) | Captain's vessel, rogues | Pit Plum, Bonny Red Boots, Shadow Ford |
+| D | Tower | Order of the Owls headquarters | Garrett, Fletcher, Poppy |
+| E | Church | Stained glass, serene worship | Bishop Cordelia, Cedric |
+| F | Catacombs | Underground tunnels, bones | Samuel |
+| G | Statue of Michael | Bronze memorial | - |
+| H | Marketplace | Commerce, stalls, trading | Bridge the Troll |
+| I | Witch's Tent | Herbs, cauldrons, potions | Tammis, Saga |
+| J | Hunter's Hovel | Knights (summer), Wolves (winter) | Wulfric, Lyra |
+| K | The Burrows | Frost Weaver gathering halls | Frost Queen |
+| L | Mystic's Tent | Forbidden knowledge, secrets | Mela, Kal, Daemos |
+| M | Moon Portal | Silver gateway, moonstone arch | - |
+| N | Central Plaza | Fountain, heart of Everland | Spider Princess, Kora, Kendrick |
+| O | The Bridge | Stone arch, troll home | Bridge, Dante, Candy Witch |
+| P | Kira's Apothecary | Remedies, healing, romance | Kira |
+
+---
+
+## NPC Directory
+
+### Major NPCs by Location
+
+#### Aurora NPCs
+| NPC | Role | Quest Chain |
+|-----|------|-------------|
+| Frost Weaver Queen | Guild Leader | Frost spell initiation (GLACIOUS, NIX, ILLUMINA) |
+| Winter Wolf | Guardian | Pact of Winter's Howl trials |
+
+#### Lore NPCs
+| NPC | Role | Quest Chain |
+|-----|------|-------------|
+| Lady Cordelia | Knight Commander | Memory restoration, Knight's Oath, Order of Black Rose |
+| Grim the Blackheart | Warrior | Final assault on Cursed Garden, enchanted spear |
+| Gwen | Mourner | Honor Grim's sacrifice, plant black roses |
+
+#### Mythos NPCs
+| NPC | Role | Quest Chain |
+|-----|------|-------------|
+| Dragon Queen | Ruler | Dragon scale retrieval, dragon lore |
+| Ancient Mystic | Sage | Hidden treasure, wisdom |
+
+#### Town NPCs (Alphabetical)
+| NPC | Location | Quest Chain |
+|-----|----------|-------------|
+| Alister | Temple Ruins | Dragon Trainer Oaths (Order of Emerald Sky) |
+| Bishop Cordelia | Church | Green thorn oath, blessing |
+| Bonny Red Boots | Pirate Ship | Last Shackle song, freedom ballad |
+| Bridge the Troll | Marketplace/Bridge | Trinket trading, mischief pranks |
+| Butterscotch | Fairy Gardens | Human alliance, crop tending |
+| Candy Witch | The Bridge | Chaos quests, ward destruction |
+| Captain Pit Plum | Pirate Ship | Pirate's Trials (trade, flags, combat) |
+| Captain Shadow Ford | Pirate Ship | Combat training (footwork, parrying) |
+| Cedric | Church | Redemption arc, renounce Kasimere |
+| Damsel of the Mist | Train Station | Destiny quest, blue light guidance |
+| Dante | The Bridge | Fracture containment, ward strengthening |
+| Daemos | Mystic's Tent | Dark covenant (Warning: vampire!) |
+| Fletcher | Tower | Archery, Order of Owls |
+| Frost Queen | The Burrows | Frost Weaver initiation ritual |
+| Garrett | Tower | Order of Owls founding, wisdom trials |
+| Kal | Mystic's Tent | Promises of power (Warning: vampire!) |
+| Kasimere | The Moselem | Vampire lord - Help or Betray choice |
+| Kendrick | Central Plaza | Spider Princess protection |
+| Kira | Kira's Apothecary | Healing, romance, mutual craft |
+| Kora | Central Plaza | Spider Princess guardian |
+| Lezule | Fairy Gardens | Stolen names protection |
+| Lyra | Hunter's Hovel | Wolf negotiations, Pact of Winter's Howl |
+| Marigold | Fairy Gardens | Potion ingredients quest |
+| Marmalade | Fairy Gardens | Prank quest chain |
+| Mela | Mystic's Tent | Immortality temptation (Warning: vampire!) |
+| Poppy | Tower | Feast sponsorship, Order of Owls |
+| Pumpkin King | Cursed Garden | Boss battle - Fight or Negotiate |
+| Saga | Witch's Tent | Prophecy, destiny revelation |
+| Samuel | Catacombs | Third eye activation, pendulum mastery |
+| Spider Princess | Central Plaza | Magical artifact gift, spider blessing |
+| Tammis | Witch's Tent | Enchantment, rune learning |
+| Torin | Temple Ruins | Unseely Fae binding ritual |
+| Tosh | Louden's Rest | Graveyard secrets, lost mementos |
+| Van Bueler | Hunter's Hovel | Wolf-human trade negotiations |
+| Wulfric (Alpha) | Hunter's Hovel | Wolf trials, Pact of Winter's Howl |
+
+---
+
+## Social & Room Features
+
+### Personal Room System
+- **Edit Description**: Write custom room description
+- **Choose Decor**: Select room decorations
+- **Choose Color**: Set room color theme
+- **ASCII Art Editor**: Create 80x24 ASCII art
+- **View ASCII Art**: Display your creation
+- **Preview Room**: See how visitors see your room
+
+### Social Features
+- **Guestbook**: Leave/read visitor messages
+- **Privacy Settings**: Public/Private/Friends-only
+- **Friends List**: Manage connections
+- **Visitor Log**: Track visitors
+- **Messages**: Private messaging system
+- **Gifts**: Send gifts to friends
+
+### Room Shop Items
+| Item | Price |
+|------|-------|
+| Fancy Rug | 25g |
+| Crystal Lamp | 40g |
+| Gold Frame | 60g |
+| Magic Mirror | 80g |
+| Royal Banner | 100g |
+| Ancient Statue | 150g |
+
+---
+
+## Events System
+
+### Personal Events
+- **Create Event**: Schedule gatherings with title, time, and type
+- **View My Events**: See your scheduled events
+- **Cancel Event**: Remove scheduled events
+- **Browse All Events**: See realm-wide events
+
+### Event Types
+1. Party
+2. Game
+3. Meeting
+4. Contest
+5. Lantern (Festival)
+6. Feast
+
+### Realm Calendar (Seasonal Events)
+
+| Month | Event | Location |
+|-------|-------|----------|
+| January | New Year's Frost Feast | The Burrows |
+| February | Lovers' Lantern Walk | Moon Portal |
+| March | Spring Awakening Festival | Fairy Gardens |
+| April | Fool's Day Mischief | Bridge the Troll hosts |
+| May | Order of the Black Rose Memorial | Louden's Rest |
+| June | Midsummer Dragon Flight | Dragon Haven |
+| July | Pirate's Plunder Games | Pirate Ship |
+| August | Order of the Owls Wisdom Trials | Tower |
+| September | Harvest Moon Ball | Pumpkin Fairies |
+| **October** | **DRAGON LANTERN FESTIVAL** | **Dragon Haven** |
+| November | Pact of Winter's Howl | Hunter's Hovel |
+| December | Everland Yuletide Feast | Dining Hall |
+
+### October: Dragon Lantern Festival (Special)
+**Tradition: Everyone carries a lantern!**
+
+The Dragon Lantern Festival commemorates the Battle for Everland:
+- Three realms once coexisted: Aurora, Lore, Mythos
+- The Darkness was banished from Mythos and spread to Lore
+- King Lowden fell defending his realm
+- The Dragon Queen of Mythos arrived with her flames and turned the tide
+- Heroes buried their weapons beneath the fallen temple
+- All return yearly to honor the sacrifice
+
+---
+
+## Economy & Trading
+
+### Currency System
+- **Gold**: Primary currency
+- **Silver**: Secondary currency
+- **Copper**: Tertiary currency
+
+### Bank Services
+- **Deposit**: Store currency safely
+- **Withdraw**: Retrieve stored currency
+- **Exchange**: Convert between currencies (dynamic rates)
+- **Vault**: Secure item storage (10 slots, rent: 10 silver)
+
+### Trading
+- **Create Trade Offer**: Post items for trade
+- **Browse Trades**: See available trades
+- **Accept Trades**: Complete transactions
+
+---
+
+## Mini-Games & Activities
+
+### Available Activities
+| Activity | Description |
+|----------|-------------|
+| Lottery | Weekly drawings, buy tickets |
+| Dice Games | Gambling with dice |
+| Fishing | Catch fish for rewards |
+| Racing | Competitive races |
+| Treasure Hunting | Find hidden treasures |
+| Cooking | Craft food items |
+| Dueling | PvP combat |
+| Arena | Combat challenges |
+| Riddles | Puzzle solving |
+| Scavenging | Random item discovery |
+| Crafting | Create items |
+| Garden | Grow plants |
+| Fortune | Have your fortune told |
+| Meditation | Restore stats |
+| Spy | Gather information |
+| Bounty | Hunt targets |
+| Museum | View collections |
+| Tavern | Social gathering |
+| Companion | AI assistant |
+| Mailbox | Correspondence |
+
+---
+
+## Build Instructions
+
+### Requirements
+- **KickAssembler** v5.25 or later
+- **Java** (for KickAssembler)
+- **VICE** C64 Emulator (for testing)
+
+### Build Command
 ```powershell
-java -cp C:\commodore\KickAssembler\KickAss.jar kickass.KickAssembler -odir bin -log c:\commodore\everland\bin\buildlog.txt -showmem -vicesymbols c:\commodore\everland\everland.asm
+cd "c:\commodore\everland\bbs\custom"
+java -jar "C:/commodore/KickAssembler/KickAss.jar" everland_bbs.asm -o "c:\commodore\everland\bin\everland_bbs.prg"
 ```
 
-- Run in VICE: open `bin\everland.prg` or drag into x64.
-
-Quickstart (Windows)
---------------------
-- Build + refresh disk image:
-
-```powershell
-C:\commodore\everland\tools\build_prg_simple.bat "C:\commodore\KickAssembler\KickAss.jar"
-```
-
-- Run from D64 with auto LOAD/RUN (lowercase, wildcard):
-
-```powershell
-C:\commodore\everland\tools\run_from_d64.bat "C:\commodore\GTK3VICE-3.10-win64\bin\x64sc.exe" "C:\commodore\everland\bin\everland.d64"
-```
-
-First Run / Profiles
-
-- On first run you'll be prompted for a username/display and to pick a player class. The chosen class affects HP and is saved.
-- Input & PIN limitation (important): the current input handler does **not** accept two identical characters in a row on any line. This affects usernames, display names, free-text prompts and PIN entry.
-	- For PINs, choose a pattern that does not rely on repeated digits like `1111` or `2222` (for example, use `1212`, `1357`, etc.).
-	- For names and phrases, avoid double letters like `ANNA` or `AARON`; instead, choose variants without consecutive identical characters (e.g., `ANA`, `ARON`) or slightly rephrase.
-	- Spaces are treated as regular characters; you can still have multi-word inputs (e.g., `MAGE DAMON`), but you cannot type two spaces back-to-back.
-
-Core Controls
-
-- Movement: N, S, E, W and NE, NW, SE, SW. Full words `NORTHEAST`, `NORTHWEST`, `SOUTHEAST`, `SOUTHWEST` also work. Diagonal exits appear in the exits line when reachable.
-- `C`: Characters menu — view player or NPC sheets.
-- `I`: Inventory (full screen).
-- `T`: Talk — select NPC and start conversation.
- - Direct talk: `TALK <NPCNAME>` (e.g., `TALK CONDUCTOR`).
- - Help: `HELP` or `?`.
- - `ATTACK` / `FIGHT`: Melee attack an NPC at your current location. Use `ATTACK <npc>` or `FIGHT <npc>` to target someone.
-- Conversation: Type menu number and press Enter; choose "End" to exit.
-
-Gameplay Loop
-
-- Explore, talk to NPCs (`T`/`TALK <NPC>`), check `C`haracter sheet and `I`nventory, accept quests, gain score/levels. Progress and HP updates are auto-saved on key events. HP passively regenerates while idle.
-
-HP & Regeneration
------------------
-- Max HP: Determined by your class and level, plus any session-only bonus.
-	- Formula: MaxHP = BaseHP(class) + PerLevel(class) × Level + SessionBonus.
-	- New profiles start at Level 1, so initial MaxHP includes one per-level step.
-- Session bonus: Some training (e.g., Alyster’s Advanced Training) grants a temporary +Max HP for the current session only. The character sheet shows “+N MAX HP (SESSION)” beneath your HP line when active.
-- Viewing HP: Press `C` to open the character sheet and see “HP: current / max”.
-- Regeneration: While idle at prompts (not actively performing actions), you recover 1 HP per real-time minute. Regeneration is capped at Max HP and is saved automatically when HP changes.
-  
-	- NPCs: Non-player characters now use the same regeneration rules. NPCs have `LV` and `HP` values; they recover 1 HP per real minute (capped at their computed max) and their current HP is persisted in EV3 saves.
+### Output
+- **PRG File**: `bin/everland_bbs.prg`
+- **Symbol File**: `everland_bbs.sym`
 
-Saving & Loading
+---
 
-- Per-username save file (device 8). On startup the game loads your profile; it auto-saves on key changes (e.g., HP regen, quests, training).
-- Save format: EV3. The loader remains compatible with EV1/EV2 saves created by earlier builds; EV3 adds race indices and max HP reference.
+## Appendix A: Complete Quest Walkthrough
 
-Troubleshooting
+This appendix provides detailed step-by-step walkthroughs for every quest chain in Everland.
 
-- If KickAssembler reports branch/label errors, re-run and paste the build log; I can patch `everland.asm` to fix trampolines.
-- If VICE hangs, try restarting the emulator or ensure the IRQ safe stub is enabled in code.
-- If LOAD reports `?FILE NOT FOUND` in BASIC, use wildcard and lowercase:
+---
 
-```basic
-load"*",8,1
-run
-```
+### Chapter 1 Quests: The Fall of Lore
 
-- If input seems to "ignore" a key when you try to type the same character twice (for example `1111` as a PIN, or double letters in a name), this is expected with the current debounce logic. The game only accepts one instance of any character before a different character is typed. Adjust your PIN and names so they do not contain consecutive identical characters.
+#### Quest: Memory Restoration (Lady Cordelia)
+**Location**: Lore Portal → Lady Cordelia  
+**Prerequisite**: None
 
- 
+**Background**: When the refugees fled through the portal from Lore, a dense fog swept over their minds, erasing all memories temporarily. Mage Damon, Damian, Barnabis, and Princess Delphi all lost their memories.
 
-Upcoming / Recommended Features
--------------------------------
-- Full SID soundtrack and sound effects.
-- Expanded quest system and quest log UI.
-- Turn-based combat, skills, and status effects.
-- Improved inventory with equip/unequip and item stacking.
-- Enhanced PETSCII map, mini-map, and animations.
-- Multiple save slots and in-game save manager.
-- Joystick/controller support.
-- Reorganize code to avoid long-branch patterns and improve assembler stability.
+**Steps**:
+1. **Speak to refugees** - Travel through Everland and speak to NPCs who came through the portal
+2. **Retrieve the dark crystals** - The dark sun and moon crystals are needed to restore memories. Kasimere possesses one.
+3. **Swear the green thorn oath** - "May the green thorn pierce me if I fail in my quest"
+4. **Restore the Order of the Black Rose** - Complete the restoration and join the Order
 
-Build & Environment Notes
--------------------------
-- Assembler: Kick Assembler (v5.25 in logs).
-- Editor: Visual Studio Code.
-- Emulator: VICE C64 Emulator on Windows.
-- Source: `everland.asm` in the project root. Build output in `bin/`.
+**Reward**: Black Rose Emblem, Order membership
 
-Credits
--------
-- Producer: Damon Hogan
-- Inspired by: Perry Fraptic (RetroRecipies YouTube)
-- Hardware inspiration: Commodore 64 Ultimate, commodore.net
-- Tooling: Kick Assembler, Visual Studio Code, VICE
+---
 
-Contact / Next Steps
---------------------
-- To include screenshots: upload them into `images/` then re-run the PDF conversion instructions below.
-- If you'd like, I can patch remaining assembler errors — paste the latest build log.
+### Chapter 2 Quests: Mischief and Merriment
 
-Appendix: Commands Used To Create The PDF
-----------------------------------------
-The PDF for this manual was produced using `pandoc` to convert Markdown to PDF. Below are the exact commands you can run locally to reproduce the same searchable PDF.
+#### Quest: Marmalade's Prank Quest Chain
+**Location**: Town → Fairy Gardens → Marmalade  
+**Prerequisite**: None
 
-1) Convert Markdown directly to PDF via LaTeX (recommended if you have a TeX engine installed):
+**Background**: Marmalade is a fiery-haired Pumpkin Fairy who loves mischief. The Pumpkin King demands tribute through pranks!
 
-```powershell
-pandoc MANUAL.md -o MANUAL.pdf --pdf-engine=xelatex --toc
-```
+**Steps**:
+1. **Swap hats with the scarecrow** - Find the scarecrow in the field and swap your hat
+2. **Dance a merry jig with a woodland fox** - Locate a fox in the forest and dance together
+3. **Bow before the grand Pumpkin carving** - Find the Pumpkin King's carving and pay respects
 
-2) Alternative: Generate HTML then convert to PDF with `wkhtmltopdf` (if you prefer HTML rendering):
+**Reward**: Marmalade's blessing
 
-```powershell
-# Convert Markdown -> HTML
-pandoc MANUAL.md -o MANUAL.html --standalone --toc
-# Convert HTML -> searchable PDF with wkhtmltopdf
-wkhtmltopdf MANUAL.html MANUAL.pdf
-```
+---
 
-3) If you need only HTML output (searchable in browsers):
+#### Quest: Marigold's Potion Quest Chain
+**Location**: Town → Fairy Gardens → Marigold  
+**Prerequisite**: None
 
-```powershell
-pandoc MANUAL.md -o MANUAL.html --standalone --toc
-```
+**Background**: Marigold, adorned in shimmering gold, needs ingredients for her potion of mischief - one sip makes you dance!
 
-Notes:
-- `--toc` generates a table of contents.
-- If images are large, consider resizing before embedding to reduce PDF size.
+**Steps**:
+1. **Gather moonlit dewdrops** - Collect dewdrops from the garden at night
+2. **Find caramel apple essence** - Obtain essence from the festival vendors
+3. **Collect a whispered secret from the wind** - Listen to the wind in a quiet place
 
-PDF Location
-------------
-If I successfully generate `MANUAL.pdf` in the repository root, it will be placed at `c:/commodore/everland/MANUAL.pdf` and offered for download here.
+**Reward**: Potion of Mischief
 
-Appendix B: Running the Automated VICE Playtest Script
------------------------------------------------------
+---
 
-This appendix describes how to run the provided playtest helpers (`tools/vice_playtest.ps1` and `tools/vice_playtest.bat`) to automatically launch VICE and run a short smoke-test sequence against `bin/everland.prg`.
+#### Quest: Butterscotch's Alliance Quest Chain
+**Location**: Town → Fairy Gardens → Butterscotch  
+**Prerequisite**: None
 
-1) Quick launcher (recommended)
+**Background**: Butterscotch's name doesn't start with 'M', so she can't join her sisters. She found another path - befriending humans.
 
-- Use the batch file if you just want to start the emulator with the PRG. From a Command Prompt or PowerShell in the project root run:
+**Steps**:
+1. **Help tend crops** - Work at the nearby farmstead
+2. **Whisper encouragement to the harvest** - Speak blessings to the growing plants
+3. **Earn the Pumpkin King's recognition** - Gain recognition for your work
 
-```powershell
-tools\vice_playtest.bat "C:\Program Files (x86)\VICE\x64sc.exe" "c:\commodore\everland\bin\everland.prg"
-```
+**Reward**: Alliance between fairy and human
 
-If VICE is installed in the default path the arguments are optional:
+---
 
-```powershell
-tools\vice_playtest.bat
-```
+#### Quest: Defeat the Pumpkin King
+**Location**: Lore Portal → Cursed Garden  
+**Prerequisite**: Complete Fairy quests (recommended)
 
-2) Full scripted playtest (PowerShell)
+**Background**: The Pumpkin King towers in the cursed garden, eyes glowing unearthly orange. His sinister laughter echoes as thorny plants obey his will.
 
-- The PowerShell script `tools/vice_playtest.ps1` launches x64sc, waits for the emulator window, brings it to the foreground and sends a small keystroke sequence to exercise a conversation flow (example: `TALK BARTENDER` → choose menu option `3`). To run it once without changing policy:
+**Steps**:
+1. **Gather spider allies** - Speak to Spider Princess in Central Plaza
+2. **Rally the knights of Lore** - Gather support from Lady Cordelia
+3. **Obtain the enchanted spear** - Get the spear from Grim the Blackheart
+4. **Launch coordinated attack** - Execute the plan
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\vice_playtest.ps1 -VicePath "C:\Program Files (x86)\VICE\x64sc.exe" -PrgPath ".\bin\everland.prg"
-```
+**Choice**: (F)ight or (N)egotiate
 
-- If the script is blocked by Windows Defender / SmartScreen or another AV, unblock it and re-run:
+**Warning**: Grim will sacrifice himself in the final battle!
 
-```powershell
-Unblock-File .\tools\vice_playtest.ps1
-powershell -ExecutionPolicy Bypass -File .\tools\vice_playtest.ps1
-```
+**Reward**: Victory over the Pumpkin King, but at great cost
 
-Security and AV notes
+---
 
-- The PowerShell script sends keystrokes to the emulator window — some endpoint protection tools flag or block this behavior. If your AV blocks the script, prefer the batch launcher or add an exclusion for `tools\vice_playtest.ps1` in your AV settings.
-- `-ExecutionPolicy Bypass` runs the script just for the process and does not permanently change system policy.
+#### Quest: Honor Grim's Sacrifice (Gwen)
+**Location**: Lore Portal → Gwen (after Pumpkin King defeat)  
+**Prerequisite**: Complete Pumpkin King battle
 
-Script behavior and customization
+**Background**: Gwen stands silently, clutching a withered black rose. "Grim gave everything. One strike of the enchanted spear, one green thorn through his heart. I wept but once."
 
-- What the script does by default:
-	- Launches x64sc with `-autostart <prg>` and `-warp` (fast boot).
-	- Waits for the main emulator window and brings it to front.
-	- Sends the keystrokes: `TALK BARTENDER{ENTER}` then `3{ENTER}` (selects the conversation menu's quest option).
-	- Pauses and lets you inspect the emulator before exiting.
-- You can modify the script to send other sequences (e.g., `TAKE COIN{ENTER}`, `GIVE COIN TO BARTENDER{ENTER}`) or longer test flows. Timings are configurable (delays in milliseconds between SendKeys).
+**Steps**:
+1. **Obtain black rose seeds** - Find seeds from the Order of Black Rose
+2. **Travel to the Cursed Garden** - Return to where Grim fell
+3. **Plant black roses at the memorial** - Create a lasting tribute
+4. **Report to Gwen** - Share that the tribute is complete
 
-Automating screenshot capture (optional)
+**Reward**: Gwen's gratitude, closure
 
-- The script does not capture screenshots by default. To capture screens you can:
-	- Use a command-line screenshot tool (e.g., `nircmd.exe` or `magick` from ImageMagick) and call it after the SendKeys sequence.
-	- Or use VICE's built-in screenshot feature (keyboard binding) and send that key sequence from the script (timing-sensitive).
+---
 
-Troubleshooting
+### Chapter 3-6 Quests: The Vampires' Descent
 
-- If VICE fails to start: verify the `-VicePath` you provided points at `x64sc.exe` (or `x64.exe`/`x64sc.exe` depending on your build).
-- If the PRG doesn't autostart: ensure `bin\everland.prg` exists and is the output from the latest assembly.
-- If SendKeys appear to be ignored: ensure the emulator window has keyboard focus and increase the script's delay values.
+#### Quest: Help or Betray Kasimere
+**Location**: Town → The Moselem → Kasimere  
+**Prerequisite**: None
 
-Extending the playtest harness
+**Background**: Arch Magus Kasimere, the oldest vampire, followed through the portal as it closed. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power. He corrupts refugees with foggy memories, turning them into servants.
 
-- I can add additional scripted flows (save/load, give item flows, combat sequence) and optional screenshot collection. Tell me which flows you'd like automated and I will add them to `tools/vice_playtest.ps1` as named scenarios.
+**Choice**:
+- **(H)elp Kasimere**: Join his dark dominion
+- **(B)etray Kasimere**: Expose his treachery to the defenders
 
-Appendix C: Build environment & scripts (PDF automation)
-------------------------------------------------------
+**Steps (Betray path)**:
+1. **Pretend to serve** - Gain Kasimere's trust
+2. **Gather evidence** - Document his corrupted servants
+3. **Alert Lady Cordelia** - Report to the Order of Black Rose
+4. **Confront Kasimere** - Join the defenders in his lair
 
-This appendix documents the environment and scripts used to build the manual, and includes a text copy of the build wrapper for reproducibility.
+**Reward**: Depends on choice - dark power or heroic standing
 
-1) Dependencies (for PDF creation)
+---
 
-- `pandoc` — the primary tool to convert Markdown to HTML/PDF. Install from https://pandoc.org/
-- A TeX engine (one of):
-  - `xelatex` (recommended) — part of TeX Live or MiKTeX; provides good Unicode and font handling.
-  - `pdflatex` — alternative TeX engine (also part of TeX Live / MiKTeX).
-- `wkhtmltopdf` (optional) — alternative path: convert Markdown -> HTML via `pandoc`, then HTML -> PDF via `wkhtmltopdf`.
- - `wkhtmltopdf` (optional) — alternative path: convert Markdown -> HTML via `pandoc`, then HTML -> PDF via `wkhtmltopdf`.
- 
-wkhtmltopdf installation (Windows)
----------------------------------
-If you prefer converting via HTML -> PDF, install `wkhtmltopdf`. On Windows you can install it in several ways:
+#### Quest: Cedric's Redemption
+**Location**: Town → Church → Cedric  
+**Prerequisite**: None
 
-- Using Chocolatey (recommended if you have Chocolatey installed):
+**Background**: "At the witching hour, Kasimere invaded my dreams. His crystal globe resonated with the dark sun crystal, whispering promises of power and glory. But Mage Damon wove a protective barrier around my mind."
 
-```powershell
-choco install wkhtmltopdf -y
-```
+**Steps**:
+1. **Confess your moment of weakness** - Cedric admits his temptation
+2. **Face Kasimere's lair with the defenders** - Join the assault
+3. **Sever the dark crystal's hold** - Break the connection
+4. **Swear renewed oath to the Order** - Recommit to the light
 
-- Using Scoop (if you use Scoop):
+**Reward**: Cedric's redemption, renewed faith
 
-```powershell
-iwr -useb get.scoop.sh | iex
-scoop install wkhtmltopdf
-```
+---
 
-- Manual download (no package manager):
+### Chapter 7 Quests: The Pact of Winter's Howl
 
-1. Download the Windows 64-bit `wkhtmltopdf` binary ZIP from the official releases page: https://github.com/wkhtmltopdf/wkhtmltopdf/releases
-2. Extract `wkhtmltopdf.exe` from the ZIP and place it in a folder such as `C:\Program Files\wkhtmltopdf`.
-3. Add that folder to your user PATH (or system PATH) and restart your shell.
+#### Quest: Winter Wolf Trials (Wulfric)
+**Location**: Town → Hunter's Hovel → Alpha Wulfric  
+**Prerequisite**: None (Available in winter months)
 
-Note about PowerShell execution policy
--------------------------------------
-If `tools\build_manual.ps1` is blocked on your system, run it with `-ExecutionPolicy Bypass` so the wrapper can run without changing system policy permanently:
+**Background**: "The Pact of Winter's Howl binds wolf and human. Each frost-laden evening, we gather to renew our vows." Beta Lyra negotiated with Van Bueler - provisions for protection.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
-```
+**Steps**:
+1. **Endure the biting cold without shelter** - Survive a night in the wilderness
+2. **Outwit the cunning riddles of the pack** - Solve wolf riddles
+3. **Brave the harshest wilderness paths** - Navigate dangerous terrain
+4. **Join the moonlit howl when the train rumbles by** - Participate in the tradition
 
-After installing `wkhtmltopdf` and ensuring it's on your PATH, re-run the wrapper above — it will detect `wkhtmltopdf` and use it to convert the generated `MANUAL.html` to `MANUAL.pdf`.
-- Docker (optional) — we provide a Dockerfile below to build the manual inside a container without installing TeX locally. See the `tools/Dockerfile` file.
-- Optional screenshot / helper tools (only for extended playtests): `nircmd.exe`, `ImageMagick (magick)`, or any command-line screenshot tool.
+**Reward**: Pack membership, Wolves of Winter standing
 
-What we did locally (full summary)
-----------------------------------
-This project attempted multiple routes to produce `MANUAL.pdf` on a Windows dev machine; the following documents exactly what we ran and what succeeded.
+---
 
-- Step: Run `tools/build_manual.ps1` initially. Result: `pandoc` found, no TeX engines detected, no `wkhtmltopdf` present — script produced `MANUAL.html` fallback.
+#### Quest: Pact Negotiations (Van Bueler/Lyra)
+**Location**: Town → Hunter's Hovel  
+**Prerequisite**: None
 
-- Step: Attempted to install `wkhtmltopdf` via Chocolatey (non-elevated). Result: `choco` was not found.
+**Steps**:
+1. **Negotiate fair terms** - Balance town and wolf needs
+2. **Funnel provisions to Hunter's Hovel** - Arrange the supply chain
+3. **Ensure Everland survives the winter** - Verify preparations
+4. **Witness the wolf-human howl** - Join the celebration when trains pass
 
-- Step: Attempted Chocolatey bootstrap as an elevated process (UAC). The installer was launched but the elevated session did not leave a usable `choco` binary in the non-elevated shell (install requires admin and interactive UAC acceptance). Because automated elevation in this environment is unreliable, we fell back to a user-level installer.
+**Reward**: Improved wolf-human relations
 
-- Step: Installed `wkhtmltopdf` via Scoop (user-level). Commands used:
+---
 
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force
-iwr -useb get.scoop.sh | iex
-scoop update
-scoop bucket add extras
-scoop install wkhtmltopdf
-```
+### Chapter 8 Quests: Bridge and Kevin
 
-- Step: Re-ran `tools/build_manual.ps1`. `pandoc` and `wkhtmltopdf` were detected, but `wkhtmltopdf` initially failed with network/ProtocolUnknownError when converting because local images were not accessible by default.
+#### Quest: Bridge's Mischief
+**Location**: Town → The Bridge or Marketplace → Bridge the Troll  
+**Prerequisite**: None
 
-- Fix: Regenerated HTML with `pandoc` then converted with `wkhtmltopdf --enable-local-file-access` to allow embedded `images/` files to load. Command used:
+**Background**: Bridge makes his home under the old stone bridge, twirling Kevin - his skull-tipped club and closest confidant. "Ah, you look absolutely revolting!" (He means it kindly.)
 
-```powershell
-pandoc MANUAL.md -o MANUAL.html --standalone --toc
-wkhtmltopdf --enable-local-file-access MANUAL.html MANUAL.pdf
-```
+**Steps**:
+1. **Swap trinkets at the marketplace** - Trade unusual items with Bridge
+2. **Spread playful chaos in town** - Help with harmless pranks
+3. **Learn Bridge's hauntingly off-key tune** - Memorize the song
+4. **Join Kevin's midnight tribunal of oddities** - Attend the strange gathering
 
-- Result: `MANUAL.pdf` was successfully created and placed in the repository root.
+**Reward**: Unique trinkets, Bridge's friendship
 
-Files modified during this process:
-- `tools/build_manual.ps1` — updated to pass `--enable-local-file-access` to `wkhtmltopdf` to avoid the ProtocolUnknown/blocked local file access error.
-- `MANUAL.md` — Appendix C updated with these notes and step-by-step install instructions for `wkhtmltopdf`.
-- `MANUAL.pdf` — generated and added to the repo.
+---
 
-Notes and recommendations
-- When converting Markdown -> HTML -> PDF with `wkhtmltopdf`, use `--enable-local-file-access` so local images referenced with relative paths load correctly.
-- If you prefer a system-wide package manager, Chocolatey works but requires admin privileges and UAC acceptance; Scoop provides a user-friendly, non-admin alternative on Windows.
-- Docker provides a fully reproducible environment if you cannot or do not wish to install TeX or `wkhtmltopdf` locally.
+### Chapter 9 Quests: The Fracture's Grip
 
-2) Build wrapper (text copy)
-The repository includes `tools/build_manual.ps1`, a PowerShell wrapper that detects available engines and builds `MANUAL.pdf` if possible (falling back to `MANUAL.html` otherwise). The full script is below:
+#### Quest: Contain the Fractures (Dante)
+**Location**: Town → The Bridge → Dante  
+**Prerequisite**: None
 
----- begin `build_manual.ps1` ----
-<inserted-script>
+**Background**: Dante maintains shimmering wards against the fractures that blur reality. The ghost pirates in his bottle delight in targeting the Spider Princess.
 
----- end `build_manual.ps1` ----
+**Steps**:
+1. **Gather ward components from the realms** - Collect magical ingredients
+2. **Confront the Candy Witch's sabotage** - Stop her destruction
+3. **Seal the ghost pirates' bottle permanently** - Contain the threat
+4. **Restore balance between worlds** - Complete the ward network
 
-Replace `<inserted-script>` with the following exact contents (copy-paste into a file):
+**Reward**: Stabilized fractures, Dante's gratitude
 
-```powershell
-<#
-Build wrapper for MANUAL.md -> MANUAL.pdf
-Detects available PDF engines (xelatex, pdflatex, wkhtmltopdf) and runs pandoc accordingly.
-Usage: powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
-#>
-param(
-	[string]$ManualMd = "MANUAL.md",
-	[string]$OutPdf = "MANUAL.pdf",
-	[string]$OutHtml = "MANUAL.html"
-)
+---
 
-function Which($name) { 
-	$c = Get-Command $name -ErrorAction SilentlyContinue
-	if ($c) { return $c.Source } 
-	return $null
-}
+#### Quest: Stop the Candy Witch
+**Location**: Town → The Bridge → Candy Witch  
+**Prerequisite**: None
 
-$pandoc = Which "pandoc"
-if (-not $pandoc) {
-	Write-Host "pandoc not found in PATH. Please install pandoc." -ForegroundColor Red
-	exit 2
-}
+**Background**: The Candy Witch tears at Dante's wards with candy-coated claws. "Why mend what can be broken? Chaos is so much sweeter!"
 
-$xelatex = Which "xelatex"
-$pdflatex = Which "pdflatex"
-$wkhtmltopdf = Which "wkhtmltopdf"
+**Steps**:
+1. **Track her through the fractures** - Follow her trail
+2. **Resist her sweet temptations** - Avoid corruption
+3. **Sever her bond with the ghost pirates** - Break the alliance
+4. **Seal her in crystallized sugar** - Imprison the witch
 
-Write-Host "Found: pandoc=$pandoc" -ForegroundColor Cyan
-if ($xelatex) { Write-Host "Found xelatex: $xelatex" -ForegroundColor Cyan }
-if ($pdflatex) { Write-Host "Found pdflatex: $pdflatex" -ForegroundColor Cyan }
-if ($wkhtmltopdf) { Write-Host "Found wkhtmltopdf: $wkhtmltopdf" -ForegroundColor Cyan }
+**Reward**: Wards restored, chaos contained
 
-if ($xelatex) {
-	Write-Host "Building PDF via xelatex..." -ForegroundColor Green
-	& $pandoc $ManualMd -o $OutPdf --pdf-engine=xelatex --toc
-	if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf" -ForegroundColor Green; exit 0 }
-	else { Write-Host "pandoc/xelatex failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
-}
+---
 
-if ($pdflatex) {
-	Write-Host "Building PDF via pdflatex..." -ForegroundColor Green
-	& $pandoc $ManualMd -o $OutPdf --pdf-engine=pdflatex --toc
-	if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf" -ForegroundColor Green; exit 0 }
-	else { Write-Host "pandoc/pdflatex failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
-}
+#### Quest: Protect the Spider Princess (Kora/Kendrick)
+**Location**: Town → Central Plaza → Kora and Kendrick  
+**Prerequisite**: None
 
-if ($wkhtmltopdf) {
-	Write-Host "Building HTML then converting via wkhtmltopdf..." -ForegroundColor Green
-	& $pandoc $ManualMd -o $OutHtml --standalone --toc
-	if ($LASTEXITCODE -ne 0) { Write-Host "pandoc->HTML failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
-	& $wkhtmltopdf $OutHtml $OutPdf
-	if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutPdf via wkhtmltopdf" -ForegroundColor Green; exit 0 }
-	else { Write-Host "wkhtmltopdf failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
-}
+**Steps**:
+1. **Strengthen the protective perimeter** - Reinforce defenses
+2. **Track ghost pirate movements** - Monitor threats
+3. **Counter the Candy Witch's sabotage** - Prevent attacks
+4. **Escort the Spider Princess to safety** - Complete protection
 
-# Fallback: produce HTML and inform user
-Write-Host "No PDF engine found (xelatex/pdflatex/wkhtmltopdf). Producing HTML fallback..." -ForegroundColor Yellow
-& $pandoc $ManualMd -o $OutHtml --standalone --toc
-if ($LASTEXITCODE -eq 0) { Write-Host "Created $OutHtml. Install a TeX engine or wkhtmltopdf to produce PDF." -ForegroundColor Yellow; exit 1 }
-else { Write-Host "pandoc->HTML failed (exit $LASTEXITCODE)" -ForegroundColor Red; exit $LASTEXITCODE }
-```
+**Reward**: Guardian standing, Spider Princess's favor
 
-3) Docker build (one-step reproducible PDF)
+---
 
-Use the provided `tools/Dockerfile` to build the manual inside a container that already includes pandoc + TeX. Example:
+### Chapter 10-12 Quests: The Mystic's Tent
 
-```powershell
-docker build -t everland-manual -f tools/Dockerfile .
-docker create --name tmp everland-manual
-docker cp tmp:/work/MANUAL.pdf .
-docker rm tmp
-```
+#### Quest: Uncover the Mystics' Secret
+**Location**: Town → Mystic's Tent → Mela  
+**Prerequisite**: None
 
-The Dockerfile uses the `pandoc/latex` base image and runs `pandoc MANUAL.md -o MANUAL.pdf --pdf-engine=xelatex --toc` during build; the generated PDF will be present at `/work/MANUAL.pdf` inside the image.
+**Warning**: The mystics (Mela, Kal, Daemos) are secretly vampires! They experimented with Kasimere's ashes and necromancy!
 
-4) Rebuilding the manual using the wrapper
+**Steps**:
+1. **Resist their promises of immortality** - Maintain your resolve
+2. **Uncover their vampiric nature** - Investigate their secrets
+3. **Expose Daemos's schemes for the Spider Princess** - Reveal the plot
+4. **Choose: Join them or destroy them** - Make your decision
 
-To rebuild locally (non-Docker):
+**Reward**: Depends on choice - vampiric power or heroic standing
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\build_manual.ps1
-```
+---
 
-If the script reports missing `xelatex`/`pdflatex`/`wkhtmltopdf`, either install one of those or use the Docker method above.
+### Chapter 11 & 16 Quests: The Pirate's Path
 
-Appendix D: Artwork
--------------------
+#### Quest: Pirate's Trials (Captain Pit Plum)
+**Location**: Town → Pirate Ship → Captain Pit Plum  
+**Prerequisite**: None
 
-This appendix catalogs curated artwork used in Everland. These are included in the repository under `images/` and can be embedded in the manual or used as cover art.
+**Background**: "So ye want to be a part-time pirate, eh? Mage Damon himself trained under me!"
 
+**Steps**:
+1. **Make a trade for gold** - Complete a merchant transaction at port
+2. **Find hidden flags** - Locate flags across distant islands
+3. **Collect mysterious objects** - Gather items for the ship
+4. **Learn combat from Captain Shadow Ford** - Complete training
 
--- Spider Princess (cover candidate)
+**Reward**: Crew membership on the Black Siren
 
-![Spider Princess](../images/SpiderPrincess1Up.png)
+---
 
--- Mermaid at Medieval Theme Park (NPC quest ambiance)
+#### Quest: Combat Training (Shadow Ford)
+**Location**: Town → Pirate Ship → Captain Shadow Ford  
+**Prerequisite**: None
 
-![Mermaid Sitting in Wicker Chair](../images/mermaid_sitting_in_a_wicker_chair_at_a_medieval_theme_park_she_will_tend_to_quests_with_patrons_blo_arttzoc89ruq0s6vmraj_2.png)
+**Background**: "First, shed your gear and outer clothing - to move freely, shed unnecessary weight."
 
--- Bridge the Troll & Kevin (Market NPC ambience)
+**Steps**:
+1. **Master footwork** - Learn the dance of combat (precise, agile)
+2. **Learn parrying** - Your sword is an extension of will
+3. **Practice until moonrise** - Train in the secluded cove
+4. **Earn Shadow Ford's nod of approval** - Demonstrate mastery
 
+**Reward**: Combat proficiency, Shadow Ford's respect
+
+---
+
+#### Quest: The Last Shackle Song (Bonny Red Boots)
+**Location**: Town → Pirate Ship → Bonny Red Boots  
+**Prerequisite**: None
+
+**Background**: "The Last Shackle - a slaver ship turned to freedom! A prisoner poisoned the guards with fancy wine, and the captives left not a slaver alive!"
+
+**Steps**:
+1. **Learn the full ballad** - Memorize all verses
+2. **Spread the song across taverns** - Perform in Everland's taverns
+3. **Find the legendary freed prisoners** - Locate survivors
+4. **Join Bonny's fiddle performance** - Perform together
+
+**Reward**: The song of freedom, Bonny's friendship
+
+---
+
+### Chapter 13 Quests: The Tale of Anderon's Rescue
+
+#### Quest: Dragon Trainer Oaths (Alister)
+**Location**: Town → Temple Ruins → Alister  
+**Prerequisite**: None
+
+**Background**: "Long ago, Anderon the great dragon snagged a pine tree between his claws. The villagers banded together to free him, forging a bond between humans and dragons!"
+
+**Oaths**:
+1. "I swear to protect dragons as long as my arms have strength."
+2. "I swear to aid dragons as long as my legs may carry me."
+3. "I swear to deepen my knowledge and share it with others."
+
+**Symbol**: Two fingers intertwined - the bond between dragon and trainer.  
+**Farewell**: "Fly on the dragon's wings!"
+
+**Reward**: Order of the Emerald Sky membership
+
+---
+
+### Chapter 14 Quests: The Frost Weaver's Rite
+
+#### Quest: Frost Weaver Initiation
+**Location**: Town → The Burrows → Frost Queen  
+**Prerequisite**: None
+
+**Background**: "In the tradition of witches, wizards, and sages who protected Aurora for centuries, our duty falls onto you."
+
+**Ritual Spells**:
+1. **GLACIOUS** - Ice at your fingertips to fight enemies
+2. **NIX** - Flowy drifts of snow to ensnare foes
+3. **ILLUMINA** - Be a light in darkness, a beacon in storm
+
+**Steps**:
+1. **Bring your fingers together** - Begin the ritual
+2. **Learn GLACIOUS** - Master ice magic
+3. **Learn NIX** - Master snow control
+4. **Learn ILLUMINA** - Master light magic
+
+**Completion**: "May all magic join with yours and yours with ours. Welcome to the Frost Weavers!"
+
+**Reward**: Frost Weaver Guild membership, frost spells
+
+---
+
+### Chapter 15 Quests: The Unseely Fae's Necromancy Ritual
+
+#### Quest: Unseely Court Binding (Torin)
+**Location**: Town → Temple Ruins → Torin  
+**Prerequisite**: None
+
+**Warning**: This binds your soul forever!
+
+**Background**: "You have proven your loyalty. Now take part in the binding ritual that will bind your soul to us."
+
+**Steps**:
+1. **Retrieve the heart of Loudon** - Find it at Louden's Rest graveyard
+2. **Complete the necromancy incantation challenge** - Pass the test
+3. **Kneel and hold out your hand** - Begin the binding
+4. **Repeat the incantation**: "Goofice Goafice Alakda, orgawal, Goragawal"
+
+**Reward**: Unseely Court membership, dark powers (at great cost)
+
+---
+
+### Chapter 17-18 Quests: The Fractured Rift & Order of the Owls
+
+#### Quest: Investigate the Memory Rift
+**Location**: Town → Mystic's Tent → Mela and Kal  
+**Prerequisite**: None
+
+**Background**: Mage Damon discovered no one remembered him - not even the Mayor. "Perhaps you should consult the Mystics," the Mayor offered. The temporal strands are in disarray.
+
+**Steps**:
+1. **Speak to townsfolk** - Confirm the memory loss
+2. **Consult Mela and Kal** - Learn about the temporal dissonance
+3. **Investigate the ley lines** - Find the source
+4. **Repair the fractured rift** - Restore temporal stability
+
+**Reward**: Memories restored, temporal balance
+
+---
+
+#### Quest: Order of the Owls Initiation
+**Location**: Town → Tower → Garrett  
+**Prerequisite**: None
+
+**Background**: "The Order of the Owls - wise and intrepid souls united! I proposed the owl as our emblem for collective wisdom." Fletcher practices archery. Poppy sponsors the feast.
+
+**Steps**:
+1. **Walk the circular path around town** - Complete the ritual walk
+2. **Prove your wisdom to Garrett** - Answer questions
+3. **Earn Fletcher's respect at archery** - Demonstrate skill
+4. **Attend Poppy's inaugural feast** - Join the Dining Hall celebration
+
+**Reward**: Order of the Owls membership
+
+---
+
+### Chapter 19 Quests: The Enchantment of Everland
+
+#### Quest: Unlock Magical Abilities (Tammis/Saga)
+**Location**: Town → Witch's Tent → Tammis and Saga  
+**Prerequisite**: None
+
+**Background**: "We see within you the flickering embers of magic. Your staff, your crystal, the energy around you - it speaks of destiny waiting to unfurl."
+
+**Steps**:
+1. **Learn ancient runes** - Study with the sisters
+2. **Understand your staff's lineage** - Discover its history
+3. **Weave magic into everyday artifacts** - Practice enchanting
+4. **Awaken the power slumbering within** - Complete transformation
+
+**Reward**: Magical awakening, enchanting abilities
+
+---
+
+#### Quest: Reveal Your Destiny (Saga)
+**Location**: Town → Witch's Tent → Saga  
+**Prerequisite**: None
+
+**Steps**:
+1. **Gather three prophecy fragments** - Collect from different realms
+2. **Spend endless nights crafting spells with Tammis** - Practice
+3. **Turn creations into vessels for arcane energy** - Enchant items
+4. **Complete your extraordinary journey** - Fulfill the prophecy
+
+**Reward**: Destiny revealed, magical mastery
+
+---
+
+### Chapter 20 Quests: The Enigmatic Disappearance
+
+#### Quest: Third Eye Activation (Samuel)
+**Location**: Town → Catacombs → Samuel  
+**Prerequisite**: None
+
+**Background**: When the town vanished, only Samuel and Mage Damon remained. "Mage Damon made me his apprentice. Want to learn to activate your THIRD EYE?"
+
+**Steps**:
+1. **Find your focal point** - Between hairline and brow, back 2 inches
+2. **Hold the pendulum still, observe your breathing** - Meditation
+3. **Command it to spin with your mind** - Not your hand!
+4. **Master spinning it both directions** - Prove control
+
+**Practice**: With experience, the pendulum can spin nearly horizontal!
+
+**Reward**: Third eye activation, pendulum mastery
+
+---
+
+### Chapter 21 Quests: The Dragon Lantern Festival
+
+#### Quest: Participate in the Festival
+**Location**: Town → Dragon Haven (October)  
+**Prerequisite**: None
+
+**Tradition**: Everyone carries a lantern!
+
+**Steps**:
+1. **Obtain a lantern** - Purchase or craft one
+2. **Gather at Dragon Haven** - Join the crowd
+3. **Listen to the story of the Battle for Everland** - Hear the tale
+4. **Honor King Lowden's sacrifice** - Pay respects at the temple
+
+**Reward**: Festival participation, community standing
+
+---
+
+### Chapter 22 Quests: Hope of Light
+
+#### Quest: The Damsel's Destiny
+**Location**: Town → Train Station → Damsel of the Mist  
+**Prerequisite**: None
+
+**Background**: "On muddy roads to Everland, the blue glow held true - a beacon through the tangled veil. The lion of the muddy road tore at my gown, but I lifted my sword with fearless grace."
+
+**Steps**:
+1. **Follow the blue light through the mist** - Navigate the path
+2. **Face the lion of the muddy road** - Overcome the challenge
+3. **Weave your courage into a radiant garment** - Transform the omen
+4. **Find the Damon of your Dreams** - Complete the journey
+
+**Reward**: Destiny fulfilled, hope restored
+
+---
+
+### Chapter 23 Quests: First Love, First Light
+
+#### Quest: Mutual Craft (Kira)
+**Location**: Town → Kira's Apothecary → Kira  
+**Prerequisite**: None
+
+**Background**: "Balm of Quick Mend for wounds, Oil of Orchid for massages... or perhaps just a moment of care? I too am an aspiring magic-user - small charms, healing threads."
+
+**Steps**:
+1. **Accept healing for your wounds** - Receive treatment
+2. **Experience the massage table with scented oils** - Relaxation
+3. **Share stories of magic and craft** - Build connection
+4. **Return at dusk when the lamp is lit** - Deepen relationship
+
+**Reward**: Healing, romance, mutual understanding
+
+**Kira's Wisdom**: "We'll call it mutual craft - you mend quarrels, I mend weariness."
+
+---
+
+### Boss Encounters
+
+#### Pumpkin King (Fight Path)
+**Location**: Lore → Cursed Garden  
+**Recommended Level**: High  
+**Required Allies**: Spider Princess allies, Knights of Lore, Grim with enchanted spear
+
+**Tactics**:
+1. Use parrying skills from knight training
+2. Summon spider allies to distract
+3. Position Grim for the flank attack
+4. Coordinate the final strike
+
+**Warning**: Grim sacrifices himself
+
+---
+
+#### Kasimere (Betray Path)
+**Location**: The Moselem → Kasimere's Lair  
+**Recommended Level**: High  
+**Required Allies**: Lady Cordelia, Cedric, Mage Damon
+
+**Tactics**:
+1. Break the crystal globe connection
+2. Shield against dream invasion
+3. Unite the defenders
+4. Vanquish the vampire lord
+
+---
+
+## Appendix B: Guild Reference
+
+### Available Guilds
+
+| Guild | Location | Leader | Initiation |
+|-------|----------|--------|------------|
+| Order of the Black Rose | Lore | Lady Cordelia | Green thorn oath |
+| Frost Weavers | The Burrows | Frost Queen | Learn GLACIOUS, NIX, ILLUMINA |
+| Order of the Emerald Sky | Temple Ruins | Alister | Dragon Trainer Oaths |
+| Unseely Court | Temple Ruins | Torin | Necromancy binding ritual |
+| Order of the Owls | Tower | Garrett | Wisdom trials, archery, feast |
+| Wolves of Winter | Hunter's Hovel | Alpha Wulfric | Survival trials, riddles |
+
+---
+
+## Appendix C: Quick Reference
+
+### Portal Keys
+- **A** - Aurora
+- **L** - Lore
+- **M** - Mythos
+- **T** - Town of Everland
+- **E** - England
+
+### Town Location Keys
+- **1-9** - First 9 locations
+- **A-P** - Additional locations
+- **M** - Moon Portal
+- **0** - Return to main
+
+### Common Commands
+- **I** - Inventory
+- **S** - Status
+- **H** - Help
+- **Q** - Quit/Back
+
+---
+
+## Appendix D: Character Directory
+
+This appendix introduces the major characters of Everland, drawn from the lore that shapes this world.
+
+---
+
+### Heroes of Everland
+
+#### Mage Damon
+![Mage Damon](../images/MageDamon3Up.png)
+
+*"I'm dying, just taking it one day at a time."*
+
+Mage Damon is an aspiring mage with a heart full of wonder and a mind brimming with spells. He once entertained the valiant knights of Lore with his mesmerizing magic just outside the towering gates of the kingdom. When the vampire plague struck, he discovered the location of the mystical portal to Everland—a gateway hidden in the darkest recesses of Lore, retold in stories for generations but lost to time.
+
+Practiced in the art of Divination, Damon can cast illusions to distract creatures. After passing through the portal, he lost his memories temporarily but slowly regained them, retaking the oath to restore the Order of the Black Rose. He later discovered he could draw ambient magic into his third eye, eventually channeling immense power through the headpiece given to him by the Spider Princess.
+
+In Everland, Mage Damon founded the **Order of the Owls** alongside Garrett, Fletcher, Shadow Ford, and Poppy. He studied under the Nordic witches Tammis and Saga, unlocking his latent magical abilities. He also participated in the Unseely Fae's binding ritual under Torin, gaining forbidden necromantic knowledge.
+
+**Affiliations**: Order of the Black Rose, Order of the Owls, Unseely Court
+**Skills**: Divination, illusion magic, third eye activation, pendulum mastery
+**Location**: Throughout Everland
+
+---
+
+#### Knight Damian
+![Knight Damian](../images/Damian1Up.png)
+
+Knight Damian is a wise guide and defender in times of turmoil. Known for his unwavering loyalty, he sought guidance from fellow knights when the vampire invasion struck Lore. Together with Mage Damon and Barnabis, he devised a plan to save their beloved kingdom.
+
+Damian had long sought the company of Princess Delphinia (Delphi), and besides his vow to protect her and the kingdom, he had his own special interest. He valiantly took turns carrying the princess through the treacherous paths as they fled to the portal. More resilient somehow, Damian started to remember first after passing through the portal, giving quests to help others slowly regain their memories.
+
+His shared love for spiders with Princess Delphi became a source of power—from their hands, spiders of all sizes materialized to aid in battle against the Pumpkin King. After victory, Damian and Delphi were married in a secret grove hidden deep within the enchanted forests of Lore, blessed by Bishop Cordelia, and embarked on their honeymoon to Whitecastle.
+
+**Affiliations**: Order of the Black Rose, Knights of Lore
+**Skills**: Combat, leadership, spider summoning (with Delphi)
+**Romance**: Princess Delphinia
+
+---
+
+#### The Spider Princess (Princess Delphinia/Delphi)
+![The Spider Princess](../images/SpiderPrincess1Up.png)
+
+Princess Delphinia, known as Delphi and later as the Spider Princess, traveled through the portal in a faint, weakened state as if something was happening to her. She seemed to struggle as if between two personalities, with some spirit beginning to take over her mind.
+
+Her shared love for spiders with Damian became legendary—together they could summon arachnid allies in battle. She gave Mage Damon a magical headpiece that became the vessel for immense concentrated magical power. After defeating the Pumpkin King, she married Damian in a ceremony in the enchanted grove.
+
+In Everland, the Spider Princess requires protection from Kora and Kendrick, as ghost pirates imprisoned by Dante particularly delight in targeting her as part of their twisted games.
+
+**Affiliations**: Royal House of Lore
+**Skills**: Spider communion, magical artifacts
+**Romance**: Knight Damian
+**Location**: Central Plaza (protected by Kora and Kendrick)
+
+---
+
+#### Bridge the Troll (and Kevin)
 ![Bridge and Kevin](../images/BridgeAndKevin1.png)
 
--- Damian (portrait / cover variant)
+*"Ah, you look absolutely revolting!" (He means it kindly.)*
 
-![Damian 1Up](../images/Damian1Up.png)
+Bridge is a peculiar troll who makes his home under the old stone bridge that connects the two halves of Everland. His cozy spot is adorned with trinkets and oddities he has collected over the years. Kevin, his trusty club adorned with a menacing skull at its tip, is more than a mere weapon—it's his closest companion, his confidant, and often the recipient of his wayward thoughts.
 
--- Lezule the Fairy (Fairy Gardens ambiance)
+The townsfolk are accustomed to Bridge's strange mannerisms. They know better than to take his words at face value—if he says he's "just terrible," he means he's fine; if he calls you "revolting," he's showing affection. He often swaps odd trinkets at the marketplace in exchange for fresh produce and bread.
 
-![Lezule Fairy](../images/fairy_named_lezule_lezule_colored_in_the_fairy_gardens_sweet_and_tender_shy_mouth_open_waiting_to_m_mthcye2lh1va3w5b8vtv_2.png)
+Bridge sings a hauntingly off-key tune that the townsfolk find themselves humming long after he's returned to his abode. Under the bridge at twilight, he regales Kevin with tales of the day's events, sharing moments of contented silence.
 
--- Mage Damon (portrait / mage variant)
+**Personality**: Mischievous, loyal, speaks in opposites
+**Companion**: Kevin (skull-tipped club)
+**Location**: The Bridge, Marketplace
 
-![Mage Damon 3Up](../images/MageDamon3Up.png)
+---
 
+### The Pumpkin Fairies
 
+#### Lezule
+![Lezule the Fairy](../images/fairy_named_lezule_lezule_colored_in_the_fairy_gardens_sweet_and_tender_shy_mouth_open_waiting_to_m_mthcye2lh1va3w5b8vtv_2.png)
 
-Mermaid Trade Quest (player walkthrough)
-----------------------------------------
-This release adds a themed trade quest offered by the Mermaid in Clockwork Alley. Exchange a land-based item (pinecone) for a sea-based item (sparkly shell).
+Lezule is a sweet and tender fairy of the Fairy Gardens, known for her shy demeanor and protective nature. She guards the stolen names of those who wander too close to fairy enchantments.
 
-1) Accept the quest from the Mermaid
-	- `TALK MERMAID` at Clockwork Alley and choose the conversation option to ask about a trade. This starts `QUEST_MERMAID_TRADE` (shown in the quest list as “TRADE LAND FOR SEA”).
+**Location**: Fairy Gardens
 
-2) Get a pinecone (land coral)
-	- Travel to the Grove and run:
+---
 
-```
-TAKE PINECONE
-```
+#### Marmalade
 
-	- Verify with `I` (Inventory) that `PINECONE` is now in your inventory. You can also run `INSPECT PINECONE` for flavor text.
+*"The Pumpkin King demands tribute through pranks!"*
 
-3) Offer the pinecone to the Mermaid
-	- Return to Clockwork Alley and either:
-	  - `GIVE PINECONE TO MERMAID`, or
-	  - `TALK MERMAID` and choose the conversation option to offer land coral.
+Marmalade is a fiery-haired Pumpkin Fairy with a mischievous grin. She flits about in a frenzy, plotting escapades to spread quests of practical jokes and cajole the gentle folk of Everland into bending the knee to the mighty Pumpkin King.
 
-	- If `QUEST_MERMAID_TRADE` is active and you have the pinecone, the Mermaid will take the pinecone, give you a sparkly shell, and complete the quest.
+Her quest chain involves swapping hats with scarecrows, dancing merry jigs with woodland creatures, and bowing before the grand Pumpkin carving.
 
-4) Verify
-	- `I` should show the pinecone removed and `SHELL` added. You can `INSPECT SHELL` to view its description.
+**Location**: Fairy Gardens
 
-Developer pointers (where to look in the source)
-- See [everland.asm](everland.asm) for:
-	- Objects: `OBJ_PINECONE` and `OBJ_SHELL` enumerations; `objLoc` sets initial pinecone spawn in the Grove and the shell is granted by the Mermaid.
-	- Quest: `QUEST_MERMAID_TRADE` enumeration and completion flow; current reward handler uses the default completion path.
-	- Conversation: `mermaidConversation` and its dispatch via `@conv_mermaid` in `convSpeakHandler`.
-	- Parser: `kwMermaid`, `kwPinecone`, `kwShell` keywords mapped in `parseNpcNoun` and `parseObjectNoun`.
-	- Location/NPC mask: `npcMaskByLocHi` updates include the Mermaid’s presence at Clockwork Alley.
+---
 
-Current Development Todos
--------------------------
-- Playtest NPC HP/level feature: Run VICE emulator to verify NPC character sheets display LV and HP, and regen heals NPCs at 1 HP/min.
-- Fix Warlock noun parsing: Update `parseNpcNoun` to handle `kwWarlock` for the Warlock NPC.
-- Implement coin system: Add gold, silver, copper balances to inventory, save in EV4, display in inventory, quest rewards 1 silver, new users 9 copper. (Completed)
-- Fix exit travel: Ensure all cardinal and diagonal movement works by allowing cardinal directions to use reverse connections if direct exits are missing. (Completed)
+#### Marigold
 
+*"One sip of my potion and you'll dance whether you want to or not!"*
+
+Marigold, adorned in a gown of shimmering gold, hums merry tunes as she concocts potions of mischief. As the potent elixir bubbles and froths in her tiny cauldron, she shares mischievous giggles with her sister Marmalade before casting the meddlesome brew into the wind.
+
+Her quest chain involves gathering moonlit dewdrops, caramel apple essence, and whispered secrets from the wind.
+
+**Location**: Fairy Gardens
+
+---
+
+#### Butterscotch
+
+*"My name doesn't start with 'M', so I found another path—befriending humans."*
+
+Butterscotch's heart is more kind and tender than her peers. She seeks not to perpetrate pranks or revel in mischief, but rather to ensure the well-being and joy of the gentle folk of Everland. Her name does not begin with the cherished letter "M," which bars her from joining the esteemed company of her fairy peers.
+
+Instead, she visits nearby farmsteads, quietly tending to crops and whispering gentle encouragement to the harvest. She has formed bonds with those who work the land, eschewing the playful trickery of her kin. The sentient Pumpkin King has acknowledged her noble deeds with a nod of acceptance.
+
+**Location**: Fairy Gardens
+
+---
+
+### Villains and Antagonists
+
+#### Arch Magus Kasimere
+
+*"Soon we will conquer this land also."*
+
+Kasimere is the Arch Magus, the oldest of the vampires, and the one with all the power. When the portal from Lore closed, he dashed through just in time, lurking in the shadows on the other side with a snarled laugh emanating from his lips.
+
+Fueled by his insatiable hunger for power and dominion, Kasimere sought to expand his reach beyond the borders of Lore. He patiently watched and bided his time, hidden in the shadows of Everland. He whispered promises into the ears of confused refugees, enticing them with the allure of power and satisfaction of primal desires, seeking bribes from fearful inhabitants.
+
+His black crystal globe resonates with the dark sun crystal, allowing him to reach into dreams with whispered promises at the witching hour. He invaded Cedric's dreams, attempting to corrupt him to his cause. Eventually, the defenders of Everland confronted him in his lair beneath the gnarled boughs of an ancient oak, vanquishing him with radiant magic.
+
+Yet whispers suggest his defeat only ignited his insatiable hunger for power, and he awaits his next opportunity to strike...
+
+**Powers**: Dream invasion, corruption, crystal globe resonance
+**Weakness**: Radiant magic, unity of defenders
+**Location**: The Moselem (his lair)
+
+---
+
+#### The Pumpkin King
+
+*"His eyes glowed an unearthly orange, and sinister laughter echoed throughout the garden."*
+
+The Pumpkin King towers in the cursed garden, perched atop a magnificent and eerie pumpkin throne. He possesses the ability to warp minds and bend reality, harboring an insatiable desire for chaos and despair. The thorny plants with gnarled green thorns obey his will.
+
+Defeating him requires more than physical strength and magic—it requires the unity of knights remembering their oaths, spider allies from the Spider Princess, and a coordinated attack. When Grim of the Blackhearts delivered the final blow with an enchanted spear, he was pierced by a green thorn and sacrificed himself.
+
+**Powers**: Mind warping, plant control, otherworldly resilience
+**Weakness**: Unity, enchanted weapons, spider allies
+**Location**: Cursed Garden (Lore)
+
+---
+
+#### The Candy Witch
+
+*"Why mend what can be broken? Chaos is so much sweeter!"*
+
+The Candy Witch tears at Dante's wards with candy-coated claws, seeking to destroy the barriers that contain the fractures between worlds. She delights in sabotage and has allied with the ghost pirates to target the Spider Princess.
+
+**Powers**: Ward destruction, chaos magic
+**Location**: The Bridge area
+
+---
+
+### The Mystics (Secret Vampires)
+
+#### Mela, Kal, and Daemos
+
+*"We see within you the flickering embers of magic..."*
+
+In the heart of Everland, within a humble mystic's tent, Mela, Daemos, and Kal embarked on their journey into the realms of the esoteric and arcane. But beneath their roles as mystics lies a dark secret—they are vampires.
+
+**Mela** consumed herself with the allure of ancient secrets and the pursuit of immortality. She spent countless nights poring over dusty tomes, delving into forbidden lore of vampire ashes and remains.
+
+**Kal**, with his silver tongue and beguiling charm, weaves intricate tales to lure the curious and ambitious into their fold. His words whisper promises of untold power.
+
+**Daemos** plots to entice the Spider Princess herself, knowing her enigmatic nature could elevate their brotherhood to unimaginable heights.
+
+Their vampiric nature was born from rituals and experimentation with Kasimere's ashes and ancient necromancy incantations. They seek to expand their numbers, luring townsfolk with promises of arcane knowledge and immortality.
+
+**Warning**: Approaching the Mystic's Tent may result in vampiric corruption!
+**Location**: Mystic's Tent
+
+---
+
+### Knights and Warriors
+
+#### Lady Cordelia (Bishop Cordelia)
+
+Lady Cordelia is a legendary figure in Everland, taking charge of restoring the castle and training a new generation of knights. She instills in them the virtues of honor, duty, and loyalty. Now known as Bishop Cordelia, she blessed the wedding of Damian and Princess Delphi.
+
+She leads the **Order of the Black Rose** and confronted Kasimere in his lair alongside Mage Damon and Cedric.
+
+**Affiliations**: Order of the Black Rose
+**Location**: Church, Lore
+
+---
+
+#### Grim the Blackheart
+
+*"One strike of the enchanted spear, one green thorn through his heart."*
+
+Grim of the Blackhearts was a warrior who fought in the final battle against the Pumpkin King. While the main assault distracted the enemy, Grim snuck around back with a huge enchanted spear. With his final blow to the Pumpkin King, he was pierced by a green thorn and sacrificed himself for the good of all.
+
+Gwen ran to him as his life faded away. "I wept but once," she later said.
+
+**Status**: Deceased (heroic sacrifice)
+**Memorial**: Black roses planted at the Cursed Garden
+
+---
+
+#### Gwen
+
+Gwen stands silently, clutching a withered black rose. She watched Grim sacrifice himself and wept a single tear—unusual for one who rarely shows emotion. She seeks heroes to honor Grim's sacrifice by planting black roses at his memorial in the Cursed Garden.
+
+**Location**: Lore (after Pumpkin King defeat)
+
+---
+
+#### Cedric
+
+*"At the witching hour, Kasimere invaded my dreams..."*
+
+Cedric is an aspiring knight whose thoughts wavered at the touch of the vampire lord. Kasimere's crystal globe resonated with the dark sun crystal, whispering promises of power and glory in his dreams. He was torn between his noble self and the temptations of darkness.
+
+However, Mage Damon had woven a protective barrier around Cedric's mind. When confronted with the truth of Kasimere's depravity, Cedric pledged himself to the defense of Everland, swearing an oath to vanquish the darkness.
+
+**Affiliations**: Order of the Black Rose (renewed)
+**Location**: Church
+
+---
+
+#### Barnabis
+
+A courageous knight known for his unwavering loyalty, Barnabis sought guidance when the vampire invasion struck. He helped carry Princess Delphi through the treacherous paths to the portal and remained loyal to the cause of restoring Lore.
+
+**Affiliations**: Knights of Lore
+
+---
+
+### The Wolves of Winter
+
+#### Alpha Wulfric Vassa
+
+*"The time has come for the Pact of Winter's Howl."*
+
+Alpha Wulfric leads the Wolves of Winter from Hunter's Hovel at the edge of town. The pack's territory resonates with howls of anticipation, signaling the trials to come and the unity that follows.
+
+The Pact of Winter's Howl binds wolf and human—provisions for protection. Those who wish to join must endure the biting cold, outwit cunning riddles, and brave the harshest wilderness. Upon success, wolves and humans join together under the moonlit sky, their united howls reverberating through town whenever the train rumbles by.
+
+**Location**: Hunter's Hovel (winter)
+
+---
+
+#### Beta Lyra
+
+Beta Lyra is the seasoned negotiator of the Wolves of Winter. She approached Van Bueler's office to negotiate the Pact, seeking sustenance for winter in exchange for protection.
+
+*"In exchange for our protection, we ask that you provide us with provisions to see us through the harshest months."*
+
+**Location**: Hunter's Hovel
+
+---
+
+### The Pirates
+
+#### Captain Pit Plum
+
+*"So ye want to be a part-time pirate, eh?"*
+
+Captain Pit Plum commands the Black Siren. He trained Mage Damon (under the alias "Dashing Daren") in the ways of piracy, giving him tasks: make a trade for gold, find hidden flags, collect mysterious objects, and learn combat from Captain Shadow Ford.
+
+**Location**: Pirate Ship (Black Siren)
+
+---
+
+#### Captain Shadow Ford
+
+*"First, shed your gear and outer clothing—to move freely, shed unnecessary weight."*
+
+Captain Shadow Ford is an enigmatic figure renowned for expertise in footwork and parrying. He resides in a secluded cove and trains aspiring pirates in the art of combat.
+
+His teachings emphasize: footwork must be precise, agile, and poised; your sword is an extension of your will; timing, perception, and finesse are paramount.
+
+**Location**: Pirate Ship, secluded cove
+
+---
+
+#### Bonny Red Boots
+
+*"Come board the last shackle, she's waiting for you!"*
+
+Bonny Red Boots is a spirited skallywag known for her relentless boldness. Her vibrant red boots clack against wooden planks as she plays her fiddle and sings the ballad of the Last Shackle—the tale of a slaver ship turned to freedom.
+
+The song tells of a dastardly trap, prisoners breaking free from chains, and a cunning insurrection. "They caught some sailors and shackled their hands, but a prisoner waited, just biding his time. He poisoned the guards with some fancy wine!"
+
+**Location**: Pirate Ship
+
+---
+
+### The Order of the Owls
+
+#### Garrett
+
+*"The owl symbolizes our collective wisdom and keen insight."*
+
+Garrett, garbed in symbolic knightly attire, proposed the formation of an official group of wise and intrepid souls. When Mage Damon suggested "Order of the Owls," Garrett enthusiastically approved, marking the inception of the order.
+
+**Location**: Tower
+
+---
+
+#### Fletcher
+
+Fletcher has an affinity for archery and often spends prolonged hours at the range with Shadow Ford. He prefers circumambulating the town in a counterclockwise manner. Mage Damon sometimes mistakenly calls him "Archer" due to his skill.
+
+An enigmatic aura surrounds Fletcher—he converses with a mysterious lady, and both bear an air of having emerged from an alternate realm.
+
+**Location**: Tower
+
+---
+
+#### Poppy
+
+*"A woman of remarkable poise, elegance, and unfathomable wealth."*
+
+Poppy plays a pivotal role in the Order of the Owls. Her lavish Victorian attire and ornate parasol speak volumes of a mysterious past. As confidant of Garrett, she extended a generous invitation to unite the Order for a sumptuous feast at the illustrious Dining Hall, graciously underwriting the gathering.
+
+**Location**: Tower
+
+---
+
+### The Nordic Witches
+
+#### Tammis and Saga
+
+*"We see within you the flickering embers of magic, a power waiting to be unleashed."*
+
+Sisters Tammis and Saga operate from a small leather tent, infusing even the simplest items with otherworldly allure. They are more than skilled artisans—they are keepers of ancient magic.
+
+They guided Mage Damon, teaching ancient runes, enchantments, and the intricate weaving of magic into everyday artifacts. They unearthed the secrets of his staff, helping him understand its lineage and how it had chosen him.
+
+Tammis grounds Mage Damon with her wisdom and grace, amplifying his abilities. They spend endless nights working on crafting spells and enchanting items. Saga speaks of destiny and prophecy, guiding seekers toward their extraordinary journeys.
+
+**Location**: Witch's Tent
+
+---
+
+### Other Notable Characters
+
+#### The Mermaid
+![The Mermaid](../images/mermaid_sitting_in_a_wicker_chair_at_a_medieval_theme_park_she_will_tend_to_quests_with_patrons_blo_arttzoc89ruq0s6vmraj_2.png)
+
+The Mermaid sits in a wicker chair, tending to quests with patrons. She offers trade quests and rewards for those who bring her the items she seeks.
+
+---
+
+#### Samuel
+
+*"I am Samuel. They are all gone."*
+
+Samuel was the only other figure left when the entire town of Everland vanished during the Dragon Lantern Festival. Using a makeshift wooden cart for mobility despite his disability, he pushed forward with admirable determination.
+
+Mage Damon made Samuel his apprentice, teaching him the mysteries of the arcane arts. Samuel learned to activate his third eye—concentrating on the focal point within the mind, using a pendulum not for divination but to channel personal energy. With unwavering resolve, Samuel mastered spinning the pendulum with his mind alone.
+
+**Skills**: Third eye activation, pendulum mastery (in training)
+**Location**: Catacombs
+
+---
+
+#### Van Bueler
+
+Van Bueler is a man of stern countenance with piercing eyes who runs a trading company. He negotiated the Pact of Winter's Howl with the Wolves, agreeing to funnel provisions in exchange for protection during the harshest months.
+
+**Location**: Trading Company Office
+
+---
+
+#### Dante
+
+Dante maintains shimmering wards against the fractures that blur reality between worlds. He has imprisoned a crew of cursed ghost pirates within a bottle—they resent him and delight in targeting the Spider Princess. The Candy Witch constantly sabotages his wards.
+
+**Location**: The Bridge
+
+---
+
+#### Kora and Kendrick
+
+Steadfast knights from Lore, Kora and Kendrick swore to protect the Spider Princess. They remain vigilant against the ghost pirates and the Candy Witch's schemes.
+
+**Location**: Central Plaza
+
+---
+
+#### Alister
+
+*"Fly on the dragon's wings!"*
+
+Alister is the renowned Dragon Trainer who tells the tale of Anderon's rescue and administers the oaths of the Order of the Emerald Sky. He teaches the sacred oaths: protect dragons, aid dragons, deepen knowledge and share it. The symbol of two intertwined fingers represents the bond between dragon and trainer.
+
+**Location**: Temple Ruins
+
+---
+
+#### Torin
+
+*"You must take part in a binding ritual that will bind your soul to us."*
+
+Torin leads the Unseely Fae court, administering the necromancy binding ritual. The ritual requires retrieving the heart of Loudon, completing incantation challenges, and repeating the words: "Goofice Goafice Alakda, orgawal, Goragawal."
+
+**Warning**: This binds your soul forever!
+**Location**: Temple Ruins
+
+---
+
+#### The Frost Weaver Queen
+
+*"May all magic join with yours and yours with ours. Welcome to the Frost Weavers!"*
+
+The Frost Weaver Queen, radiant and powerful, initiates new recruits into the Frost Weavers Guild from the ancient halls of the Burrows. She teaches the three ritual spells: GLACIOUS (ice), NIX (snow), and ILLUMINA (light).
+
+**Location**: The Burrows
+
+---
+
+#### Tosh
+
+Tosh is an enigmatic figure who serves as both undertaker at Louden's Rest and diligent explorer of the underground world. He retrieves misplaced trinkets discarded into the sewers, venturing where few others dare to tread.
+
+**Location**: Louden's Rest
+
+---
+
+#### Kira
+
+*"We'll call it mutual craft—you mend quarrels, I mend weariness."*
+
+Kira runs the apothecary at first light when Everland yawns awake. Her hair is the color of newly spun gold, her hands dusted with dried petals, her eyes bright with quick, hopeful intelligence. Shelves line her walls like the ribs of a safe ship, filled with jars of powders and waters labeled in neat, looping script.
+
+She offers Balm of Quick Mend for wounds and Oil of Orchid for massages. An aspiring magic-user herself, she practices small charms and healing threads. When Mage Damon arrived wounded, she tended to him—and something in both their chests rearranged.
+
+**Services**: Healing, massage, remedies
+**Location**: Kira's Apothecary
+
+---
+
+#### The Damsel of the Mist
+
+*"The blue light surges ahead, a steadfast lantern in the murk."*
+
+On the muddy roads to Everland, the Damsel wanders lost within the magic forest of mist. She seeks the enigmatic Damon of her Dreams, guided by a blue light through the tangled veil. When the lion of the muddy road tore at her gown, she lifted her sword with fearless grace and cloaked herself in the lion's fur, weaving a radiant new gown from moonlit tapestry and forest charm.
+
+**Location**: Train Station
+
+---
+
+## Credits
+
+- **Producer**: Damon Hogan
+- **Inspired by**: Perry Fraptic (RetroRecipes YouTube)
+- **Hardware inspiration**: Commodore 64 Ultimate, commodore.net
+- **Tooling**: Kick Assembler, Visual Studio Code, VICE
+
+---
+
+*This manual documents the Everland BBS Door Game as of build $c000-$200aa*
