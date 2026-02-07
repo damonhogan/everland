@@ -231,6 +231,13 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 | Grim the Blackheart | Warrior | Final assault on Cursed Garden, enchanted spear |
 | Gwen | Mourner | Honor Grim's sacrifice, plant black roses |
 
+---
+
+## Recent Additions & Updates
+
+- **Train Timetable & Announcements**: The Everland Express now includes an in-game timetable accessible at the Train Station (`3. View Timetable`). The conductor will announce the next stop as the train approaches. This improves navigation and immersion for players using the station and train system.
+
+
 #### Mythos NPCs
 | NPC | Role | Quest Chain |
 |-----|------|-------------|

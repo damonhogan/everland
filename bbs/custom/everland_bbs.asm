@@ -2680,16 +2680,14 @@ ticket_menu_loop:
 ticket_menu_done:
     jsr modem_in
     cmp #'1'
-    bne not_buy_ticket
-    jmp buy_train_ticket
-not_buy_ticket:
+    beq buy_train_ticket
     cmp #'2'
-    bne not_board_train
-    jmp try_board_train
-not_board_train:
+    beq try_board_train
+    cmp #'3'
+    beq view_train_timetable
     cmp #'0'
-    bne station_show_menu
-    jmp town_show_menu
+    beq town_show_menu
+    jmp station_show_menu
 
 buy_train_ticket:
     // Check if already has ticket
@@ -2917,6 +2915,8 @@ train_stop_ok:
     sta train_current_stop
     // Show approach sounds for this stop
     jsr train_approach_sounds
+    // Conductor announces the next stop
+    jsr train_conductor_announce
     ldx #0
 train_moving2_loop:
         lda train_moving2_msg,X
@@ -3279,6 +3279,42 @@ sound_station_loop:
 approach_done:
     rts
 
+// Conductor announcement: announce next stop
+train_conductor_announce:
+    ldx #0
+conductor_prefix_loop:
+        lda conductor_prefix_msg,X
+        beq conductor_prefix_done
+        jsr modem_out
+        inx
+        bne conductor_prefix_loop
+conductor_prefix_done:
+    lda train_current_stop
+    jsr train_print_stop_name
+    ldx #0
+conductor_suffix_loop:
+        lda conductor_suffix_msg,X
+        beq conductor_suffix_done
+        jsr modem_out
+        inx
+        bne conductor_suffix_loop
+conductor_suffix_done:
+    rts
+
+// View timetable routine (station menu)
+view_train_timetable:
+    ldx #0
+timetable_loop:
+        lda timetable_msg,X
+        beq timetable_done
+        jsr modem_out
+        inx
+        bne timetable_loop
+timetable_done:
+    jsr modem_in
+    jmp station_show_menu
+
+
 // NPC reactions at each stop
 train_npc_reaction:
     lda train_current_stop
@@ -3519,8 +3555,9 @@ no_input_yet:
 
 // Train ticket booth messages
 ticket_booth_msg:
-    .text "\r\nTICKET BOOTH:\r\nThe ticket master nods at you from behind the brass counter.\r\n'Tickets for the Everland Express! 5 gold for unlimited travel!'\r\n\r\n1. Buy Ticket (5 gold)\r\n2. Board the Train\r\n0. Leave Station\r\n> "
+    .text "\r\nTICKET BOOTH:\r\nThe ticket master nods at you from behind the brass counter.\r\n'Tickets for the Everland Express! 5 gold for unlimited travel!'\r\n\r\n1. Buy Ticket (5 gold)\r\n2. Board the Train\r\n3. View Timetable\r\n0. Leave Station\r\n> "
     .byte 0
+
 no_ticket_msg:
     .text "\r\nThe conductor blocks your path with a firm but polite hand.\r\n\r\n'Whoa there, friend! You'll need a ticket to board the Everland Express. See the ticket booth just over there!'\r\n\r\n[Press any key]\r\n"
     .byte 0
@@ -3566,6 +3603,31 @@ bob_welcome_msg:
     .text "Conductor Bob announces: 'Welcome to "
     .byte 0
 
+conductor_prefix_msg:
+    .text "Conductor calls: 'Next stop: '
+
+    .byte 0
+conductor_suffix_msg:
+    .text "\r\n"
+    .byte 0
+
+timetable_msg:
+    .text "\r\n=== EVERLAND EXPRESS - TIMETABLE ===\r\n\r\n"
+    .text "Station........ 00:00\r\n"
+    .text "Marketplace..... 00:02\r\n"
+    .text "Harbor.......... 00:04\r\n"
+    .text "Hunter's Hovel.. 00:06\r\n"
+    .text "Library......... 00:08\r\n"
+    .text "Dragon Haven.... 00:10\r\n"
+    .text "Temple Ruins.... 00:12\r\n"
+    .text "Tipsy Maiden.... 00:14\r\n"
+    .text "Kettle Cafe..... 00:16\r\n"
+    .text "Louden's Rest... 00:18\r\n"
+    .text "Fairy Gardens... 00:20\r\n"
+    .text "Glass House..... 00:22\r\n"
+    .text "Copper Confect.. 00:24\r\n"
+    .text "The Stage....... 00:26\r\n\r\n[Press any key]\r\n"
+    .byte 0
 // Stop names
 stop_name_station:
     .text "Town Station"
