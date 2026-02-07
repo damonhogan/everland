@@ -18,8 +18,15 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 6. [Events System](#events-system)
 7. [Economy & Trading](#economy--trading)
 8. [Mini-Games & Activities](#mini-games--activities)
-9. [Build Instructions](#build-instructions)
-10. [Appendix A: Complete Quest Walkthrough](#appendix-a-complete-quest-walkthrough)
+9. [Magic System](#magic-system)
+10. [Romance & Wedding System](#romance--wedding-system)
+11. [Dream System](#dream-system)
+12. [Ship Travel System](#ship-travel-system)
+13. [Faction Reputation System](#faction-reputation-system)
+14. [Dueling Arena](#dueling-arena)
+15. [Build Instructions](#build-instructions)
+16. [Appendix A: Complete Quest Walkthrough](#appendix-a-complete-quest-walkthrough)
+17. [Appendix B: Memory Expansion Support](#appendix-b-memory-expansion-support)
 
 ---
 
@@ -93,6 +100,45 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 - **Crafting Menu**: Create items from materials
 - **Potion Brewing**: Create magical potions
 - **Weather System**: Dynamic weather affecting gameplay
+
+#### Magic & Spells
+- **Mana System**: 20 max mana, regenerates over time
+- **Three Frost Weaver Spells**: GLACIOUS (frost bolt), NIX (ice shield), ILLUMINA (light burst)
+- **Spell Learning**: Progressive prerequisites (GLACIOUS → NIX → ILLUMINA)
+- **Frost Weaver Ranks**: Initiate, Adept, Master with increasing power
+- **Third Eye Practice**: Pendulum mastery training (10 levels)
+- **Meditation**: Restore mana through focused concentration
+- **Spell Lore**: Study the ancient traditions of the Frost Weavers
+
+#### Romance & Wedding System
+- **4 Romance Options**: Kira, Lyra, Kendrick, Bonny Red Boots
+- **Courtship Stages**: Introduced → Courting → Engaged → Married
+- **Gift Giving**: Increase affection with romantic gifts
+- **Dating**: Go on dates to deepen your bond
+- **Wedding Ceremony**: Marry your beloved in the Rose Gardens
+
+#### Dream System
+- **4 Dream Types**: Peaceful, Nightmare, Prophetic, Memory
+- **Veylan's Influence**: Battle the shadow's corruption
+- **Dream Protection**: Pendulum mastery provides shields
+- **Prophecies**: Receive visions of future events
+
+#### Ship Travel System
+- **4 Ports**: Everland Harbor, Aurora Ice Docks, Mythos Jungle Bay, Whitecastle
+- **Sea Trading**: Buy cargo low, sail far, sell high
+- **Sea Encounters**: Storms and pirate encounters
+- **The Black Siren**: Captain Pit Plum's legendary vessel
+
+#### Faction Reputation
+- **7 Factions**: Frost Weavers, Merchant Guild, Order of Black Rose, Wolves of Winter, Order of the Owls, Black Siren Crew
+- **Standings**: 0-25 Hostile, 26-50 Neutral, 51-75 Friendly, 76-100 Exalted
+- **Faction Perks**: Unlock rewards as reputation grows
+
+#### Dueling Arena
+- **Arena Ratings**: Competitive ranking system
+- **Win/Loss Tracking**: Track your combat record
+- **Arena Titles**: Novice → Contender → Gladiator → Champion
+- **Bet Fights**: Risk gold for greater rewards
 
 #### Administrative Features
 - **Admin Menu**: User management tools
@@ -353,6 +399,181 @@ The Dragon Lantern Festival commemorates the Battle for Everland:
 | Tavern | Social gathering |
 | Companion | AI assistant |
 | Mailbox | Correspondence |
+
+---
+
+## Magic System
+
+The Magic System allows players to learn and cast spells through the Frost Weaver tradition. Access the magic menu by pressing **M** from the main menu.
+
+### Mana System
+- **Maximum Mana**: 20 points
+- **Mana Regeneration**: Base rate + bonuses from Pendulum Mastery
+- **Restore Mana**: Through meditation or resting
+
+### Frost Weaver Spells
+
+| Spell | Cost | Effect | Prerequisite |
+|-------|------|--------|--------------|
+| GLACIOUS | 5 mana | Frost bolt - deals ice damage | Frost Weaver Initiate |
+| NIX | 8 mana | Ice shield - defensive barrier | Know GLACIOUS |
+| ILLUMINA | 10 mana | Light burst - reveals hidden paths | Know NIX |
+
+### Learning Spells
+Spells must be learned in order:
+1. **GLACIOUS** - Entry spell for Frost Weaver initiates
+2. **NIX** - Requires mastery of GLACIOUS
+3. **ILLUMINA** - Requires mastery of NIX
+
+### Frost Weaver Ranks
+| Rank | Requirement |
+|------|-------------|
+| Initiate | Learn GLACIOUS |
+| Adept | Learn all three spells |
+| Master | Pendulum mastery level 10 |
+
+### Third Eye Practice
+Train your magical perception through Pendulum Practice:
+- **10 Mastery Levels**: Each level improves Third Eye sensitivity
+- **Level 5**: +1 mana regeneration rate
+- **Level 10**: +1 additional mana regeneration, Master rank unlock
+
+### Meditation
+- Restore mana through focused concentration
+- Available from the Magic menu
+- No cost, restores mana over time
+
+### Spell Lore
+Study the ancient traditions and history of the Frost Weavers, including:
+- The Frost Weaver Queen's teachings
+- Origins of ice magic in Aurora
+- The bond between caster and elements
+
+---
+
+## Romance & Wedding System
+
+Find love in Everland! Access the Romance menu by pressing **<** from the main menu.
+
+### Romance Options
+| Partner | Description |
+|---------|-------------|
+| Kira | The gentle apothecary with healing hands |
+| Lyra | The fierce wolf of winter, loyal beyond measure |
+| Kendrick | The noble knight of Everland, guided by honor |
+| Bonny Red Boots | The free-spirited pirate, full of adventure |
+
+### Courtship Stages
+1. **Introduced** - Express your interest
+2. **Courting** - Reach affection level 5
+3. **Engaged** - Propose at affection level 8
+4. **Married** - Hold a wedding ceremony (100g)
+
+### Activities
+- **Give Gifts** (-10g): Increase affection
+- **Go on Dates**: Deepen your bond (requires Courting stage)
+- **Propose**: Ask for their hand (requires level 8)
+- **Wedding**: Marry in the Rose Gardens, officiated by Bishop Cordelia
+
+---
+
+## Dream System
+
+Enter the Dreamscape where Veylan's shadow reaches even the sleeping. Access by pressing **>** from the main menu.
+
+### Dream Types
+| Type | Effect |
+|------|--------|
+| Peaceful | Restore 5 mana, find tranquility |
+| Nightmare | Battle Veylan for 15g reward (risky!) |
+| Prophetic | Receive visions of future events |
+| Memory | Glimpse your forgotten past |
+
+### Veylan's Influence
+- Increases with nightmares (0-10 scale)
+- At level 10, Veylan wins: -20g, influence resets
+- Pendulum mastery provides dream protection
+
+### Prophecies
+Collect prophetic visions that hint at:
+- The Dragon Lantern Festival
+- Memory stones and choices
+- The Spider Princess's weaving
+- Veylan's growing shadow
+
+---
+
+## Ship Travel System
+
+Sail aboard The Black Siren with Captain Pit Plum! Access by pressing **[** from the main menu.
+
+### Ports
+| Port | Location | Specialty |
+|------|----------|-----------|
+| Everland Harbor | Main hub | Best for selling |
+| Aurora Ice Docks | Aurora | Rare frost goods |
+| Mythos Jungle Bay | Mythos | Exotic spices and silk |
+| Whitecastle Port | England | English luxuries |
+
+### Trading
+- **Spices** (20g): Sell for 40g profit at different port
+- **Silk** (30g): Sell for 48g profit at different port
+- Buy low, sail far, sell high!
+
+### Sea Encounters
+- **Storms**: Weather the waves, arrive shaken but safe
+- **Pirates**: Bonny Red Boots may gift you 30g!
+
+### Voyage Cost
+25 gold per voyage between ports
+
+---
+
+## Faction Reputation System
+
+Build standing with Everland's guilds and factions. View from the Reputation menu (R in Room menu).
+
+### Factions
+| Faction | Description |
+|---------|-------------|
+| Frost Weavers | Ice magic practitioners of Aurora |
+| Merchant Guild | Trade and commerce masters |
+| Order of Black Rose | Knights of the cursed garden |
+| Wolves of Winter | The pack of Alpha Wulfric |
+| Order of the Owls | Secret keepers and spies |
+| Black Siren Crew | Pirates of the high seas |
+
+### Standing Levels
+| Range | Status |
+|-------|--------|
+| 0-25 | Hostile |
+| 26-50 | Neutral |
+| 51-75 | Friendly |
+| 76-100 | Exalted |
+
+---
+
+## Dueling Arena
+
+Test your combat prowess! Access from the Arena in the Room menu.
+
+### Fight Types
+| Type | Cost | Reward |
+|------|------|--------|
+| Quick Fight | Free | +10g on win |
+| Ranked Fight | Free | +25g, rank increase |
+| Bet Fight | 20g | +50g on win |
+
+### Arena Titles
+| Title | Requirement |
+|-------|-------------|
+| Novice | 0-4 wins |
+| Contender | 5-14 wins |
+| Gladiator | 15-29 wins |
+| Champion | 30+ wins |
+
+### Arena Ratings
+Track your competitive rating, wins, and losses. Rise through the ranks to become the Champion of Everland!
 
 ---
 
@@ -1418,6 +1639,62 @@ On the muddy roads to Everland, the Damsel wanders lost within the magic forest 
 
 ---
 
+## Appendix B: Memory Expansion Support
+
+### Overview
+
+Everland BBS Door Game supports multiple memory expansion options for storing user data such as custom lore books. The game automatically detects available expansion RAM at startup and uses the best available option.
+
+### Detection Priority
+
+1. **REU (Ram Expansion Unit)** — Checked first
+2. **GeoRAM** — Checked as fallback if REU not present
+3. **Disk Storage** — Used if no expansion RAM is detected
+
+### Supported Hardware
+
+| Hardware | Detection | Capacity Used | Notes |
+|----------|-----------|---------------|-------|
+| REU (1700/1764/1750) | $DF00-$DF01 registers | 2KB (expandable) | Commodore's official expansion |
+| GeoRAM/BBGRam | $DE00 window, $DFFE/$DFFF page | 2KB (8 pages) | Berkeley Softworks compatible |
+| Disk (Device 8) | Always available | Limited by disk space | Fallback for unexpanded C64 |
+
+### Technical Details
+
+**REU Detection:**
+- Writes test patterns $AA and $55 to $DF00/$DF01
+- Reads back to verify REU responds
+- If verified, sets `expansion_ram = 1`
+
+**GeoRAM Detection:**
+- Selects block 0, page 0 via $DFFE/$DFFF
+- Writes pattern $A5 to $DE00 window
+- Switches to page 1, writes $5A
+- Switches back to page 0, verifies $A5 preserved
+- If verified, sets `expansion_ram = 2`
+
+**Runtime Variables:**
+```
+reu_present:    .byte 0  ; 0=no, 1=yes
+georam_present: .byte 0  ; 0=no, 1=yes
+expansion_ram:  .byte 0  ; 0=none, 1=REU, 2=GeoRAM
+```
+
+### User Lore Storage
+
+When pasting custom lore books via the Library menu:
+- **REU**: Stored in `reu_lore_pages` buffer (2KB, 16 x 128-byte pages)
+- **GeoRAM**: Stored in block 0, pages 0-7 (2KB)
+- **Disk**: Stored as sequential file "USERLORE,S" on device 8
+
+### Performance Considerations
+
+- **REU/GeoRAM**: Instant access, no disk I/O latency
+- **Disk**: Slower but works on any C64 with drive
+- Built-in library stories remain in program memory for fast access
+
+---
+
 ## Credits
 
 - **Producer**: Damon Hogan
@@ -1427,4 +1704,4 @@ On the muddy roads to Everland, the Damsel wanders lost within the magic forest 
 
 ---
 
-*This manual documents the Everland BBS Door Game as of build $c000-$200aa*
+*This manual documents the Everland BBS Door Game as of build $c000-$262d2*
