@@ -237,6 +237,12 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 
 - **Train Timetable & Announcements**: The Everland Express now includes an in-game timetable accessible at the Train Station (`3. View Timetable`). The conductor will announce the next stop as the train approaches. This improves navigation and immersion for players using the station and train system.
 
+- **NPC Proactive Greetings**: Town NPCs will occasionally offer short, flavor greetings while you browse the town menu. These are cosmetic lines intended to increase immersion and make the town feel lively.
+- **Circus Minigame**: The Circus Tent (Town key `Q`) now offers the Juggler's Challenge — a simple skill/dex minigame with a small gold reward for success.
+- **Arena Ticketing & Prize Pool**: The Arena now requires either a single-session Arena Ticket (5 gold) or an Arena Season Pass (30 gold) to enter the dueling pits. Session tickets are consumed on entry; season passes persist. Lost bets add to an in-game prize pool that winning challengers may draw from in addition to base rewards.
+- **Marketplace Expansion**: The Room Shop now includes three additional decorative items (Velvet Cushions, Bronze Sundial, Silken Drapes) — see Room Shop Items below for prices.
+- **Quick-Save Command**: A quick-save hotkey `V` has been added to the main menu for fast saving. This invokes the same save routine as the regular Save option and provides a short confirmation message.
+
 
 #### Mythos NPCs
 | NPC | Role | Quest Chain |
@@ -312,6 +318,9 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 | Magic Mirror | 80g |
 | Royal Banner | 100g |
 | Ancient Statue | 150g |
+| Velvet Cushions | 35g |
+| Bronze Sundial | 45g |
+| Silken Drapes | 55g |
 
 ---
 
@@ -394,6 +403,7 @@ The Dragon Lantern Festival commemorates the Battle for Everland:
 | Cooking | Craft food items |
 | Dueling | PvP combat |
 | Arena | Combat challenges |
+| Circus | Juggler's Challenge — small skill/dex minigame |
 | Riddles | Puzzle solving |
 | Scavenging | Random item discovery |
 | Crafting | Create items |
