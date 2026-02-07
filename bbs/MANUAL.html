@@ -468,6 +468,22 @@ Witches</a></li>
 <li><a href="#other-notable-characters"
 id="toc-other-notable-characters">Other Notable Characters</a></li>
 </ul></li>
+<li><a href="#appendix-b-memory-expansion-support"
+id="toc-appendix-b-memory-expansion-support">Appendix B: Memory
+Expansion Support</a>
+<ul>
+<li><a href="#overview-1" id="toc-overview-1">Overview</a></li>
+<li><a href="#detection-priority" id="toc-detection-priority">Detection
+Priority</a></li>
+<li><a href="#supported-hardware" id="toc-supported-hardware">Supported
+Hardware</a></li>
+<li><a href="#technical-details" id="toc-technical-details">Technical
+Details</a></li>
+<li><a href="#user-lore-storage" id="toc-user-lore-storage">User Lore
+Storage</a></li>
+<li><a href="#performance-considerations"
+id="toc-performance-considerations">Performance Considerations</a></li>
+</ul></li>
 <li><a href="#credits" id="toc-credits">Credits</a></li>
 </ul></li>
 </ul>
@@ -504,6 +520,8 @@ System</a></li>
 <li><a href="#build-instructions">Build Instructions</a></li>
 <li><a href="#appendix-a-complete-quest-walkthrough">Appendix A:
 Complete Quest Walkthrough</a></li>
+<li><a href="#appendix-b-memory-expansion-support">Appendix B: Memory
+Expansion Support</a></li>
 </ol>
 <hr />
 <h2 id="complete-feature-list">Complete Feature List</h2>
@@ -692,8 +710,8 @@ Light)</h4>
 survival</li>
 <li><strong>Guild</strong>: Frost Weavers Guild</li>
 </ul>
-<h4 id="ore-kingdom-of-knights-and-memory">2.Ore (Kingdom of Knights and
-Memory)</h4>
+<h4 id="lore-kingdom-of-knights-and-memory">2.Lore (Kingdom of Knights
+and Memory)</h4>
 <ul>
 <li><strong>Theme</strong>: Medieval kingdom, knights, ancient
 oaths</li>
@@ -2891,6 +2909,91 @@ and cloaked herself in the lion’s fur, weaving a radiant new gown from
 moonlit tapestry and forest charm.</p>
 <p><strong>Location</strong>: Train Station</p>
 <hr />
+<h2 id="appendix-b-memory-expansion-support">Appendix B: Memory
+Expansion Support</h2>
+<h3 id="overview-1">Overview</h3>
+<p>Everland BBS Door Game supports multiple memory expansion options for
+storing user data such as custom lore books. The game automatically
+detects available expansion RAM at startup and uses the best available
+option.</p>
+<h3 id="detection-priority">Detection Priority</h3>
+<ol type="1">
+<li><strong>REU (Ram Expansion Unit)</strong> — Checked first</li>
+<li><strong>GeoRAM</strong> — Checked as fallback if REU not
+present</li>
+<li><strong>Disk Storage</strong> — Used if no expansion RAM is
+detected</li>
+</ol>
+<h3 id="supported-hardware">Supported Hardware</h3>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 25%" />
+<col style="width: 34%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>Hardware</th>
+<th>Detection</th>
+<th>Capacity Used</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REU (1700/1764/1750)</td>
+<td><span class="math inline"><em>D</em><em>F</em>00−</span>DF01
+registers</td>
+<td>2KB (expandable)</td>
+<td>Commodore’s official expansion</td>
+</tr>
+<tr>
+<td>GeoRAM/BBGRam</td>
+<td>$DE00 window, <span
+class="math inline"><em>D</em><em>F</em><em>F</em><em>E</em>/</span>DFFF
+page</td>
+<td>2KB (8 pages)</td>
+<td>Berkeley Softworks compatible</td>
+</tr>
+<tr>
+<td>Disk (Device 8)</td>
+<td>Always available</td>
+<td>Limited by disk space</td>
+<td>Fallback for unexpanded C64</td>
+</tr>
+</tbody>
+</table>
+<h3 id="technical-details">Technical Details</h3>
+<p><strong>REU Detection:</strong> - Writes test patterns $AA and $55 to
+<span class="math inline"><em>D</em><em>F</em>00/</span>DF01 - Reads
+back to verify REU responds - If verified, sets
+<code>expansion_ram = 1</code></p>
+<p><strong>GeoRAM Detection:</strong> - Selects block 0, page 0 via
+<span
+class="math inline"><em>D</em><em>F</em><em>F</em><em>E</em>/</span>DFFF
+- Writes pattern $A5 to $DE00 window - Switches to page 1, writes $5A -
+Switches back to page 0, verifies $A5 preserved - If verified, sets
+<code>expansion_ram = 2</code></p>
+<p><strong>Runtime Variables:</strong></p>
+<pre><code>reu_present:    .byte 0  ; 0=no, 1=yes
+georam_present: .byte 0  ; 0=no, 1=yes
+expansion_ram:  .byte 0  ; 0=none, 1=REU, 2=GeoRAM</code></pre>
+<h3 id="user-lore-storage">User Lore Storage</h3>
+<p>When pasting custom lore books via the Library menu: -
+<strong>REU</strong>: Stored in <code>reu_lore_pages</code> buffer (2KB,
+16 x 128-byte pages) - <strong>GeoRAM</strong>: Stored in block 0, pages
+0-7 (2KB) - <strong>Disk</strong>: Stored as sequential file
+“USERLORE,S” on device 8</p>
+<h3 id="performance-considerations">Performance Considerations</h3>
+<ul>
+<li><strong>REU/GeoRAM</strong>: Instant access, no disk I/O
+latency</li>
+<li><strong>Disk</strong>: Slower but works on any C64 with drive</li>
+<li>Built-in library stories remain in program memory for fast
+access</li>
+</ul>
+<hr />
 <h2 id="credits">Credits</h2>
 <ul>
 <li><strong>Producer</strong>: Damon Hogan</li>
@@ -2903,6 +3006,6 @@ VICE</li>
 </ul>
 <hr />
 <p><em>This manual documents the Everland BBS Door Game as of build
-$c000-$200aa</em></p>
+$c000-$262d2</em></p>
 </body>
 </html>
