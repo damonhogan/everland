@@ -183,6 +183,29 @@ npc_greet_3:
     .text "\r\nAn old woman chuckles: 'You look like trouble — in the best way.'\r\n"
     .byte 0
 
+circus_high_score: .byte 0
+
+// Train dynamic timing
+train_delay_factor: .byte 0    // 0=no extra delay, higher = more delay
+temp_threshold: .byte 0
+
+conductor_delay_msg:
+    .text "\r\nConductor Bob: 'Expect a short delay at this stop.'\r\n"
+    .byte 0
+
+// Arena leaderboard (top 3 scores)
+arena_leader_1: .byte 0
+arena_leader_2: .byte 0
+arena_leader_3: .byte 0
+
+// Marketplace restock helper
+shop_restock_counter: .byte 0
+
+// Autosave / quick-save
+autosave_counter: .byte 0
+autosave_interval: .byte 120   // cycles before autosave (approx)
+autosave_slot: .byte 0         // alternate slot toggle
+
 // maybe print an NPC greeting occasionally when in town
 maybe_npc_greet:
     jsr get_random
@@ -592,6 +615,31 @@ start:
     jmp main_loop
 
 main_loop:
+    ; Autosave counter: increment and autosave when interval reached
+    inc autosave_counter
+    lda autosave_counter
+    cmp autosave_interval
+    bcc skip_autosave
+    lda #0
+    sta autosave_counter
+    jsr quick_save
+skip_autosave:
+    ; Market event counter: trigger periodic restock and notify player
+    dec market_event_counter
+    lda market_event_counter
+    bne skip_market_event
+    ; trigger restock and reset counter
+    jsr restock_shop
+    ldx #0
+market_event_notify_loop:
+        lda market_event_msg,X
+        beq market_event_notify_done
+        jsr modem_out
+        inx
+        bne market_event_notify_loop
+market_event_notify_done:
+    lda market_event_interval
+    sta market_event_counter
     jsr print_main_menu
     jsr get_menu_input
     cmp #'1'
@@ -636,6 +684,10 @@ main_loop:
     beq go_time_menu
     cmp #'V'
     beq quick_save
+    cmp #'G'
+    beq go_achievements
+    cmp #'U'
+    beq go_tutorial
     jmp main_loop
 
 go_play_everland:
@@ -781,12 +833,18 @@ print_menu_done:
     rts
 
 main_menu_msg:
-    .text "\r\nEVERLAND MAIN MENU:\r\n(Where memory and magic entwine)\r\n1. Play Everland\r\n2. Inventory\r\n3. High Scores\r\n4. Message Board\r\n5. Async PvP\r\n6. Save Game\r\n7. Load Game\r\n8. Portal Travel\r\n9. Quit\r\nL. Library\r\nM. Magic & Spells\r\n<. Romance\r\n>. Dreams\r\n[. Ship Travel\r\n]. Dungeon Crawl\r\n{. Boss Battles\r\n}. Skill Trees\r\nT. Player Trade\r\nD. Day/Night\r\n\r\nLore: The portal shimmers with fractured memories.\r\n> "
+    .text "\r\nEVERLAND MAIN MENU:\r\n(Where memory and magic entwine)\r\n1. Play Everland\r\n2. Inventory\r\n3. High Scores\r\n4. Message Board\r\n5. Async PvP\r\n6. Save Game\r\n7. Load Game\r\n8. Portal Travel\r\n9. Quit\r\nL. Library\r\nM. Magic & Spells\r\n<. Romance\r\n>. Dreams\r\n[. Ship Travel\r\n]. Dungeon Crawl\r\n{. Boss Battles\r\n}. Skill Trees\r\nT. Player Trade\r\nD. Day/Night\r\nG. Achievements\r\nU. Tutorial\r\n\r\nLore: The portal shimmers with fractured memories.\r\n> "
 
 get_menu_input:
     // Get a key from modem
     jsr modem_in
     rts
+
+    ; Map extra main-menu keys
+go_achievements:
+    jmp view_achievements
+go_tutorial:
+    jmp tutorial_start
 
 library_menu:
     ldx #0
@@ -2311,9 +2369,9 @@ save_hdr_loop:
 save_confirm:
     jsr modem_in
     cmp #'Y'
-    beq save_do_save
+    beq save_slot_browser
     cmp #'y'
-    beq save_do_save
+    beq save_slot_browser
     jmp main_loop
 save_do_save:
     // Save to disk - use KERNAL routines
@@ -2322,8 +2380,17 @@ save_do_save:
     ldy #1       // Secondary address (write)
     jsr $FFBA    // SETLFS
     lda #10      // Filename length
+    ; Choose filename based on autosave slot (alternate backups)
+    lda autosave_slot
+    cmp #0
+    beq use_save0
+    ldx #<save_filename_alt
+    ldy #>save_filename_alt
+    jmp do_setnam
+use_save0:
     ldx #<save_filename
     ldy #>save_filename
+do_setnam:
     jsr $FFBD    // SETNAM
     jsr $FFC0    // OPEN
     bcs go_save_error
@@ -2403,6 +2470,39 @@ qs_done:
 
 save_filename:
     .text "@0:EVSAVE,S,W"
+save_filename_alt:
+    .text "@0:EVSAVE1,S,W"
+// Market event scheduling
+market_event_counter: .byte 0
+market_event_interval: .byte 12  ; ticks between marketplace events
+market_event_msg:
+    .text "\r\nMarket vendors shout: 'New stock! Prices have shifted.'\r\n[Press any key]\r\n"
+    .byte 0
+
+// Save/load slot chooser
+load_slot_choice: .byte 0
+// Feature achievements: bitflags for new features
+player_feature_achievements: .byte 0
+; bit0: Circus completed at least once
+; bit1: Arena victory recorded
+; bit2: Train boarded at least once
+
+pool_label_msg:
+    .text "\r\nCurrent Arena Prize Pool: "
+    .byte 0
+bet_confirm_msg:
+    .text "\r\nProceed with bet? (Y/N) "
+    .byte 0
+
+leaderboard_hdr_msg:
+    .text "\r\n=== ARENA LEADERBOARD ===\r\n"
+    .byte 0
+leaderboard_entry_msg:
+    .text "Place %d: Wins: "
+    .byte 0
+prize_pool_msg:
+    .text "\r\nPrize Pool: "
+    .byte 0
 save_hdr_msg:
     .text "\r\n=== SAVE GAME ===\r\n\r\nSave progress? (Y/N) "
     .byte 0
@@ -2428,9 +2528,9 @@ load_hdr_loop:
 load_confirm:
     jsr modem_in
     cmp #'Y'
-    beq load_do_load
+    beq load_slot_browser
     cmp #'y'
-    beq load_do_load
+    beq load_slot_browser
     jmp main_loop
 load_do_load:
     // Load from disk
@@ -2439,8 +2539,17 @@ load_do_load:
     ldy #0       // Secondary address (read)
     jsr $FFBA    // SETLFS
     lda #10      // Filename length
+    ; Allow choosing alternate load slot
+    lda load_slot_choice
+    cmp #0
+    beq use_load0
+    ldx #<save_filename_alt
+    ldy #>save_filename_alt
+    jmp do_setnam_load
+use_load0:
     ldx #<load_filename
     ldy #>load_filename
+do_setnam_load:
     jsr $FFBD    // SETNAM
     jsr $FFC0    // OPEN
     bcs go_load_error
@@ -2516,6 +2625,66 @@ load_ok_msg:
     .byte 0
 load_err_msg:
     .text "\r\nNo save file found or error loading!\r\n[Press any key]\r\n"
+    .byte 0
+
+; Save slot browser used by Save/Load flows
+save_slot_browser:
+    ldx #0
+save_slot_hdr_loop:
+        lda save_slot_hdr_msg,X
+        beq save_slot_hdr_done
+        jsr modem_out
+        inx
+        bne save_slot_hdr_loop
+save_slot_hdr_done:
+    jsr modem_in
+    cmp #'1'
+    beq choose_slot_0
+    cmp #'2'
+    beq choose_slot_1
+    jmp main_loop
+choose_slot_0:
+    lda #0
+    sta autosave_slot
+    lda #0
+    sta load_slot_choice
+    jmp save_do_save
+choose_slot_1:
+    lda #1
+    sta autosave_slot
+    lda #1
+    sta load_slot_choice
+    jmp save_do_save
+
+load_slot_browser:
+    ldx #0
+load_slot_hdr_loop:
+        lda load_slot_hdr_msg,X
+        beq load_slot_hdr_done
+        jsr modem_out
+        inx
+        bne load_slot_hdr_loop
+load_slot_hdr_done:
+    jsr modem_in
+    cmp #'1'
+    beq choose_load_0
+    cmp #'2'
+    beq choose_load_1
+    jmp main_loop
+choose_load_0:
+    lda #0
+    sta load_slot_choice
+    jmp load_do_load
+choose_load_1:
+    lda #1
+    sta load_slot_choice
+    jmp load_do_load
+
+save_slot_hdr_msg:
+    .text "\r\nChoose save slot:\r\n1) Primary save\r\n2) Alternate save\r\n> "
+    .byte 0
+load_slot_hdr_msg:
+    .text "\r\nChoose load slot:\r\n1) Primary save\r\n2) Alternate save\r\n> "
     .byte 0
 
 portal_travel:
@@ -2636,7 +2805,15 @@ town_desc_loop:
         inx
         bne town_desc_loop
 town_desc_done:
+    ; Increment NPC greeting timer and trigger greeting occasionally
+    inc npc_greet_timer
+    lda npc_greet_timer
+    cmp npc_greet_interval
+    bcc skip_npc_greet
+    lda #0
+    sta npc_greet_timer
     jsr maybe_npc_greet
+skip_npc_greet:
 town_show_menu:
     ldx #0
 town_menu_loop:
@@ -2922,6 +3099,7 @@ train_start_ride:
     jsr modem_in
     lda #0
     sta train_current_stop
+    jsr set_achievement_train
     jmp train_menu
 
 // Station shop routine (buy Season Pass)
@@ -3023,8 +3201,17 @@ train_input_wait:
     bcc train_has_input
     // No input - increment wait counter
     inc train_wait_counter
+    ; compute threshold = 60 + train_delay_factor*5
+    lda train_delay_factor
+    asl
+    asl
+    clc
+    adc train_delay_factor
+    clc
+    adc #60
+    sta temp_threshold
     lda train_wait_counter
-    cmp #60          // About 60 cycles = auto-advance
+    cmp temp_threshold
     bcc train_input_wait
     // Auto-advance!
     jmp train_next_stop
@@ -3677,6 +3864,19 @@ conductor_suffix_loop:
         inx
         bne conductor_suffix_loop
 conductor_suffix_done:
+    ; If train has delay factor, mention short delay
+    lda train_delay_factor
+    beq conductor_no_delay
+    ldx #0
+delay_msg_loop:
+        lda conductor_delay_msg,X
+        beq delay_msg_done
+        jsr modem_out
+        inx
+        bne delay_msg_loop
+delay_msg_done:
+    jsr modem_in
+conductor_no_delay:
     rts
 
 // View timetable routine (station menu)
@@ -4434,36 +4634,66 @@ circus_play_done:
     jmp town_show_menu
 
 circus_play:
+    ; Multi-round Juggler's Challenge: 3 rounds
+    ldx #0
+    lda #0
+    sta temp_amount      ; use temp_amount as success counter
+    ldy #3
+circus_round_loop:
     jsr get_random
     and #$03
-    cmp #0
-    beq circus_win
-    ; lose
-    ldx #0
-circus_lose_loop:
-        lda circus_lose_msg,X
-        beq circus_lose_done
-        jsr modem_out
-        inx
-        bne circus_lose_loop
-circus_lose_done:
-    jsr modem_in
-    jmp town_show_menu
-
-circus_win:
-    ; reward small gold and applause
-    lda player_gold
+    cmp #2
+    bcc circus_round_miss
+    ; success this round
+    inc temp_amount
+circus_round_miss:
+    dey
+    bne circus_round_loop
+    ; Compute reward: 5 + successes*3
+    lda temp_amount
+    clc
+    asl
+    clc
+    adc temp_amount
     clc
     adc #5
+    sta temp_amount
+    lda player_gold
+    clc
+    adc temp_amount
     sta player_gold
+    ; Update high score (store highest successes)
+    lda temp_amount
+    cmp circus_high_score
+    bcc circus_skip_hs
+    sta circus_high_score
+circus_skip_hs:
     ldx #0
-circus_win_loop:
-        lda circus_win_msg,X
-        beq circus_win_done
-        jsr modem_out
-        inx
-        bne circus_win_loop
+    ; If at least one success, show win message, else lose message
+    lda temp_amount
+    beq circus_show_lose
+    lda circus_win_msg,X
+    beq circus_win_done
+circus_show_win_loop:
+    lda circus_win_msg,X
+    beq circus_win_done
+    jsr modem_out
+    inx
+    bne circus_show_win_loop
 circus_win_done:
+    jsr modem_in
+    jsr set_achievement_circus
+    jmp town_show_menu
+
+circus_show_lose:
+    ldx #0
+circus_lose_loop2:
+    lda circus_lose_msg,X
+    beq circus_lose_done2
+    jsr modem_out
+    inx
+    bne circus_lose_loop2
+circus_lose_done2:
     jsr modem_in
     jmp town_show_menu
 
@@ -4585,6 +4815,7 @@ statue_done:
     jmp town_show_menu
 
 visit_marketplace:
+    jsr restock_shop
     ldx #0
 market_loop:
         lda marketplace_msg,X
@@ -4603,6 +4834,22 @@ bridge_loop:
 market_done:
     jsr modem_in
     jmp town_show_menu
+
+// Restock shop: small random price adjustments when visiting marketplace
+restock_shop:
+    jsr get_random
+    and #$03        ; base randomness
+    sta temp_amount
+    ldx #0
+restock_loop2:
+    lda shop_item_prices,X
+    clc
+    adc temp_amount
+    sta shop_item_prices,X
+    inx
+    cpx shop_items_count
+    bne restock_loop2
+    rts
 
 visit_witch_tent:
     ldx #0
@@ -19404,6 +19651,10 @@ not_arena_bet:
     bne not_view_rankings
     jmp view_arena_rankings
 not_view_rankings:
+    cmp #'5'
+    bne not_view_leaderboard
+    jmp view_arena_leaderboard
+not_view_leaderboard:
     cmp #'0'
     bne arena_wait_key
     jmp user_room_menu
@@ -19418,6 +19669,8 @@ quick_fight:
     beq quick_fight_lose
     // Won!
     inc arena_wins
+    jsr set_achievement_arena
+    jsr update_arena_leaderboard
     inc duels_won
     lda player_gold
     clc
@@ -19490,6 +19743,8 @@ ranked_lose_loop:
         bne ranked_lose_loop
 ranked_fight_win:
     inc arena_wins
+    jsr set_achievement_arena
+    jsr update_arena_leaderboard
     inc duels_won
     // Rank up check
     inc arena_rank
@@ -19523,6 +19778,24 @@ bet_has_fights:
     bcs bet_can_afford
     jmp arena_too_poor
 bet_can_afford:
+    ; Show current prize pool and ask confirmation before placing bet
+    ldx #0
+pool_label_loop:
+        lda pool_label_msg,X
+        beq pool_label_done
+        jsr modem_out
+        inx
+        bne pool_label_loop
+pool_label_done:
+    lda arena_prize_pool
+    jsr print_byte_decimal
+    jsr modem_in
+    cmp #'Y'
+    beq bet_confirmed
+    cmp #'y'
+    beq bet_confirmed
+    jmp arena_menu
+bet_confirmed:
     // Pay bet
     sec
     sbc #20
@@ -19534,6 +19807,7 @@ bet_can_afford:
     beq bet_fight_lose
     // Won bet!
     inc arena_wins
+    jsr update_arena_leaderboard
     inc duels_won
     lda player_gold
     clc
@@ -19574,6 +19848,7 @@ bet_win_loop:
         inx
         bne bet_win_loop
 bet_win_done:
+    jsr set_achievement_arena
     jmp arena_result_done
 bet_fight_lose:
     inc duels_lost
@@ -19602,6 +19877,37 @@ bet_lose_loop:
 bet_lose_done:
     jmp arena_result_done
 
+// Update arena leaderboard (top 3) using `arena_wins` as score
+update_arena_leaderboard:
+    lda arena_wins
+    cmp arena_leader_1
+    bcc check_leader_2
+    ; shift 1->2, 2->3
+    lda arena_leader_1
+    sta arena_leader_2
+    lda arena_leader_2
+    sta arena_leader_3
+    lda arena_wins
+    sta arena_leader_1
+    rts
+check_leader_2:
+    lda arena_wins
+    cmp arena_leader_2
+    bcc check_leader_3
+    lda arena_leader_2
+    sta arena_leader_3
+    lda arena_wins
+    sta arena_leader_2
+    rts
+check_leader_3:
+    lda arena_wins
+    cmp arena_leader_3
+    bcc update_done
+    lda arena_wins
+    sta arena_leader_3
+update_done:
+    rts
+
 arena_too_poor:
     ldx #0
 arena_poor_loop:
@@ -19627,7 +19933,7 @@ fights_left_msg:
     .text "  Fights: "
     .byte 0
 arena_prompt:
-    .text "\r\n\r\n1. Quick Fight (+10g)\r\n2. Ranked (+25g,rank)\r\n3. Bet Fight (20g->50g)\r\n4. View Rankings\r\n0. Back\r\n> "
+    .text "\r\n\r\n1. Quick Fight (+10g)\r\n2. Ranked (+25g,rank)\r\n3. Bet Fight (20g->50g)\r\n4. View Rankings\r\n5. View Leaderboard\r\n0. Back\r\n> "
     .byte 0
     .byte 0
 quick_win_msg:
@@ -19864,6 +20170,36 @@ rank_legend_loop:
         inx
         bne rank_legend_loop
 rank_legend_done:
+    jsr modem_in
+    jmp arena_menu
+
+view_arena_leaderboard:
+    ldx #0
+ldr_hdr_loop:
+        lda leaderboard_hdr_msg,X
+        beq ldr_hdr_done
+        jsr modem_out
+        inx
+        bne ldr_hdr_loop
+ldr_hdr_done:
+    ; Show top 3 leader win counts
+    ldx #0
+    lda arena_leader_1
+    jsr print_byte_decimal
+    lda arena_leader_2
+    jsr print_byte_decimal
+    lda arena_leader_3
+    jsr print_byte_decimal
+    ; Show prize pool (low byte approx)
+    ldx #0
+    lda prize_pool_msg,X
+    beq prize_pool_msg_done
+    jsr modem_out
+    inx
+    bne prize_pool_msg_done
+prize_pool_msg_done:
+    lda arena_prize_pool
+    jsr print_byte_decimal
     jsr modem_in
     jmp arena_menu
 
@@ -21503,6 +21839,142 @@ go_skills_no_points1:
     jmp skills_no_points
 go_skills_maxed1:
     jmp skills_maxed
+
+; -------------------------
+; Achievements & Tutorial
+; -------------------------
+set_achievement_circus:
+    lda player_feature_achievements
+    ora #$01
+    sta player_feature_achievements
+    rts
+
+set_achievement_arena:
+    lda player_feature_achievements
+    ora #$02
+    sta player_feature_achievements
+    rts
+
+set_achievement_train:
+    lda player_feature_achievements
+    ora #$04
+    sta player_feature_achievements
+    rts
+
+view_achievements:
+    ldx #0
+ach_hdr_loop:
+        lda achievements_hdr_msg,X
+        beq ach_hdr_done
+        jsr modem_out
+        inx
+        bne ach_hdr_loop
+ach_hdr_done:
+    ; Circus
+    lda player_feature_achievements
+    and #$01
+    beq ach_circus_locked
+    ldx #0
+    lda ach_circus_unlocked_msg,X
+    beq ach_circus_done
+    jsr modem_out
+    inx
+    bne ach_circus_unloop
+ach_circus_unloop:
+    jmp ach_circus_done
+ach_circus_locked:
+    ldx #0
+    lda ach_circus_locked_msg,X
+    beq ach_circus_done
+    jsr modem_out
+    inx
+    bne ach_circus_locked
+ach_circus_done:
+    ; Arena
+    lda player_feature_achievements
+    and #$02
+    beq ach_arena_locked
+    ldx #0
+    lda ach_arena_unlocked_msg,X
+    beq ach_arena_done
+    jsr modem_out
+    inx
+    bne ach_arena_unlocked_msg
+ach_arena_done:
+    lda player_feature_achievements
+    and #$02
+    beq ach_arena_skip
+    jmp ach_arena_skip
+ach_arena_locked:
+    ldx #0
+    lda ach_arena_locked_msg,X
+    beq ach_arena_done2
+    jsr modem_out
+    inx
+    bne ach_arena_locked
+ach_arena_done2:
+    jmp ach_train_check
+ach_arena_skip:
+    ; fallthrough
+    nop
+ach_train_check:
+    lda player_feature_achievements
+    and #$04
+    beq ach_train_locked
+    ldx #0
+    lda ach_train_unlocked_msg,X
+    beq ach_train_done
+    jsr modem_out
+    inx
+    bne ach_train_unlocked_msg
+ach_train_done:
+    jsr modem_in
+    jmp main_loop
+ach_train_locked:
+    ldx #0
+    lda ach_train_locked_msg,X
+    beq ach_train_done
+    jsr modem_out
+    inx
+    bne ach_train_locked
+
+tutorial_start:
+    ldx #0
+tut_loop:
+        lda tutorial_msg,X
+        beq tut_done
+        jsr modem_out
+        inx
+        bne tut_loop
+tut_done:
+    jsr modem_in
+    jmp main_loop
+
+achievements_hdr_msg:
+    .text "\r\n=== ACHIEVEMENTS ===\r\n"
+    .byte 0
+ach_circus_unlocked_msg:
+    .text "Circus: Juggler's Adept (Unlocked)\r\n"
+    .byte 0
+ach_circus_locked_msg:
+    .text "Circus: Juggler's Adept (Locked) - Win the Juggler's Challenge\r\n"
+    .byte 0
+ach_arena_unlocked_msg:
+    .text "Arena: Challenger (Unlocked)\r\n"
+    .byte 0
+ach_arena_locked_msg:
+    .text "Arena: Challenger (Locked) - Win an arena fight\r\n"
+    .byte 0
+ach_train_unlocked_msg:
+    .text "Train: Traveler (Unlocked)\r\n"
+    .byte 0
+ach_train_locked_msg:
+    .text "Train: Traveler (Locked) - Board the Everland Express\r\n"
+    .byte 0
+
+tutorial_msg:
+    .text "\r\n=== QUICK TUTORIAL ===\r\n- Circus: Test your timing in the Juggler's Challenge (Town key Q).\r\n- Arena: Buy a ticket or a season pass to enter; bets contribute to the prize pool.\r\n- Train: Buy a ticket to ride or get a season pass for unlimited rides.\r\n\r\n[Press any key to continue]\r\n"
+    .byte 0
 skills_upgrade_survival:
     lda skill_points
     beq go_skills_no_points2

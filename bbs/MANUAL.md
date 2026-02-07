@@ -244,6 +244,23 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 - **Quick-Save Command**: A quick-save hotkey `V` has been added to the main menu for fast saving. This invokes the same save routine as the regular Save option and provides a short confirmation message.
 
 
+### Detailed Notes on Recent Additions (2026-02-06)
+
+- **NPC Proactive Greetings**: While browsing the Town menu, NPCs may occasionally display short flavor greetings. These are cosmetic only and do not affect quests or stats.
+
+- **Circus — Juggler's Challenge**: The Circus Tent (Town key `Q`) hosts a three-round skill/dex challenge. Each round requires a simple timing/choice input; succeeding grants a small gold reward and can update your persistent `circus_high_score` recorded in-game.
+
+- **Arena Ticketing & Prize Pool**: Entering the Arena requires either a single-session Arena Ticket (5g) or an Arena Season Pass (30g). Session tickets are consumed on entry; season passes persist in your account. Lost bets contribute to an in-game `arena_prize_pool`; winners may draw from that pool in addition to standard rewards.
+
+- **Train Timetable & Conductor Flavor**: At the Train Station you can `View Timetable` to see scheduled stops. The conductor now announces the upcoming stop as the train approaches and may play short flavor lines. The system includes a dynamic delay factor that can affect the train's timing for immersion.
+
+- **Marketplace Restock & Expanded Items**: The Room Shop now contains three additional decorative items (Velvet Cushions — 35g, Bronze Sundial — 45g, Silken Drapes — 55g). Visiting the marketplace may trigger a light restock/price-adjust routine that shifts shop prices slightly over time.
+
+- **Quick-Save & Autosave Behavior**: Press `V` from the main menu for a quick save. The autosave system uses an alternating backup filename so recent autosaves do not overwrite the primary save; autosave alternates between `@0:EVSAVE,S,W` and `@0:EVSAVE1,S,W` (labels `save_filename` and `save_filename_alt` in the source). Autosave is triggered periodically by the main loop (configurable in code).
+
+These notes expand on the brief summaries in "Recent Additions & Updates" — see the relevant in-game menus (Train Station, Circus Tent, Arena, Marketplace, Main Menu) for interactive access.
+
+
 #### Mythos NPCs
 | NPC | Role | Quest Chain |
 |-----|------|-------------|
