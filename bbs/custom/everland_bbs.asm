@@ -1072,7 +1072,7 @@ portal_town_msg:
 town_menu_msg:
     .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary Q. Circus Tent\r\nS. The Stage\r\n0. Back to Portal\r\n> "
     .byte 0
-    .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary S. The Stage\r\n0. Back to Portal\r\n> "
+    .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary Q. Circus Tent\r\nR. Dense Forest      S. The Stage\r\n0. Back to Portal\r\n> "
     .byte 0
 
 // Town location messages
@@ -2639,10 +2639,18 @@ not_the_bridge:
     bne not_apothecary
     jmp visit_apothecary
 not_apothecary:
+    cmp #'T'
+    bne not_the_stage
+    jmp visit_tannery
+not_the_stage:
     cmp #'S'
     bne not_the_stage
     jmp visit_the_stage
 not_the_stage:
+    cmp #'R'
+    bne not_dense_forest
+    jmp visit_dense_forest
+not_dense_forest:
     cmp #'0'
     bne back_to_town_menu
     jmp go_portal_back
@@ -8356,21 +8364,60 @@ print_item_name:
             and #$07
             bne print_item_name
 item_name_done:
-        // Print quantity
+        // Print quantity or durability for pickaxes
         lda #' '
         jsr modem_out
+        ; compute slot base from Y
+        tya
+        asl
+        asl
+        clc
+        adc #1  ; offset to count slot for comparison usage
+        tax
+        ; get item id at slot base
+        tya
+        asl
+        asl
+        tax
+        lda player_inventory,X
+        cmp #14
+        beq print_pickaxe_dur
+        ; not a pickaxe: print 'xN'
         lda #'x'
         jsr modem_out
         tya
         asl
         asl
         clc
-        adc #1  // Offset to count
+        adc #1
         tax
-        lda player_inventory,X
+        lda player_inventory+1,X
         clc
         adc #'0'
         jsr modem_out
+        jmp item_qty_done
+
+    print_pickaxe_dur:
+        ; print durability in slot+2 as decimal
+        lda #'('
+        jsr modem_out
+        lda #'D'
+        jsr modem_out
+        lda #'u'
+        jsr modem_out
+        lda #'r'
+        jsr modem_out
+        lda #':'
+        jsr modem_out
+        tya
+        asl
+        asl
+        tax
+        lda player_inventory+2,X
+        jsr print_byte_decimal
+        lda #')'
+        jsr modem_out
+    item_qty_done:
         lda #13
         jsr modem_out
         iny

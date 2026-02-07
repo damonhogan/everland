@@ -105,52 +105,208 @@ player_messages_sent: .byte 0        // Messages sent
 player_achievements: .byte 0         // 8 achievement bits
 //   Bit 0: First Login
 //   Bit 1: Reached Level 5
-//   Bit 2: Slayed 10 Monsters
-//   Bit 3: Completed a Quest
-//   Bit 4: Made a Friend
-//   Bit 5: Visited 5 Rooms
-//   Bit 6: Earned 1000 Gold
-//   Bit 7: Master Adventurer
-
-// --- Gifting System Data ---
-player_gold: .word 100               // Player's gold balance
-player_gems: .byte 10                // Player's gem balance
-received_gifts: .fill 80, 0          // 5 gifts x 16 bytes (from:8, type:1, amount:1, msg:6)
-received_gifts_count: .byte 0        // Number of pending gifts
-gift_types_count: .byte 4            // Number of gift types
-gift_type_names:
-    .text "Gold    "                // 8 chars each
-    .text "Gems    "
-    .text "Flower  "
-    .text "Trophy  "
-gift_type_costs: .byte 10, 5, 2, 20  // Cost in gold for each gift type
-
-// --- Room Events Data ---
-user_events: .fill 96, 0             // 3 events x 32 bytes (title:16, time:8, type:1, attendees:7)
-user_events_count: .byte 0           // Number of scheduled events
-event_types_count: .byte 6
-event_type_names:
-    .text "Party   "                // 8 chars each
-    .text "Game    "
-    .text "Meeting "
-    .text "Contest "
-    .text "Lantern "                // Dragon Lantern Festival (October)
-    .text "Feast   "                // Realm feast events
-
-// --- Trade System Data ---
-player_inventory: .fill 32, 0        // 8 items x 4 bytes (id, count, 2 reserved)
-player_inventory_count: .byte 3      // Start with 3 items
-trade_offers: .fill 48, 0            // 3 trade offers x 16 bytes
-trade_offers_count: .byte 0
-item_names:
-    .text "Sword   "                // 8 chars each
-    .text "Shield  "
-    .text "Potion  "
-    .text "Ring    "
-    .text "Amulet  "
-    .text "Scroll  "
-    .text "Gem     "
-    .text "Key     "
+visit_craft_menu:
+    ; Print crafting header
+    ldx #0
+craft_menu_print:
+    lda craft_menu_msg,X
+    beq craft_menu_print_done
+    jsr modem_out
+    inx
+    bne craft_menu_print
+craft_menu_print_done:
+    jsr modem_in
+    ; List recipes: iterate recipes_table and print index + output item name
+    lda #<recipes_table
+    sta recipes_ptr_lo
+    lda #>recipes_table
+    sta recipes_ptr_hi
+    ldx #0
+    ldy #0
+list_recipes_loop:
+    ; compare X (entry counter) to recipe_count (assembler constant)
+    ; use X as counter — if X >= recipe_count then done
+    txa
+    cmp #recipe_count
+    bcs list_recipes_done
+    ; print index (X may be 0..99)
+    txa
+    cmp #10
+    bcc list_print_single_digit
+    cmp #20
+    bcc list_print_ten
+    cmp #30
+    bcc list_print_twenty
+    ; 30-39
+    lda #'3'
+    jsr modem_out
+    txa
+    sec
+    sbc #30
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp list_print_after_index
+list_print_ten:
+    lda #'2'
+    jsr modem_out
+    txa
+    sec
+    sbc #20
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp list_print_after_index
+list_print_twenty:
+    lda #'1'
+    jsr modem_out
+    txa
+    sec
+    sbc #10
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp list_print_after_index
+list_print_single_digit:
+    txa
+    clc
+    adc #'0'
+    jsr modem_out
+list_print_after_index:
+    lda #'.'
+    jsr modem_out
+    lda #' '
+    jsr modem_out
+    ; read output_id at offset +2
+    ldy #2
+    lda (recipes_ptr_lo),y
+    sta craft_out_id
+    ; compute name offset = craft_out_id * 8
+    lda craft_out_id
+    asl
+    asl
+    asl
+    tax
+print_recipe_name:
+    lda item_names,X
+    cmp #$20
+    beq recipe_name_done
+    jsr modem_out
+    inx
+    txa
+    and #$07
+    bne print_recipe_name
+recipe_name_done:
+    ; newline
+\n
+    lda #13
+    jsr modem_out
+    lda #10
+    jsr modem_out
+    ; advance pointer by 15 bytes to next recipe
+    lda recipes_ptr_lo
+    clc
+    adc #15
+    sta recipes_ptr_lo
+    lda recipes_ptr_hi
+    adc #0
+    sta recipes_ptr_hi
+    inx
+    jmp list_recipes_loop
+list_recipes_done:
+    ; prompt: enter multi-digit index, terminated by Enter (CR)
+    ldx #0
+    ldy #0
+    lda #0
+    sta temp_amount   ; accumulator for index
+read_index_loop:
+    jsr modem_in
+    ; check for CR (13)
+    cmp #13
+    beq read_index_done
+    ; ignore non-digits
+    cmp #'0'
+    bcc read_index_loop
+    cmp #'9'
+    bcs read_index_loop
+    ; convert digit
+    sec
+    sbc #'0'
+    ; A = digit (0..9)
+    ; multiply temp_amount by 10: temp_amount = temp_amount*10
+    lda temp_amount
+    tay
+    lda temp_amount
+    asl
+    asl
+    asl
+    sta craft_tmp2    ; temp*8
+    lda temp_amount
+    asl
+    clc
+    adc craft_tmp2
+    sta temp_amount   ; temp*10
+    ; add digit
+    clc
+    adc A
+    sta temp_amount
+    jmp read_index_loop
+read_index_done:
+    lda temp_amount
+    jsr craft_execute
+    lda craft_last_result
+    cmp #0
+    beq craft_result_ok
+    cmp #2
+    beq craft_result_insuff
+    cmp #3
+    beq craft_result_fail
+    cmp #1
+    beq craft_result_notfound
+    jmp craft_menu_done
+craft_result_ok:
+    ldx #0
+craft_result_ok_print:
+    lda craft_success_msg,X
+    beq craft_result_ok_done
+    jsr modem_out
+    inx
+    bne craft_result_ok_print
+craft_result_ok_done:
+    jmp craft_menu_done
+craft_result_insuff:
+    ldx #0
+craft_result_insuff_print:
+    lda craft_insuff_msg,X
+    beq craft_result_insuff_done
+    jsr modem_out
+    inx
+    bne craft_result_insuff_print
+craft_result_insuff_done:
+    jmp craft_menu_done
+craft_result_fail:
+    ldx #0
+craft_result_fail_print:
+    lda craft_fail_msg,X
+    beq craft_result_fail_done
+    jsr modem_out
+    inx
+    bne craft_result_fail_print
+craft_result_fail_done:
+    jmp craft_menu_done
+craft_result_notfound:
+    ldx #0
+craft_result_notfound_print:
+    lda craft_notfound_msg,X
+    beq craft_result_notfound_done
+    jsr modem_out
+    inx
+    bne craft_result_notfound_print
+craft_result_notfound_done:
+    jmp craft_menu_done
+craft_menu_done:
+    jsr modem_in
+    rts
 
 // --- Mini-Games Data ---
 game_rng_seed: .byte $A7             // Random seed
@@ -205,6 +361,28 @@ shop_restock_counter: .byte 0
 autosave_counter: .byte 0
 autosave_interval: .byte 120   // cycles before autosave (approx)
 autosave_slot: .byte 0         // alternate slot toggle
+// Detainment system: when placed in the Stocks or Jail the player
+// cannot leave until `detain_timer` counts down to zero.
+detain_timer: .byte 0          // remaining turns detained
+detain_type: .byte 0           // 0=none,1=stocks,2=jail
+// Crafting temps
+craft_temp: .byte 0
+craft_tmp2: .byte 0
+craft_last_result: .byte 0    ; 0=ok,1=notfound,2=insufficient,3=failure,4=no-space
+recipes_ptr_lo: .byte 0
+recipes_ptr_hi: .byte 0
+craft_in1_id: .byte 0
+craft_in1_qty: .byte 0
+craft_in2_id: .byte 0
+craft_in2_qty: .byte 0
+craft_in3_id: .byte 0
+craft_in3_qty: .byte 0
+craft_out_id: .byte 0
+craft_out_qty: .byte 0
+craft_out_dur: .byte 0
+craft_success_rate: .byte 0
+// Stamina support (pickaxes now tracked as inventory items with per-slot durability)
+player_stamina: .byte 12       // player's available stamina for digging (max 12)
 
 // maybe print an NPC greeting occasionally when in town
 maybe_npc_greet:
@@ -644,6 +822,8 @@ market_event_notify_done:
     jsr get_menu_input
     cmp #'1'
     beq go_play_everland
+    cmp #'7'
+    beq visit_sawmill
     cmp #'2'
     beq go_inventory
     cmp #'3'
@@ -1209,9 +1389,13 @@ portal_town_msg:
     .text "\r\nYou arrive in the TOWN OF EVERLAND. Cobblestone streets wind between timber-framed shops. Merchants call out their wares, children play by the fountain, and the scent of fresh bread mingles with woodsmoke.\r\n\r\nThis is the heart of the realm - where all journeys begin and end.\r\n"
 // --- Add to town menu ---
 town_menu_msg:
-    .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary Q. Circus Tent\r\nS. The Stage\r\n0. Back to Portal\r\n> "
+    .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary R. Forge\r\nT. Hex Trove (cold witch treats)\r\nU. Food Court East   V. Food Court West\r\nQ. Circus Tent       S. The Stage\r\n0. Back to Portal\r\n> "
     .byte 0
-    .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary S. The Stage\r\n0. Back to Portal\r\n> "
+    .text "\r\nTOWN OF EVERLAND:\r\n1. Train Station     A. Fairy Gardens\r\n2. Tipsy Maiden      B. Arena\r\n3. Kettle Cafe       C. Pirate Ship\r\n4. Copper Confection D. Tower\r\n5. Glass House       E. Church\r\n6. Dragon Haven      F. Catacombs\r\n7. Temple Ruins      G. Statue of Michael\r\n8. Louden's Rest     H. Marketplace\r\n9. The Moselem       I. Witch's Tent\r\nM. Moon Portal       J. Hunter's Hovel\r\nK. The Burrows       L. Mystic's Tent\r\nN. Central Plaza     O. The Bridge\r\nP. Kira's Apothecary R. Forge\r\nT. Hex Trove (cold witch treats)\r\nU. Food Court East   V. Food Court West\r\nQ. Circus Tent       S. The Stage\r\n0. Back to Portal\r\n> "
+    .byte 0
+
+town_menu_extra_msg:
+    .text "W. Stocks  X. Archery  Y. Ax Throwing  Z. Jail\r\n"
     .byte 0
 
 // Town location messages
@@ -1259,6 +1443,130 @@ moon_portal_msg:
     .byte 0
 fairy_gardens_msg:
     .text "\r\nThe FAIRY GARDENS bloom with impossible flowers. A giant pumpkin husk glows warmly - home to the Pumpkin Fairies. Tiny lights flit between petals as fairies tend their magical grove.\r\n"
+    .byte 0
+forge_msg:
+    .text "\r\nThe FORGE roars with heat. Sparks fly as blacksmiths hammer glowing metal. Weapons and trinkets are forged to order.\r\n\r\n'Need a blade or a horseshoe? We can craft it for a fee.'\r\n[Press any key]\r\n"
+    .byte 0
+
+forge_menu_msg:
+    .text "\r\nFORGE - What would you like to craft?\r\n1) Ring (requires 2 Gems)\r\n2) Amulet (requires 3 Gems)\r\n3) Potion (requires 1 Gem)\r\n4) Make Pickaxe (requires 2 Iron + 1 Plank)\r\n5) Cut Gem (1 Gem -> Ruby/Sapphire/Emerald)\r\n6) Make Knife (1 Iron + 1 Leather)\r\n7) Make Dagger (2 Iron + 1 Leather)\r\n8) Make Hammer (2 Iron + 1 Plank)\r\n9) Make Axe (2 Iron + 1 Plank + 1 Leather)\r\na) Make Sword (4 Iron + 2 Plank + 1 Leather)\r\nb) Make Shield (3 Iron + 2 Plank + 1 Leather)\r\nc) Make Armor (6 Iron + 4 Leather)\r\n0) Leave\r\n> "
+    .byte 0
+craft_ring_success_msg:
+    .text "\r\nYou fashion a simple ring from the gems. It feels lucky.\r\n[Press any key]\r\n"
+    .byte 0
+craft_ring_ruby_msg:
+    .text "\r\nYou set the ruby into a warmed band — a fine ruby ring.\r\n[Press any key]\r\n"
+    .byte 0
+craft_ring_sapphire_msg:
+    .text "\r\nA sapphire gleams in the ring you cut and polish.\r\n[Press any key]\r\n"
+    .byte 0
+craft_ring_emerald_msg:
+    .text "\r\nYou craft a delicate ring and set the emerald within.\r\n[Press any key]\r\n"
+    .byte 0
+craft_amulet_success_msg:
+    .text "\r\nYou craft a small amulet, its stone set in a humble setting.\r\n[Press any key]\r\n"
+    .byte 0
+craft_amulet_ruby_msg:
+    .text "\r\nThe ruby amulet sings faintly — a sturdy charm.\r\n[Press any key]\r\n"
+    .byte 0
+craft_amulet_sapphire_msg:
+    .text "\r\nA sapphire amulet, cool and deep, rests in your hands.\r\n[Press any key]\r\n"
+    .byte 0
+craft_amulet_emerald_msg:
+    .text "\r\nAn emerald amulet glows with quiet life.\r\n[Press any key]\r\n"
+    .byte 0
+craft_potion_success_msg:
+    .text "\r\nYou mix and bottle a crude potion. It bubbles faintly.\r\n[Press any key]\r\n"
+    .byte 0
+craft_insufficient_msg:
+    .text "\r\nYou do not have the required materials to craft that.\r\n[Press any key]\r\n"
+    .byte 0
+craft_no_space_msg:
+    .text "\r\nYour inventory is too full to hold what you craft. Clear a slot first.\r\n[Press any key]\r\n"
+    .byte 0
+hextrove_msg:
+    .text "\r\nHEX TROVE - A curious shop of witchy cold treats. Candied frost and enchanted sorbets line the shelves, each labeled with whimsical warnings.\r\n\r\n'One lick and you'll forget your troubles... for an hour.'\r\n[Press any key]\r\n"
+    .byte 0
+foodcourt_east_msg:
+    .text "\r\nFOOD COURT - EAST WING: Hearty full meals are served on wooden platters. Roasts, stews, and savory pies fill the air with mouthwatering aromas.\r\n\r\n'Come hungry, leave satisfied.'\r\n[Press any key]\r\n"
+    .byte 0
+foodcourt_west_msg:
+    .text "\r\nFOOD COURT - WEST WING: Warm soups and fresh sandwiches are offered at a modest price. Perfect for a light meal between adventures.\r\n\r\n'Simple, wholesome, and quick.'\r\n[Press any key]\r\n"
+    .byte 0
+stocks_msg:
+    .text "\r\nTHE STOCKS: A wooden frame stands in the square, its holes meant for hands and head. Townsfolk gather to point and laugh at those who have earned a public lesson.\r\n\r\n'Step too far and you'll find yourself bound in the stocks.'\r\n[Press any key]\r\n"
+    .byte 0
+archery_msg:
+    .text "\r\nARCHERY RANGE: Targets line the field. Bowstrings twang as archers test their aim. A small contest awards prizes for accuracy.\r\n\r\n'Try your hand at the target and earn a token of skill.'\r\n[Press any key]\r\n"
+    .byte 0
+ax_throw_msg:
+    .text "\r\nAX THROWING PIT: Stout logs wait as challengers toss axes for sport. Test your strength and precision—watch your footing.\r\n\r\n'Land your axe cleanly and the crowd will cheer.'\r\n[Press any key]\r\n"
+    .byte 0
+jail_msg:
+    .text "\r\nTOWN JAIL: Rusted bars and a bored jailer. Some come here by accident, others by design. Keep your nose clean, traveller.\r\n\r\n'No tavern tales in here, just quiet and stone.'\r\n[Press any key]\r\n"
+    .byte 0
+detained_stocks_msg:
+    .text "\r\nA guard clamps you into the stocks. You are held fast and cannot leave for a time.\r\nPress any key to wait.\r\n"
+    .byte 0
+detained_jail_msg:
+    .text "\r\nThe jailer locks the iron door. You are confined in the town jail and cannot leave for a while.\r\nPress any key to wait.\r\n"
+    .byte 0
+post_office_msg:
+    .text "\r\nPOST OFFICE: Stamps, letters, and parcels. Send a message to a distant friend or collect a waiting package.\r\n\r\n'Address it clearly, and it may find its way.'\r\n[Press any key]\r\n"
+    .byte 0
+mine_msg:
+    .text "\r\nMINE ENTRANCE: A gaping shaft yawns here, the air cool and damp. Miners' tools lie scattered; the mine mouth promises ore and risk.\r\n\r\n'Descend and try your luck — but mind your footing.'\r\n[Press any key]\r\n"
+    .byte 0
+mine_menu_msg:
+    .text "\r\nMINE: What do you want to do?\r\n1) Mine for ore\r\n0) Leave\r\n> "
+    .byte 0
+mine_no_ore_msg:
+    .text "\r\nYou chip at the rock but find nothing of value.\r\n[Press any key]\r\n"
+    .byte 0
+mine_copper_msg:
+    .text "\r\nYou pry free a vein of copper ore and stash it away.\r\n[Press any key]\r\n"
+    .byte 0
+mine_iron_msg:
+    .text "\r\nYou strike iron and haul it back to the surface.\r\n[Press any key]\r\n"
+    .byte 0
+mine_silver_msg:
+    .text "\r\nA flash of silver! You pocket the glinting ore carefully.\r\n[Press any key]\r\n"
+    .byte 0
+mine_gem_msg:
+    .text "\r\nAmong the rocks you find a rough gem — a lucky find indeed.\r\n[Press any key]\r\n"
+    .byte 0
+food_east_menu_msg:
+    .text "\r\nFood Court - Full Meal:\r\n1) Buy Meal (8 gold, restores 8 stamina)\r\n0) Leave\r\n> "
+    .byte 0
+food_east_thanks_msg:
+    .text "\r\nYou eat a hearty meal and feel refreshed.\r\n[Press any key]\r\n"
+    .byte 0
+food_west_menu_msg:
+    .text "\r\nFood Court - Light Meal:\r\n1) Buy Soup (4 gold, restores 4 stamina)\r\n0) Leave\r\n> "
+    .byte 0
+food_west_thanks_msg:
+    .text "\r\nThe warm soup restores some of your energy.\r\n[Press any key]\r\n"
+    .byte 0
+foodcourt_no_gold_msg:
+    .text "\r\nYou don't have enough gold for that meal.\r\n[Press any key]\r\n"
+    .byte 0
+mine_tired_msg:
+    .text "\r\nYou are too tired to dig. Rest up before attempting more mining.\r\n[Press any key]\r\n"
+    .byte 0
+quarry_msg:
+    .text "\r\nGEM QUARRY: The quarry yawns with rocky shelves and glittering veins. Miners tap at seams searching for rough gems to be cut and set.\r\n\r\n'Careful now — the quarry yields both common and rare stones.'\r\n[Press any key]\r\n"
+    .byte 0
+quarry_menu_msg:
+    .text "\r\nGEM QUARRY: 1) Dig for gems\r\n0) Leave\r\n> "
+    .byte 0
+quarry_no_ore_msg:
+    .text "\r\nYou search the seams but find only common rock.\r\n[Press any key]\r\n"
+    .byte 0
+quarry_common_gem_msg:
+    .text "\r\nYou unearth a rough gem and carefully pocket it.\r\n[Press any key]\r\n"
+    .byte 0
+quarry_rare_gem_msg:
+    .text "\r\nYou strike something that flashes with inner fire — a rare gem! Handle with care.\r\n[Press any key]\r\n"
     .byte 0
 lezule_msg:
     .text "\r\nLezule the Fairy hovers before you, sweet and shy. 'Welcome, traveler. We guard the stolen names here... the Unseely Fae would have them all.'\r\n\r\n(Quest: Help Lezule protect a stolen name from the Unseely Fae.)\r\n"
@@ -1335,7 +1643,7 @@ bridge_troll_msg:
 portal_witch_msg:
     .text "\r\nAt the edge of town, you find the WITCH'S TENT. Smoke curls from a crooked chimney. Herbs hang drying from the ceiling, and cauldrons bubble with mysterious brews.\r\n\r\nThe air smells of sage, moonflower, and something... otherworldly.\r\n"
 witch_npc_menu_msg:
-    .text "\r\nWITCH'S TENT:\r\n1. Speak to Tammis\r\n2. Speak to Saga\r\n3. Browse Potions\r\n4. Back to Town\r\n\r\nLore: Twin witches who see past and future, bound by sisterhood and ancient craft.\r\n> "
+    .text "\r\nWITCH'S TENT:\r\n1. Speak to Tammis\r\n2. Speak to Saga\r\n3. Browse Potions\r\n4. Back to Town\r\n5. Mystic Crafting\r\n6. Spell Research\r\n\r\nLore: Twin witches who see past and future, bound by sisterhood and ancient craft.\r\n> "
     .byte 0
 
 // Hunter's Hovel (Winter Wolves territory)
@@ -1357,6 +1665,35 @@ frost_queen_msg:
 // Mystic's Tent (Mela, Kal, Daemos - secretly vampires!)
 mystics_tent_msg:
     .text "\r\nTHE MYSTIC'S TENT draws seekers of forbidden knowledge. Incense smoke swirls around crystal balls and ancient scrolls.\r\n"
+    .byte 0
+
+; --- Mystic crafting/research messages ---
+mystic_craft_menu_msg:
+    .text "\r\nMYSTIC CRAFTING:\r\n1) Craft Spell Scroll (1 Gem + 1 Leather)\r\n2) Craft Magic Trinket (2 Gems + 1 Leather)\r\n0) Back\r\n> "
+    .byte 0
+
+craft_scroll_success_msg:
+    .text "\r\nYou inscribe arcane runes into a Spell Tome.\r\n[Press any key]\r\n"
+    .byte 0
+
+craft_trinket_success_msg:
+    .text "\r\nYou assemble a small enchanted trinket.\r\n[Press any key]\r\n"
+    .byte 0
+
+mystic_insuf_msg:
+    .text "\r\nYou lack the required materials.\r\n[Press any key]\r\n"
+    .byte 0
+
+research_menu_msg:
+    .text "\r\nSPELL RESEARCH:\r\nCost: 20 gold. Chance to discover a Spell Tome.\r\n1) Research (20g)\r\n0) Back\r\n> "
+    .byte 0
+
+research_success_msg:
+    .text "\r\nYour research yields a new fragment of power!\r\n[Press any key]\r\n"
+    .byte 0
+
+research_fail_msg:
+    .text "\r\nThe ritual fails; the gold is spent.\r\n[Press any key]\r\n"
     .byte 0
 mela_msg:
     .text "\r\nMela regards you with beguiling charisma and ethereal grace. Her enchanting presence promises transcendence beyond mortal existence.\r\n\r\n'I sent Mage Damon to seek Torin of the Unseely Fae... for forbidden knowledge.' Kal whispers promises of power. Daemos watches from shadows.\r\n\r\n(Warning: Experiments with Kasimere's ashes and necromancy transformed them into vampires!)\r\n\r\nTemptation Quest Chain:\r\n1. Resist their promises of immortality\r\n2. Uncover their vampiric nature\r\n3. Expose Daemos's schemes for the Spider Princess\r\n4. Choose: Join them or destroy them\r\n\r\n(Quest: Unravel the mystics' dark covenant.)\r\n[Press any key]\r\n"
@@ -1400,6 +1737,18 @@ kira_apothecary_msg:
     .byte 0
 kira_msg:
     .text "\r\nKira stands behind the counter, hair like newly spun gold, hands dusted with dried petals. Her smile is warm - the kind that makes aches feel remote.\r\n\r\n'Welcome, Mr. Damon! Balm of Quick Mend for wounds, Oil of Orchid for massages... or perhaps just a moment of care?'\r\n\r\nShe whispers: 'I too am an aspiring magic-user - small charms, healing threads, sachets for restless spirits.'\r\n\r\nFirst Light Quest Chain:\r\n1. Accept healing for your wounds\r\n2. Experience the massage table with scented oils\r\n3. Share stories of magic and craft\r\n4. Return at dusk when the lamp is lit\r\n\r\n'We'll call it mutual craft - you mend quarrels, I mend weariness.'\r\n\r\n(Quest: Return at dusk to speak of other matters.)\r\n[Press any key]\r\n"
+    .byte 0
+apothecary_menu_msg:
+    .text "\r\nKIRA'S APOTHECARY - Crafting Table:\r\n1) Healing Potion (1 Gem + 1 Berry)\r\n2) Poison (1 Meat + 1 Berry)\r\n0) Leave\r\n> "
+    .byte 0
+craft_heal_success_msg:
+    .text "\r\nYou carefully distill the ingredients into a small vial. A warm light emanates from the liquid.\r\n[Press any key]\r\n"
+    .byte 0
+craft_poison_success_msg:
+    .text "\r\nYou brew a foul tincture. The smell makes your head swim. Handle with care.\r\n[Press any key]\r\n"
+    .byte 0
+apothecary_insuf_msg:
+    .text "\r\nKira shakes her head. 'You lack the proper ingredients.'\r\n[Press any key]\r\n"
     .byte 0
 
 // === THE STAGE - GREG THE FIRE DANCER MESSAGES ===
@@ -2817,11 +3166,20 @@ skip_npc_greet:
 town_show_menu:
     ldx #0
 town_menu_loop:
-        lda town_menu_msg,X
+    lda town_menu_msg,X
         beq town_menu_done
         jsr modem_out
         inx
         bne town_menu_loop
+    ; print extra town menu entries (W-X-Y-Z)
+    ldx #0
+town_menu_extra_loop:
+        lda town_menu_extra_msg,X
+        beq town_menu_extra_done
+        jsr modem_out
+        inx
+        bne town_menu_extra_loop
+town_menu_extra_done:
 town_menu_done:
     jsr modem_in
     // Number keys 1-9
@@ -2926,6 +3284,38 @@ not_the_bridge:
     bne not_apothecary
     jmp visit_apothecary
 not_apothecary:
+    cmp #'R'
+    bne not_forge
+    jmp visit_forge
+not_forge:
+    cmp #'T'
+    bne not_hextrove
+    jmp visit_hex_trove
+not_hextrove:
+    cmp #'U'
+    bne not_food_east
+    jmp visit_foodcourt_east
+not_food_east:
+    cmp #'V'
+    bne not_food_west
+    jmp visit_foodcourt_west
+not_food_west:
+    cmp #'W'
+    bne not_stocks
+    jmp visit_stocks
+not_stocks:
+    cmp #'X'
+    bne not_archery
+    jmp visit_archery
+not_archery:
+    cmp #'Y'
+    bne not_ax_throw
+    jmp visit_ax_throwing
+not_ax_throw:
+    cmp #'Z'
+    bne not_jail
+    jmp visit_jail
+not_jail:
     cmp #'Q'
     bne not_circus
     jmp visit_circus_tent
@@ -4422,8 +4812,23 @@ tipsy_loop:
         inx
         bne tipsy_loop
 tipsy_done:
+    ; Show tavern mini-game menu
+    ldx #0
+tavern_menu_loop:
+        lda tavern_menu_msg,X
+        beq tavern_menu_done
+        jsr modem_out
+        inx
+        bne tavern_menu_loop
+tavern_menu_done:
     jsr modem_in
-    jmp town_show_menu
+    cmp #'1'
+    beq tavern_play_dice
+    cmp #'2'
+    beq tavern_armwrestle
+    cmp #'0'
+    beq town_show_menu
+    jmp visit_tipsy_maiden
 
 visit_kettle_cafe:
     ldx #0
@@ -4437,6 +4842,116 @@ kettle_done:
     jsr modem_in
     jmp town_show_menu
 
+// Tavern mini-games
+tavern_menu_msg:
+    .text "\r\nTIPSY MAIDEN - Tavern Games:\r\n1. Dice (bet 2g, win 6g)\r\n2. Arm Wrestling (no bet, win 8g on success)\r\n0. Back\r\n> "
+    .byte 0
+
+tavern_dice_win_msg:
+    .text "\r\nYou roll lucky! You win 6 gold!\r\n[Press any key]\r\n"
+    .byte 0
+tavern_dice_lose_msg:
+    .text "\r\nBad roll... you lose 2 gold.\r\n[Press any key]\r\n"
+    .byte 0
+tavern_arm_win_msg:
+    .text "\r\nYou slam your foe; victory! +8g\r\n[Press any key]\r\n"
+    .byte 0
+tavern_arm_lose_msg:
+    .text "\r\nYou strain and lose -3 HP.\r\n[Press any key]\r\n"
+    .byte 0
+
+tavern_play_dice:
+    lda player_gold
+    cmp #2
+    bcs tavern_dice_afford
+    jmp tavern_poor
+tavern_dice_afford:
+    sec
+    sbc #2
+    sta player_gold
+    jsr get_random
+    and #$01
+    beq tavern_dice_lose
+    ; win 6g
+    lda player_gold
+    clc
+    adc #6
+    sta player_gold
+    ldx #0
+tavern_dice_win_loop:
+        lda tavern_dice_win_msg,X
+        beq tavern_dice_win_done
+        jsr modem_out
+        inx
+        bne tavern_dice_win_loop
+tavern_dice_win_done:
+    jsr modem_in
+    jmp visit_tipsy_maiden
+tavern_dice_lose:
+    ; already subtracted 2g
+    ldx #0
+tavern_dice_lose_loop:
+        lda tavern_dice_lose_msg,X
+        beq tavern_dice_lose_done
+        jsr modem_out
+        inx
+        bne tavern_dice_lose_loop
+tavern_dice_lose_done:
+    jsr modem_in
+    jmp visit_tipsy_maiden
+
+tavern_armwrestle:
+    jsr get_random
+    and #$01
+    beq tavern_arm_lose
+    ; win: +8g
+    lda player_gold
+    clc
+    adc #8
+    sta player_gold
+    ldx #0
+tavern_arm_win_loop:
+        lda tavern_arm_win_msg,X
+        beq tavern_arm_win_done
+        jsr modem_out
+        inx
+        bne tavern_arm_win_loop
+tavern_arm_win_done:
+    jsr modem_in
+    jmp visit_tipsy_maiden
+tavern_arm_lose:
+    lda player_hp
+    sec
+    sbc #3
+    bcs tavern_arm_hp_ok
+    lda #1
+tavern_arm_hp_ok:
+    sta player_hp
+    ldx #0
+tavern_arm_lose_loop:
+        lda tavern_arm_lose_msg,X
+        beq tavern_arm_lose_done
+        jsr modem_out
+        inx
+        bne tavern_arm_lose_loop
+tavern_arm_lose_done:
+    jsr modem_in
+    jmp visit_tipsy_maiden
+
+tavern_poor:
+    ldx #0
+    lda tavern_poor_msg,X
+    beq tavern_poor_done
+    jsr modem_out
+    inx
+    bne tavern_poor
+tavern_poor_done:
+    jsr modem_in
+    jmp visit_tipsy_maiden
+tavern_poor_msg:
+    .text "\r\nYou don't have enough gold for that game.\r\n[Press any key]\r\n"
+    .byte 0
+
 visit_copper_confection:
     ldx #0
 copper_loop:
@@ -4447,6 +4962,3315 @@ copper_loop:
         bne copper_loop
 copper_done:
     jsr modem_in
+    jmp town_show_menu
+
+// Stocks - market trading pit
+visit_stocks:
+    ldx #0
+stocks_loop:
+        lda stocks_msg,X
+        beq stocks_done
+        jsr modem_out
+        inx
+        bne stocks_loop
+stocks_done:
+    jsr modem_in
+    ; place player in the stocks for a short time (3 turns)
+    lda #3
+    sta detain_timer
+    lda #1
+    sta detain_type
+    ; immediately show detained message
+    ldx #0
+detain_stocks_print:
+    lda detained_stocks_msg,X
+    beq detain_stocks_print_done
+    jsr modem_out
+    inx
+    bne detain_stocks_print
+detain_stocks_print_done:
+    jsr modem_in
+    jmp town_show_menu
+
+// Archery range
+visit_archery:
+    ldx #0
+archery_loop:
+        lda archery_msg,X
+        beq archery_done
+        jsr modem_out
+        inx
+        bne archery_loop
+archery_done:
+    jsr modem_in
+    jmp town_show_menu
+
+// Ax throwing range
+visit_ax_throwing:
+    ldx #0
+ax_loop:
+        lda ax_throw_msg,X
+        beq ax_done
+        jsr modem_out
+        inx
+        bne ax_loop
+ax_done:
+    jsr modem_in
+    jmp town_show_menu
+
+// Local jail
+visit_jail:
+    ldx #0
+jail_loop:
+        lda jail_msg,X
+        beq jail_done
+        jsr modem_out
+        inx
+        bne jail_loop
+jail_done:
+    jsr modem_in
+    ; place player in jail for a longer time (6 turns)
+    lda #6
+    sta detain_timer
+    lda #2
+    sta detain_type
+    ; immediately show detained message
+    ldx #0
+detain_jail_print:
+    lda detained_jail_msg,X
+    beq detain_jail_print_done
+    jsr modem_out
+    inx
+    bne detain_jail_print
+detain_jail_print_done:
+    jsr modem_in
+    jmp town_show_menu
+
+// Post Office (reachable from marketplace)
+visit_post_office:
+    ldx #0
+post_loop:
+        lda post_office_msg,X
+        beq post_done
+        jsr modem_out
+        inx
+        bne post_loop
+post_done:
+    jsr modem_in
+    jmp visit_marketplace
+
+// Mine location - accessible from the marketplace (option 3)
+visit_mine:
+    ldx #0
+mine_loop:
+        lda mine_msg,X
+        beq mine_done
+        jsr modem_out
+        inx
+        bne mine_loop
+mine_done:
+    jsr modem_in
+    ; show mine menu
+    ldx #0
+mine_menu_print:
+    lda mine_menu_msg,X
+    beq mine_menu_print_done
+    jsr modem_out
+    inx
+    bne mine_menu_print
+mine_menu_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq mine_do_mine
+    cmp #'0'
+    beq mine_leave
+    jmp visit_mine
+
+mine_do_mine:
+    ; Check stamina
+    lda player_stamina
+    beq mine_too_tired
+    ; Search inventory for a usable pickaxe (id=14, durability in slot+2)
+    lda player_inventory_count
+    beq mine_no_pickaxe_use
+    ldy #0
+mine_find_pickaxe_loop:
+    cpy player_inventory_count
+    beq mine_no_pickaxe_use
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #14
+    bne mine_find_pickaxe_next
+    lda player_inventory+2,X
+    cmp #0
+    beq mine_find_pickaxe_next
+    ; found usable pickaxe in slot Y (X points to slot base)
+    ; decrement durability in-place
+    dec player_inventory+2,X
+    ; small stamina cost
+    dec player_stamina
+    ; if durability reached 0, remove the slot and notify
+    lda player_inventory+2,X
+    beq mine_pickaxe_broken_slot
+    jmp mine_roll
+
+mine_find_pickaxe_next:
+    iny
+    jmp mine_find_pickaxe_loop
+
+mine_pickaxe_broken_slot:
+    ; inform player
+    ldx #0
+    lda craft_pickaxe_broken_msg,X
+    beq mine_pickaxe_broken_done
+    jsr modem_out
+    inx
+    bne mine_pickaxe_broken_slot
+mine_pickaxe_broken_done:
+    jsr modem_in
+    ; remove this inventory slot (X currently points to slot base)
+    ; compute slot index in Y (from X): Y = X/4
+    tya
+    ; shift subsequent slots down
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+mine_shift_loop_broken:
+    cpy craft_tmp2
+    beq mine_shift_done_broken
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp mine_shift_loop_broken
+mine_shift_done_broken:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp visit_mine
+
+mine_no_pickaxe_use:
+    ; no pickaxe: higher stamina cost and worse odds
+    dec player_stamina
+    dec player_stamina
+    jmp mine_roll
+
+mine_too_tired:
+    ldx #0
+    lda mine_tired_msg,X
+    beq mine_tired_done
+    jsr modem_out
+    inx
+    bne mine_tired
+mine_tired_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_roll:
+    ; RNG to determine result
+    jsr get_random
+    and #$07
+    ; 0-3: nothing, 4-5: copper, 6: iron, 7: silver/gem mixed
+    cmp #4
+    bcc mine_no_ore
+    cmp #5
+    beq mine_copper
+    cmp #6
+    beq mine_iron
+    cmp #7
+    beq mine_silver
+    jmp mine_no_ore
+
+mine_no_ore:
+    ldx #0
+mine_no_print:
+    lda mine_no_ore_msg,X
+    beq mine_no_done
+    jsr modem_out
+    inx
+    bne mine_no_print
+mine_no_done:
+    jsr modem_in
+    jmp visit_mine
+
+; Generic helper: add item id in A with count=1
+; Search for existing slot, else append if space
+mine_add_item:
+    ; A = item id
+    pha
+    lda player_inventory_count
+    beq mine_append_item
+    ldy #0
+mine_find_slot:
+    cpy player_inventory_count
+    beq mine_append_item
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp (0),y ; placeholder, will be replaced by A from stack
+    ; instead, pull from stack to X - we'll implement differently below
+    iny
+    jmp mine_find_slot
+
+; (simpler implementation follows inline per resource)
+
+mine_copper:
+    ; item id for Copper is 8
+    lda #8
+    jsr mine_add_or_increment
+    ldx #0
+mine_copper_print:
+    lda mine_copper_msg,X
+    beq mine_copper_done
+    jsr modem_out
+    inx
+    bne mine_copper_print
+mine_copper_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_too_tired:
+    ldx #0
+mine_tired:
+    lda mine_tired_msg,X
+    beq mine_tired_done
+    jsr modem_out
+    inx
+    bne mine_tired
+mine_tired_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_broken_pickaxe:
+    ldx #0
+mine_broken_print:
+    lda craft_pickaxe_broken_msg,X
+    beq mine_broken_done
+    jsr modem_out
+    inx
+    bne mine_broken_print
+mine_broken_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_iron:
+    lda #9
+    jsr mine_add_or_increment
+    ldx #0
+mine_iron_print:
+    lda mine_iron_msg,X
+    beq mine_iron_done
+    jsr modem_out
+    inx
+    bne mine_iron_print
+mine_iron_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_silver:
+    lda #10
+    jsr mine_add_or_increment
+    ldx #0
+mine_silver_print:
+    lda mine_silver_msg,X
+    beq mine_silver_done
+    jsr modem_out
+    inx
+    bne mine_silver_print
+mine_silver_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_gem:
+    lda #6
+    jsr mine_add_or_increment
+    ldx #0
+mine_gem_print:
+    lda mine_gem_msg,X
+    beq mine_gem_done
+    jsr modem_out
+    inx
+    bne mine_gem_print
+mine_gem_done:
+    jsr modem_in
+    jmp visit_mine
+
+mine_leave:
+    jmp visit_marketplace
+
+// Gem Quarry - dig for various gems used for cutting and crafting
+visit_quarry:
+    ldx #0
+quarry_loop:
+        lda quarry_msg,X
+        beq quarry_done
+        jsr modem_out
+        inx
+        bne quarry_loop
+quarry_done:
+    jsr modem_in
+    ; show quarry menu
+    ldx #0
+quarry_menu_print:
+    lda quarry_menu_msg,X
+    beq quarry_menu_print_done
+    jsr modem_out
+    inx
+    bne quarry_menu_print
+quarry_menu_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq quarry_dig
+    cmp #'0'
+    beq quarry_leave
+    jmp visit_quarry
+
+quarry_dig:
+    ; Check stamina
+    lda player_stamina
+    beq quarry_too_tired
+    ; Search inventory for usable pickaxe (id=14)
+    lda player_inventory_count
+    beq quarry_no_pickaxe_use
+    ldy #0
+quarry_find_pickaxe_loop:
+    cpy player_inventory_count
+    beq quarry_no_pickaxe_use
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #14
+    bne quarry_find_pickaxe_next
+    lda player_inventory+2,X
+    cmp #0
+    beq quarry_find_pickaxe_next
+    ; use this pickaxe
+    dec player_inventory+2,X
+    dec player_stamina
+    lda player_inventory+2,X
+    beq quarry_pickaxe_broken_slot
+    jmp quarry_roll
+
+quarry_find_pickaxe_next:
+    iny
+    jmp quarry_find_pickaxe_loop
+
+quarry_pickaxe_broken_slot:
+    ldx #0
+    lda craft_pickaxe_broken_msg,X
+    beq quarry_pickaxe_broken_done
+    jsr modem_out
+    inx
+    bne quarry_pickaxe_broken_slot
+quarry_pickaxe_broken_done:
+    jsr modem_in
+    ; remove broken slot (same shifting logic as elsewhere)
+    tya
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+quarry_shift_loop_broken:
+    cpy craft_tmp2
+    beq quarry_shift_done_broken
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp quarry_shift_loop_broken
+quarry_shift_done_broken:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp visit_quarry
+
+quarry_no_pickaxe_use:
+    dec player_stamina
+    jmp quarry_roll
+
+quarry_too_tired:
+    ldx #0
+    lda mine_tired_msg,X
+    beq quarry_tired_done
+    jsr modem_out
+    inx
+    bne quarry_tired
+quarry_tired_done:
+    jsr modem_in
+    jmp visit_quarry
+
+quarry_roll:
+    jsr get_random
+    and #$0F
+    ; Probabilities: 0-8 nothing, 9-11 common, 12-13 rare, 14-15 very rare
+    cmp #9
+    bcc quarry_no_ore
+    cmp #12
+    bcc quarry_common
+    cmp #14
+    bcc quarry_rare
+    jmp quarry_very_rare
+
+quarry_no_ore:
+    ldx #0
+quarry_no_print:
+    lda quarry_no_ore_msg,X
+    beq quarry_no_done
+    jsr modem_out
+    inx
+    bne quarry_no_print
+quarry_no_done:
+    jsr modem_in
+    jmp visit_quarry
+
+quarry_common:
+    lda #6        ; generic Gem id
+    jsr mine_add_or_increment
+    ldx #0
+quarry_common_print:
+    lda quarry_common_gem_msg,X
+    beq quarry_common_done
+    jsr modem_out
+    inx
+    bne quarry_common_print
+quarry_common_done:
+    jsr modem_in
+    jmp visit_quarry
+
+quarry_too_tired:
+    ldx #0
+    lda mine_tired_msg,X
+    beq quarry_tired_done2
+    jsr modem_out
+    inx
+    bne quarry_tired
+quarry_tired_done2:
+    jsr modem_in
+    jmp visit_quarry
+
+quarry_rare:
+    ; give 2 gems for rare
+    lda #6
+    jsr mine_add_or_increment
+    lda #6
+    jsr mine_add_or_increment
+    ldx #0
+quarry_rare_print:
+    lda quarry_rare_gem_msg,X
+    beq quarry_rare_done
+    jsr modem_out
+    inx
+    bne quarry_rare_print
+quarry_rare_done:
+    jsr modem_in
+    jmp visit_quarry
+
+quarry_very_rare:
+    ; give 3 gems (very lucky)
+    lda #6
+    jsr mine_add_or_increment
+    lda #6
+    jsr mine_add_or_increment
+    lda #6
+    jsr mine_add_or_increment
+    ldx #0
+quarry_vrare_print:
+    lda quarry_rare_gem_msg,X
+    beq quarry_vrare_done
+    jsr modem_out
+    inx
+    bne quarry_vrare_print
+quarry_vrare_done:
+    jsr modem_in
+    jmp visit_quarry
+
+quarry_leave:
+    jmp visit_marketplace
+
+; -------------------------
+; Subroutine: mine_add_or_increment
+; Input: A = item id
+; Behavior: if item exists in inventory, increment count; else append if space; else print no-space in caller
+mine_add_or_increment:
+    ; A = item id
+    sta craft_temp        ; save desired id
+    lda player_inventory_count
+    beq mine_append_direct
+    ldy #0
+mine_search_loop:
+    cpy player_inventory_count
+    beq mine_append_direct
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp craft_temp
+    bne mine_search_next
+    ; found slot: if this item has a non-zero durability (craft_tmp2) we DO NOT stack - append new item
+    lda craft_tmp2
+    beq mine_do_stackable
+    ; durability present -> skip stacking, search next
+    jmp mine_search_next
+mine_do_stackable:
+    ; otherwise increment count
+    inc player_inventory+1,X
+    rts
+mine_search_next:
+    iny
+    jmp mine_search_loop
+
+mine_append_direct:
+    ; check space
+    lda player_inventory_count
+    cmp #8
+    bcs mine_no_space
+    ; compute dest index = count*4
+    lda player_inventory_count
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda craft_temp
+    sta player_inventory,X
+    lda #1
+    sta player_inventory+1,X
+    ; if adding an item with initial durability (craft_tmp2 != 0), place it in slot+2
+    lda craft_tmp2
+    beq mine_append_no_dur
+    sta player_inventory+2,X
+    jmp mine_append_done
+mine_append_no_dur:
+    lda #0
+    sta player_inventory+2,X
+mine_append_done:
+    inc player_inventory_count
+    rts
+
+mine_no_space:
+    rts
+
+; -------------------------
+; Subroutine: consume_items
+; Inputs: craft_temp = item id, craft_tmp2 = quantity to remove
+; Precondition: caller has already verified enough total quantity exists
+; Behavior: removes `craft_tmp2` units across slots (may remove from multiple slots).
+; Returns: craft_tmp2 = 0 on success
+consume_items:
+    ldy #0
+consume_loop:
+    cpy player_inventory_count
+    beq consume_done_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp craft_temp
+    bne consume_next_slot
+    lda player_inventory+1,X
+    cmp #0
+    beq consume_next_slot
+    ; if slot_count >= needed
+    lda player_inventory+1,X
+    cmp craft_tmp2
+    bcs consume_slot_enough
+    ; slot_count < needed -> subtract slot_count from needed and remove slot
+    lda craft_tmp2
+    sec
+    sbc player_inventory+1,X
+    sta craft_tmp2
+    ; remove this slot by shifting remaining slots left
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta temp_amount
+    tya
+consume_shift_loop:
+    cpy temp_amount
+    beq consume_shift_done
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp consume_shift_loop
+consume_shift_done:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    ; continue scanning at same Y (slot now contains next slot), do not iny
+    jmp consume_loop
+consume_slot_enough:
+    ; slot has enough to cover remaining need
+    lda player_inventory+1,X
+    sec
+    sbc craft_tmp2
+    sta player_inventory+1,X
+    lda #0
+    sta craft_tmp2
+    rts
+consume_next_slot:
+    iny
+    jmp consume_loop
+consume_done_fail:
+    ; shouldn't happen if caller pre-validated counts; return with craft_tmp2 unchanged
+    rts
+
+; -------------------------
+; Subroutine: craft_execute
+; Input: A = recipe_index (0-based index into recipes_table)
+; Output: craft_last_result = 0 success,1 not found,2 insufficient materials,3 chance failure
+; Behavior: validates inputs, consumes them via `consume_items`, applies success chance,
+;           and on success adds outputs via `mine_add_or_increment`.
+craft_execute:
+    sta temp_amount        ; temp_amount = recipe_index
+    lda temp_amount
+    cmp recipe_count
+    bcs craft_not_found    ; if index >= recipe_count -> not found
+    ; build pointer to recipes_table base
+    lda #<recipes_table
+    sta recipes_ptr_lo
+    lda #>recipes_table
+    sta recipes_ptr_hi
+    ; advance pointer by (index * 15) bytes
+    lda temp_amount
+    beq craft_have_ptr
+craft_ptr_loop:
+    lda recipes_ptr_lo
+    clc
+    adc #15
+    sta recipes_ptr_lo
+    lda recipes_ptr_hi
+    adc #0
+    sta recipes_ptr_hi
+    dec temp_amount
+    bne craft_ptr_loop
+craft_have_ptr:
+    ; read fields from table using (recipes_ptr_lo),Y addressing
+    ldy #0
+    lda (recipes_ptr_lo),y   ; recipe_id
+    sta craft_temp
+    iny
+    lda (recipes_ptr_lo),y   ; station_id (ignored by this generic executor)
+    iny
+    lda (recipes_ptr_lo),y   ; output_id
+    sta craft_out_id
+    iny
+    lda (recipes_ptr_lo),y   ; output_qty
+    sta craft_out_qty
+    iny
+    lda (recipes_ptr_lo),y   ; output_dur
+    sta craft_out_dur
+    iny
+    lda (recipes_ptr_lo),y   ; input1_id
+    sta craft_in1_id
+    iny
+    lda (recipes_ptr_lo),y   ; input1_qty
+    sta craft_in1_qty
+    iny
+    lda (recipes_ptr_lo),y   ; input2_id
+    sta craft_in2_id
+    iny
+    lda (recipes_ptr_lo),y   ; input2_qty
+    sta craft_in2_qty
+    iny
+    lda (recipes_ptr_lo),y   ; input3_id
+    sta craft_in3_id
+    iny
+    lda (recipes_ptr_lo),y   ; input3_qty
+    sta craft_in3_qty
+    iny
+    lda (recipes_ptr_lo),y   ; time_ticks (ignored)
+    iny
+    lda (recipes_ptr_lo),y   ; success_rate
+    sta craft_success_rate
+    ; pre-validate inputs: ensure enough of each non-255 input exists
+    jsr craft_prevalidate
+    lda craft_last_result
+    cmp #0
+    bne craft_pre_done
+    ; consume inputs (using consume_items) in order
+    lda craft_in1_id
+    cmp #255
+    beq craft_skip_in1
+    sta craft_temp
+    lda craft_in1_qty
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne craft_consume_error
+craft_skip_in1:
+    lda craft_in2_id
+    cmp #255
+    beq craft_skip_in2
+    sta craft_temp
+    lda craft_in2_qty
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne craft_consume_error
+craft_skip_in2:
+    lda craft_in3_id
+    cmp #255
+    beq craft_skip_in3
+    sta craft_temp
+    lda craft_in3_qty
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne craft_consume_error
+craft_skip_in3:
+    ; success chance
+    lda craft_success_rate
+    sta temp_amount
+    jsr get_random
+    cmp temp_amount
+    bcc craft_success
+    ; failure (materials consumed)
+    lda #3
+    sta craft_last_result
+    rts
+; Subroutine: craft_prevalidate
+; Checks for sufficient materials for craft_in1/2/3; sets craft_last_result=0 on success or 2 on insufficient
+craft_prevalidate:
+    lda #0
+    sta craft_last_result
+    ; check input1
+    lda craft_in1_id
+    cmp #255
+    beq craft_check_in2
+    lda #0
+    sta temp_amount      ; sum
+    ldy #0
+craft_pre_find1:
+    cpy player_inventory_count
+    beq craft_pre_found1
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp craft_in1_id
+    bne craft_pre_next1
+    lda player_inventory+1,X
+    clc
+    adc temp_amount
+    sta temp_amount
+craft_pre_next1:
+    iny
+    bne craft_pre_find1
+craft_pre_found1:
+    lda temp_amount
+    cmp craft_in1_qty
+    bcs craft_check_in2
+    lda #2
+    sta craft_last_result
+    rts
+craft_check_in2:
+    lda craft_in2_id
+    cmp #255
+    beq craft_check_in3
+    lda #0
+    sta temp_amount
+    ldy #0
+craft_pre_find2:
+    cpy player_inventory_count
+    beq craft_pre_found2
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp craft_in2_id
+    bne craft_pre_next2
+    lda player_inventory+1,X
+    clc
+    adc temp_amount
+    sta temp_amount
+craft_pre_next2:
+    iny
+    bne craft_pre_find2
+craft_pre_found2:
+    lda temp_amount
+    cmp craft_in2_qty
+    bcs craft_check_in3
+    lda #2
+    sta craft_last_result
+    rts
+craft_check_in3:
+    lda craft_in3_id
+    cmp #255
+    beq craft_pre_ok
+    lda #0
+    sta temp_amount
+    ldy #0
+craft_pre_find3:
+    cpy player_inventory_count
+    beq craft_pre_found3
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp craft_in3_id
+    bne craft_pre_next3
+    lda player_inventory+1,X
+    clc
+    adc temp_amount
+    sta temp_amount
+craft_pre_next3:
+    iny
+    bne craft_pre_find3
+craft_pre_found3:
+    lda temp_amount
+    cmp craft_in3_qty
+    bcs craft_pre_ok
+    lda #2
+    sta craft_last_result
+    rts
+craft_pre_ok:
+    lda #0
+    sta craft_last_result
+    rts
+craft_consume_error:
+    ; unexpected consume failure
+    lda #2
+    sta craft_last_result
+    rts
+craft_success:
+    ; add outputs
+    lda craft_out_qty
+    beq craft_done_ok
+    sta temp_amount
+craft_output_loop:
+    lda craft_out_dur
+    sta craft_tmp2
+    lda craft_out_id
+    jsr mine_add_or_increment
+    dec temp_amount
+    bne craft_output_loop
+    lda #0
+    sta craft_last_result
+    rts
+craft_pre_done:
+    rts
+craft_not_found:
+    lda #1
+    sta craft_last_result
+    rts
+
+
+// Forge - blacksmith location
+visit_forge:
+    ldx #0
+forge_desc_loop:
+        lda forge_msg,X
+        beq forge_done
+        jsr modem_out
+        inx
+        bne forge_desc_loop
+forge_done:
+    jsr modem_in
+    ; Enter simple crafting menu
+    ldx #0
+forge_menu_print:
+    lda forge_menu_msg,X
+    beq forge_menu_print_done
+    jsr modem_out
+    inx
+    bne forge_menu_print
+forge_menu_print_done:
+    jsr modem_in
+    ; handle choice
+    cmp #'1'
+    beq forge_do_ring
+    cmp #'2'
+    beq forge_do_amulet
+    cmp #'3'
+    beq forge_do_potion
+    cmp #'4'
+    beq forge_do_pickaxe
+    cmp #'5'
+    beq forge_cut_gem
+    cmp #'6'
+    beq forge_do_knife
+    cmp #'7'
+    beq forge_do_dagger
+    cmp #'8'
+    beq forge_do_hammer
+    cmp #'9'
+    beq forge_do_axe
+    cmp #'a'
+    beq forge_do_sword
+    cmp #'b'
+    beq forge_do_shield
+    cmp #'c'
+    beq forge_do_armor
+    cmp #'0'
+    beq forge_leave
+    cmp #'x'
+    beq visit_craft_menu
+    jmp visit_forge
+
+; -------------------------
+; Small debug crafting menu: enter recipe index and execute
+craft_menu_msg:
+    .text "\r\nCRAFTING MENU:\r\nEnter recipe index (0-99), then press Enter.\r\n> "
+    .byte 0
+craft_prompt_msg:
+    .text "\r\nExecuting recipe...\r\n"
+    .byte 0
+craft_success_msg:
+    .text "\r\nCrafting succeeded!\r\n"
+    .byte 0
+craft_insuff_msg:
+    .text "\r\nNot enough materials.\r\n"
+    .byte 0
+craft_fail_msg:
+    .text "\r\nCrafting failed (chance).\r\n"
+    .byte 0
+craft_notfound_msg:
+    .text "\r\nRecipe not found.\r\n"
+    .byte 0
+
+visit_craft_menu:
+    ; print header
+    ldx #0
+craft_menu_print:
+    lda craft_menu_msg,X
+    beq craft_menu_print_done
+    jsr modem_out
+    inx
+    bne craft_menu_print
+craft_menu_print_done:
+    ; read single digit (0-9) to select recipe index (debug)
+    jsr modem_in
+    ; convert ASCII digit to 0-9
+    sec
+    sbc #'0'
+    cmp #10
+    bcc craft_index_ok
+    ; invalid -> not found
+    lda #1
+    sta craft_last_result
+    jmp craft_result_notfound
+craft_index_ok:
+    ; A already contains numeric index
+    jsr craft_execute
+    lda craft_last_result
+    cmp #0
+    beq craft_result_ok
+    cmp #2
+    beq craft_result_insuff
+    cmp #3
+    beq craft_result_fail
+    cmp #1
+    beq craft_result_notfound
+    jmp craft_menu_done
+craft_result_ok:
+    ldx #0
+craft_result_ok_print:
+    lda craft_success_msg,X
+    beq craft_result_ok_done
+    jsr modem_out
+    inx
+    bne craft_result_ok_print
+craft_result_ok_done:
+    jmp craft_menu_done
+craft_result_insuff:
+    ldx #0
+craft_result_insuff_print:
+    lda craft_insuff_msg,X
+    beq craft_result_insuff_done
+    jsr modem_out
+    inx
+    bne craft_result_insuff_print
+craft_result_insuff_done:
+    jmp craft_menu_done
+craft_result_fail:
+    ldx #0
+craft_result_fail_print:
+    lda craft_fail_msg,X
+    beq craft_result_fail_done
+    jsr modem_out
+    inx
+    bne craft_result_fail_print
+craft_result_fail_done:
+    jmp craft_menu_done
+craft_result_notfound:
+    ldx #0
+craft_result_notfound_print:
+    lda craft_notfound_msg,X
+    beq craft_result_notfound_done
+    jsr modem_out
+    inx
+    bne craft_result_notfound_print
+craft_result_notfound_done:
+    jmp craft_menu_done
+craft_menu_done:
+    jsr modem_in
+    rts
+
+; -------------------------
+; Craft: Ring (needs 2 Gems, gem id=6, ring id=3)
+forge_do_ring:
+    ; First, check for a specific cut gem (Ruby/Sapphire/Emerald) to make a special ring
+    ldy #0
+forge_check_special_gem:
+    cpy player_inventory_count
+    beq forge_check_special_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #11
+    beq forge_make_ruby_ring
+    cmp #12
+    beq forge_make_sapphire_ring
+    cmp #13
+    beq forge_make_emerald_ring
+    iny
+    bne forge_check_special_gem
+forge_check_special_done:
+    ; count gems in inventory
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_gems:
+    cpy player_inventory_count
+    beq forge_count_gems_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_next_gem_slot
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_gem_slot:
+    iny
+    bne forge_count_gems
+forge_count_gems_done:
+    lda craft_temp
+    cmp #2
+    bcc forge_not_enough_materials
+    ; remove 2 gems from first gem slot found
+    ldy #0
+forge_find_gem_slot:
+    cpy player_inventory_count
+    beq forge_remove_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_find_gem_next
+    ; found gem slot at X
+    ; consume 2 Gems (id 6) across slots using consume_items
+    lda #6
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_add_ring
+    jmp forge_not_enough_materials
+forge_find_gem_next:
+    iny
+    bne forge_find_gem_slot
+forge_remove_fail:
+    jmp forge_not_enough_materials
+
+forge_shift_remove_slot:
+    ; Y holds slot index; shift later slots left
+    ; compute last index = player_inventory_count - 1
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2 ; last index
+    ; Z = Y .. last-1: copy slot Z+1 to Z (4 bytes)
+    ldx #0
+    tya
+    ; use Y as start index
+forge_shift_loop:
+    cpy craft_tmp2
+    beq forge_shift_done
+    ; compute src = (Y+1)*4
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    ; copy 4 bytes from src to dest
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop
+forge_shift_done:
+    ; decrement player_inventory_count
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp forge_add_ring
+
+; Add crafted ring to inventory
+forge_add_ring:
+    ; try to find existing Ring (id 3)
+    ldy #0
+forge_find_ring_slot:
+    cpy player_inventory_count
+    beq forge_append_ring
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #3
+    bne forge_find_ring_next
+    ; increment count
+    inc player_inventory+1,X
+    jmp craft_ring_done
+forge_find_ring_next:
+    iny
+    bne forge_find_ring_slot
+
+forge_append_ring:
+    ; ensure there is space
+    lda player_inventory_count
+    cmp #8
+    bcs craft_no_space
+    ; compute X = count * 4
+    tya
+    lda player_inventory_count
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda #3
+    sta player_inventory,X
+    lda #1
+    sta player_inventory+1,X
+    inc player_inventory_count
+
+craft_ring_done:
+    ldx #0
+    lda craft_ring_success_msg,X
+    beq craft_ring_done2
+    jsr modem_out
+    inx
+    bne craft_ring_done
+craft_ring_done2:
+    jsr modem_in
+    jmp visit_forge
+
+; Special ring makers (consume one cut gem and add special ring)
+forge_make_ruby_ring:
+    ; consume 1 Ruby (id 11) across slots using consume_items
+    lda #11
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    ; add Ruby Ring (id 15)
+    lda #15
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_ring_ruby_msg,X
+    beq craft_ring_ruby_done
+    jsr modem_out
+    inx
+    bne forge_make_ruby_ring
+craft_ring_ruby_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_make_sapphire_ring:
+    ; consume 1 Sapphire (id 12) across slots using consume_items
+    lda #12
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #16
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_ring_sapphire_msg,X
+    beq craft_ring_sapphire_done
+    jsr modem_out
+    inx
+    bne forge_make_sapphire_ring
+craft_ring_sapphire_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_make_emerald_ring:
+    ; consume 1 Emerald (id 13) across slots using consume_items
+    lda #13
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #17
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_ring_emerald_msg,X
+    beq craft_ring_emerald_done
+    jsr modem_out
+    inx
+    bne forge_make_emerald_ring
+craft_ring_emerald_done:
+    jsr modem_in
+    jmp visit_forge
+
+; -------------------------
+; Craft: Amulet (needs 3 Gems, amulet id=4)
+forge_do_amulet:
+    ; First, check for a specific cut gem to make a special amulet
+    ldy #0
+forge_check_spec_amulet:
+    cpy player_inventory_count
+    beq forge_check_spec_amulet_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #11
+    beq forge_make_ruby_amulet
+    cmp #12
+    beq forge_make_sapphire_amulet
+    cmp #13
+    beq forge_make_emerald_amulet
+    iny
+    bne forge_check_spec_amulet
+forge_check_spec_amulet_done:
+    ; count gems
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_gems2:
+    cpy player_inventory_count
+    beq forge_count_gems2_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_next_gem_slot2
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_gem_slot2:
+    iny
+    bne forge_count_gems2
+forge_count_gems2_done:
+    lda craft_temp
+    cmp #3
+    bcc forge_not_enough_materials
+    ; remove 3 gems (similar to ring removal — reduce count by 3)
+    ldy #0
+forge_find_gem_slot2:
+    cpy player_inventory_count
+    beq forge_remove_fail2
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_find_gem_next2
+    ; consume 3 Gems (id 6) across slots using consume_items
+    lda #6
+    sta craft_temp
+    lda #3
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_add_amulet
+    jmp forge_not_enough_materials
+forge_find_gem_next2:
+    iny
+    bne forge_find_gem_slot2
+forge_remove_fail2:
+    jmp forge_not_enough_materials
+
+forge_shift_remove_slot2:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop2:
+    cpy craft_tmp2
+    beq forge_shift_done2
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop2
+forge_shift_done2:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp forge_add_amulet
+
+forge_add_amulet:
+    ldy #0
+forge_find_amulet_slot:
+    cpy player_inventory_count
+    beq forge_append_amulet
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #4
+    bne forge_find_amulet_next
+    inc player_inventory+1,X
+    jmp craft_amulet_done
+forge_find_amulet_next:
+    iny
+    bne forge_find_amulet_slot
+
+forge_append_amulet:
+    lda player_inventory_count
+    cmp #8
+    bcs craft_no_space
+    lda player_inventory_count
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda #4
+    sta player_inventory,X
+    lda #1
+    sta player_inventory+1,X
+    inc player_inventory_count
+
+craft_amulet_done:
+    ldx #0
+    lda craft_amulet_success_msg,X
+    beq craft_amulet_done2
+    jsr modem_out
+    inx
+    bne craft_amulet_done
+craft_amulet_done2:
+    jsr modem_in
+    jmp visit_forge
+
+; Special amulet makers (consume one cut gem and add special amulet)
+forge_make_ruby_amulet:
+    ; consume 1 Ruby (id 11) across slots using consume_items
+    lda #11
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #18
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_amulet_ruby_msg,X
+    beq craft_amulet_ruby_done
+    jsr modem_out
+    inx
+    bne forge_make_ruby_amulet
+craft_amulet_ruby_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_make_sapphire_amulet:
+    ; consume 1 Sapphire (id 12) across slots using consume_items
+    lda #12
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #19
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_amulet_sapphire_msg,X
+    beq craft_amulet_sapphire_done
+    jsr modem_out
+    inx
+    bne forge_make_sapphire_amulet
+craft_amulet_sapphire_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_make_emerald_amulet:
+    ; consume 1 Emerald (id 13) across slots using consume_items
+    lda #13
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #20
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_amulet_emerald_msg,X
+    beq craft_amulet_emerald_done
+    jsr modem_out
+    inx
+    bne forge_make_emerald_amulet
+craft_amulet_emerald_done:
+    jsr modem_in
+    jmp visit_forge
+
+; -------------------------
+; Craft: Potion (needs 1 Gem, potion id=2)
+forge_do_potion:
+    ; count gems
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_gems3:
+    cpy player_inventory_count
+    beq forge_count_gems3_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_next_gem_slot3
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_gem_slot3:
+    iny
+    bne forge_count_gems3
+forge_count_gems3_done:
+    lda craft_temp
+    cmp #1
+    bcc forge_not_enough_materials
+    ; consume 4 Iron (id 9) then proceed to planks removal
+    lda #9
+    sta craft_temp
+    lda #4
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    jmp forge_remove_planks_after_iron_s
+    sta player_inventory_count
+    jmp forge_add_potion
+
+forge_add_potion:
+    ldy #0
+forge_find_potion_slot:
+    cpy player_inventory_count
+    beq forge_append_potion
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #2
+    bne forge_find_potion_next
+    inc player_inventory+1,X
+    jmp craft_potion_done
+forge_find_potion_next:
+    iny
+    bne forge_find_potion_slot
+
+forge_append_potion:
+    lda player_inventory_count
+    cmp #8
+    bcs craft_no_space
+    lda player_inventory_count
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda #2
+    sta player_inventory,X
+    lda #1
+    sta player_inventory+1,X
+    inc player_inventory_count
+
+craft_potion_done:
+    ldx #0
+    lda craft_potion_success_msg,X
+    beq craft_potion_done2
+    jsr modem_out
+    inx
+    bne craft_potion_done
+craft_potion_done2:
+    jsr modem_in
+    jmp visit_forge
+
+; -------------------------
+; Forge: Make Pickaxe (needs 2 Iron - id 9)
+forge_do_pickaxe:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron:
+    cpy player_inventory_count
+    beq forge_count_iron_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_slot
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_slot:
+    iny
+    bne forge_count_iron
+forge_count_iron_done:
+    lda craft_temp
+    cmp #2
+    bcc forge_not_enough_materials
+    ; ensure at least 1 plank (id 22) is present
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_plank:
+    cpy player_inventory_count
+    beq forge_count_plank_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #22
+    bne forge_next_plank_slot
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_plank_slot:
+    iny
+    bne forge_count_plank
+forge_count_plank_done:
+    lda craft_tmp2
+    cmp #1
+    bcc forge_not_enough_materials
+    ; remove 2 iron from first iron slot
+    ldy #0
+forge_find_iron_slot:
+    cpy player_inventory_count
+    beq forge_remove_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_find_iron_next
+    ; consume 2 Iron (id 9) across slots using consume_items
+    lda #9
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_create_pickaxe
+    jmp forge_not_enough_materials
+forge_find_iron_next:
+    iny
+    bne forge_find_iron_slot
+forge_remove_fail:
+    jmp forge_not_enough_materials
+
+forge_shift_remove_slot_iron:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_iron:
+    cpy craft_tmp2
+    beq forge_shift_done_iron
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_iron
+forge_shift_done_iron:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp forge_create_pickaxe
+
+forge_create_pickaxe:
+    ; add pickaxe to inventory and set per-slot durability
+    ; desired durability in craft_tmp2
+    lda #30
+    sta craft_tmp2
+    lda #14
+    jsr mine_add_or_increment
+    ; (durability set via craft_tmp2 when appending)
+    ldx #0
+forge_pickaxe_print:
+    lda craft_pickaxe_success_msg,X
+    beq forge_pickaxe_done
+    jsr modem_out
+    inx
+    bne forge_pickaxe_print
+forge_pickaxe_done:
+    jsr modem_in
+    ; also remove one plank (id 22) from inventory now that pickaxe is created
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_remove_plank_find:
+    cpy player_inventory_count
+    beq forge_remove_plank_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #22
+    bne forge_remove_plank_next
+    ; consume 1 Plank (id 22) across slots
+    lda #22
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_remove_plank_done
+    jmp forge_not_enough_materials
+forge_remove_plank_next:
+    iny
+    jmp forge_remove_plank_find
+forge_remove_plank_shift:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_remove_plank_shift_loop:
+    cpy craft_tmp2
+    beq forge_remove_plank_shift_done
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_remove_plank_shift_loop
+forge_remove_plank_shift_done:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp visit_forge
+forge_remove_plank_done:
+    jmp visit_forge
+
+craft_pickaxe_success_msg:
+    .text "\r\nYou forge a sturdy pickaxe. It feels balanced in your hands.\r\n[Press any key]\r\n"
+    .byte 0
+
+craft_pickaxe_broken_msg:
+    .text "\r\nYour pickaxe snaps with a harsh crack and is no longer usable.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Cut Gem (1 generic Gem -> Ruby/Sapphire/Emerald)
+forge_cut_gem:
+    ; ensure player has at least 1 generic Gem (id 6)
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_gem_for_cut:
+    cpy player_inventory_count
+    beq forge_count_gem_for_cut_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_next_gem_cut_slot
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_gem_cut_slot:
+    iny
+    bne forge_count_gem_for_cut
+forge_count_gem_for_cut_done:
+    lda craft_temp
+    cmp #1
+    bcc forge_not_enough_materials
+    ; remove one generic gem from first gem slot
+    ldy #0
+forge_find_gem_cut_slot:
+    cpy player_inventory_count
+    beq forge_remove_fail_cut
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne forge_find_gem_cut_next
+    ; consume 1 Gem (id 6) across slots using consume_items
+    lda #6
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_produce_cut_gem
+    jmp forge_not_enough_materials
+forge_find_gem_cut_next:
+    iny
+    bne forge_find_gem_cut_slot
+forge_remove_fail_cut:
+    jmp forge_not_enough_materials
+
+forge_shift_remove_slot_cut:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_cut:
+    cpy craft_tmp2
+    beq forge_shift_done_cut
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_cut
+forge_shift_done_cut:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp forge_produce_cut_gem
+
+forge_produce_cut_gem:
+    jsr get_random
+    and #$03
+    cmp #0
+    beq forge_make_ruby
+    cmp #1
+    beq forge_make_sapphire
+    jmp forge_make_emerald
+
+forge_make_ruby:
+    lda #11
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_ruby_msg,X
+    beq forge_ruby_done
+    jsr modem_out
+    inx
+    bne forge_make_ruby
+forge_ruby_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_make_sapphire:
+    lda #12
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_sapphire_msg,X
+    beq forge_sapphire_done
+    jsr modem_out
+    inx
+    bne forge_make_sapphire
+forge_sapphire_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_make_emerald:
+    lda #13
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_emerald_msg,X
+    beq forge_emerald_done
+    jsr modem_out
+    inx
+    bne forge_make_emerald
+forge_emerald_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_ruby_msg:
+    .text "\r\nYou carefully cut the rough stone; it's a modest ruby.\r\n[Press any key]\r\n"
+    .byte 0
+craft_sapphire_msg:
+    .text "\r\nAfter patient work, a deep blue sapphire sits in your palm.\r\n[Press any key]\r\n"
+    .byte 0
+craft_emerald_msg:
+    .text "\r\nA bright green emerald sparks from the rough — a fine cut indeed.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; -------------------------
+; Tannery - convert Hide -> Leather
+visit_tannery:
+    ldx #0
+tannery_desc_loop:
+        lda tannery_msg,X
+        beq tannery_menu
+        jsr modem_out
+        inx
+        bne tannery_desc_loop
+tannery_menu:
+    ldx #0
+    lda tannery_menu_msg,X
+    beq tannery_menu_done
+    jsr modem_out
+    inx
+    bne tannery_menu
+tannery_menu_done:
+    jsr modem_in
+    cmp #'1'
+    beq tannery_do_tan
+    cmp #'0'
+    beq tannery_leave
+    jmp visit_tannery
+
+tannery_do_tan:
+    ; ensure at least 1 Hide (id 26)
+    lda #0
+    sta craft_temp
+    ldy #0
+tannery_count_hide:
+    cpy player_inventory_count
+    beq tannery_count_hide_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #26
+    bne tannery_next_hide
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+tannery_next_hide:
+    iny
+    bne tannery_count_hide
+tannery_count_hide_done:
+    lda craft_temp
+    cmp #1
+    bcc tannery_not_enough
+    ; remove one hide from first hide slot
+    ldy #0
+tannery_find_hide_slot:
+    cpy player_inventory_count
+    beq tannery_remove_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #26
+    bne tannery_find_hide_next
+    ; consume 1 Hide (id 26) across slots
+    lda #26
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq tannery_produce_leather
+    jmp tannery_not_enough
+tannery_find_hide_next:
+    iny
+    bne tannery_find_hide_slot
+tannery_remove_fail:
+    jmp tannery_not_enough
+
+tannery_shift_remove_slot:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+tannery_shift_loop:
+    cpy craft_tmp2
+    beq tannery_shift_done
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp tannery_shift_loop
+tannery_shift_done:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp tannery_produce_leather
+
+tannery_produce_leather:
+    ; add Leather (id 27)
+    lda #27
+    jsr mine_add_or_increment
+    ldx #0
+    lda tannery_done_msg,X
+    beq tannery_done_done
+    jsr modem_out
+    inx
+    bne tannery_produce_leather
+tannery_done_done:
+    jsr modem_in
+    jmp visit_tannery
+
+tannery_not_enough:
+    ldx #0
+    lda tannery_no_hide_msg,X
+    beq tannery_not_enough_done
+    jsr modem_out
+    inx
+    bne tannery_not_enough
+tannery_not_enough_done:
+    jsr modem_in
+    jmp visit_tannery
+
+tannery_leave:
+    jmp visit_marketplace
+
+tannery_msg:
+    .text "\r\nThe TANNERY smells of cure and smoke. Workers stretch hides over frames. Leather is prepared here for armor and goods.\r\n[Press any key]\r\n"
+    .byte 0
+tannery_menu_msg:
+    .text "\r\nTANNERY - What would you like to do?\r\n1) Tan Hide -> Leather (requires 1 Hide)\r\n0) Leave\r\n> "
+    .byte 0
+tannery_done_msg:
+    .text "\r\nYou tan the hide; it becomes supple leather suitable for crafting.\r\n[Press any key]\r\n"
+    .byte 0
+tannery_no_hide_msg:
+    .text "\r\nYou don't have any hides to tan.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Knife (1 Iron + 1 Leather)
+forge_do_knife:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_k:
+    cpy player_inventory_count
+    beq forge_count_iron_k_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_k
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_k:
+    iny
+    bne forge_count_iron_k
+forge_count_iron_k_done:
+    lda craft_temp
+    cmp #1
+    bcc forge_not_enough_materials
+    ; count leather (id 27)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_leather_k:
+    cpy player_inventory_count
+    beq forge_count_leather_k_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_next_leather_k
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_leather_k:
+    iny
+    bne forge_count_leather_k
+forge_count_leather_k_done:
+    lda craft_tmp2
+    cmp #1
+    bcc forge_not_enough_materials
+    ; consume 1 Iron (id 9) across slots using consume_items
+    lda #9
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    ; now remove 1 leather (id 27)
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    jmp forge_create_knife
+
+forge_shift_remove_slot_iron_k:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_iron_k:
+    cpy craft_tmp2
+    beq forge_shift_done_iron_k
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_iron_k
+forge_shift_done_iron_k:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+
+forge_remove_leather_after_iron_k:
+    ; remove 1 leather from first leather slot
+    ldy #0
+forge_find_leather_slot_k:
+    cpy player_inventory_count
+    beq forge_remove_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_find_leather_next_k
+    ; consume 1 Leather (id 27) across slots
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_create_knife
+    jmp forge_not_enough_materials
+forge_find_leather_next_k:
+    iny
+    jmp forge_find_leather_slot_k
+
+forge_shift_remove_slot_leather_k:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_leather_k:
+    cpy craft_tmp2
+    beq forge_shift_done_leather_k
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_leather_k
+forge_shift_done_leather_k:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp forge_create_knife
+
+forge_create_knife:
+    lda #28 ; Knife id
+    lda #25
+    sta craft_tmp2 ; durability 25
+    lda #28
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_knife_success_msg,X
+    beq forge_knife_done
+    jsr modem_out
+    inx
+    bne forge_create_knife
+forge_knife_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_knife_success_msg:
+    .text "\r\nYou forge a small knife; it's sharp and useful.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Dagger (2 Iron + 1 Leather)
+forge_do_dagger:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_d:
+    cpy player_inventory_count
+    beq forge_count_iron_d_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_d
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_d:
+    iny
+    bne forge_count_iron_d
+forge_count_iron_d_done:
+    lda craft_temp
+    cmp #2
+    bcc forge_not_enough_materials
+    ; count leather (id 27)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_leather_d:
+    cpy player_inventory_count
+    beq forge_count_leather_d_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_next_leather_d
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_leather_d:
+    iny
+    bne forge_count_leather_d
+forge_count_leather_d_done:
+    lda craft_tmp2
+    cmp #1
+    bcc forge_not_enough_materials
+    ; consume 2 Iron (id 9) across slots using consume_items
+    lda #9
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    ; consume 1 Leather (id 27)
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    jmp forge_create_dagger
+
+forge_shift_remove_slot_iron_d:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_iron_d:
+    cpy craft_tmp2
+    beq forge_shift_done_iron_d
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_iron_d
+forge_shift_done_iron_d:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+
+forge_remove_leather_after_iron_d:
+    ; remove 1 leather from first leather slot
+    ldy #0
+forge_find_leather_slot_d:
+    cpy player_inventory_count
+    beq forge_remove_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_find_leather_next_d
+    ; consume 1 Leather (id 27) across slots for dagger
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq forge_create_dagger
+    jmp forge_not_enough_materials
+forge_find_leather_next_d:
+    iny
+    jmp forge_find_leather_slot_d
+
+forge_shift_remove_slot_leather_d:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_leather_d:
+    cpy craft_tmp2
+    beq forge_shift_done_leather_d
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_leather_d
+forge_shift_done_leather_d:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp forge_create_dagger
+
+forge_create_dagger:
+    lda #29 ; Dagger id
+    lda #35
+    sta craft_tmp2 ; durability 35
+    lda #29
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_dagger_success_msg,X
+    beq forge_dagger_done
+    jsr modem_out
+    inx
+    bne forge_create_dagger
+forge_dagger_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_dagger_success_msg:
+    .text "\r\nYou craft a vicious dagger, light and deadly.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Hammer (2 Iron + 1 Plank)
+forge_do_hammer:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_h:
+    cpy player_inventory_count
+    beq forge_count_iron_h_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_h
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_h:
+    iny
+    bne forge_count_iron_h
+forge_count_iron_h_done:
+    lda craft_temp
+    cmp #2
+    bcc forge_not_enough_materials
+    ; count plank (id 22)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_plank_h:
+    cpy player_inventory_count
+    beq forge_count_plank_h_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #22
+    bne forge_next_plank_h
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_plank_h:
+    iny
+    bne forge_count_plank_h
+forge_count_plank_h_done:
+    lda craft_tmp2
+    cmp #1
+    bcc forge_not_enough_materials
+    ; consume 2 Iron (id 9) then 1 Plank (id 22) using consume_items
+    lda #9
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #22
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    jmp forge_create_hammer
+
+forge_create_hammer:
+    lda #31 ; Hammer id
+    lda #40
+    sta craft_tmp2 ; durability 40
+    lda #31
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_hammer_success_msg,X
+    beq forge_hammer_done
+    jsr modem_out
+    inx
+    bne forge_create_hammer
+forge_hammer_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_hammer_success_msg:
+    .text "\r\nYou forge a stout hammer, useful for heavy work.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Axe (2 Iron + 1 Plank + 1 Leather)
+forge_do_axe:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_x:
+    cpy player_inventory_count
+    beq forge_count_iron_x_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_x
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_x:
+    iny
+    bne forge_count_iron_x
+forge_count_iron_x_done:
+    lda craft_temp
+    cmp #2
+    bcc forge_not_enough_materials
+    ; count plank (id 22)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_plank_x:
+    cpy player_inventory_count
+    beq forge_count_plank_x_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #22
+    bne forge_next_plank_x
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_plank_x:
+    iny
+    bne forge_count_plank_x
+forge_count_plank_x_done:
+    lda craft_tmp2
+    cmp #1
+    bcc forge_not_enough_materials
+    ; count leather (id 27)
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_leather_x:
+    cpy player_inventory_count
+    beq forge_count_leather_x_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_next_leather_x
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_leather_x:
+    iny
+    bne forge_count_leather_x
+forge_count_leather_x_done:
+    lda craft_temp
+    cmp #1
+    bcc forge_not_enough_materials
+    ; consume 2 Iron (id 9), 1 Plank (id 22), and 1 Leather (id 27) using consume_items
+    lda #9
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #22
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    ; now create the Axe
+forge_create_axe:
+    lda #32 ; Axe id
+    lda #45
+    sta craft_tmp2 ; durability 45
+    lda #32
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_axe_success_msg,X
+    beq forge_axe_done
+    jsr modem_out
+    inx
+    bne forge_create_axe
+forge_axe_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_axe_success_msg:
+    .text "\r\nYou finish a rugged axe, its blade keen and ready.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Sword (4 Iron + 2 Plank + 1 Leather)
+forge_do_sword:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_s:
+    cpy player_inventory_count
+    beq forge_count_iron_s_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_s
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_s:
+    iny
+    bne forge_count_iron_s
+forge_count_iron_s_done:
+    lda craft_temp
+    cmp #4
+    bcc forge_not_enough_materials
+    ; count planks (id 22)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_plank_s:
+    cpy player_inventory_count
+    beq forge_count_plank_s_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #22
+    bne forge_next_plank_s
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_plank_s:
+    iny
+    bne forge_count_plank_s
+forge_count_plank_s_done:
+    lda craft_tmp2
+    cmp #2
+    bcc forge_not_enough_materials
+    ; count leather (id 27)
+    lda #0
+    sta craft_tmp3
+    ldy #0
+forge_count_leather_s:
+    cpy player_inventory_count
+    beq forge_count_leather_s_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_next_leather_s
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp3
+    sta craft_tmp3
+forge_next_leather_s:
+    iny
+    bne forge_count_leather_s
+forge_count_leather_s_done:
+    lda craft_tmp3
+    cmp #1
+    bcc forge_not_enough_materials
+    ; remove 4 iron (from first iron slot)
+    ldy #0
+forge_find_iron_slot_s:
+    cpy player_inventory_count
+    beq forge_remove_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_find_iron_next_s
+    ; consume 4 Iron (id 9) across slots for sword
+    lda #9
+    sta craft_temp
+    lda #4
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    jmp forge_remove_planks_after_iron_s
+forge_find_iron_next_s:
+    iny
+    bne forge_find_iron_slot_s
+    jmp forge_not_enough_materials
+
+forge_shift_remove_slot_iron_s:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_iron_s:
+    cpy craft_tmp2
+    beq forge_shift_done_iron_s
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_iron_s
+forge_shift_done_iron_s:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+
+forge_remove_planks_after_iron_s:
+    ; consume required materials across slots (split-slot aware)
+    lda #9
+    sta craft_temp
+    lda #4
+    sta craft_tmp2
+    jsr consume_items
+    lda #22
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    jmp forge_create_sword
+
+forge_create_sword:
+    lda #1 ; Sword id
+    lda #80
+    sta craft_tmp2 ; durability 80
+    lda #1
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_sword_success_msg,X
+    beq forge_sword_done
+    jsr modem_out
+    inx
+    bne forge_create_sword
+forge_sword_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_sword_success_msg:
+    .text "\r\nYou hammer a fine sword; its edge gleams.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Shield (3 Iron + 2 Plank + 1 Leather)
+forge_do_shield:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_sh:
+    cpy player_inventory_count
+    beq forge_count_iron_sh_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_sh
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_sh:
+    iny
+    bne forge_count_iron_sh
+forge_count_iron_sh_done:
+    lda craft_temp
+    cmp #3
+    bcc forge_not_enough_materials
+    ; count planks (id 22)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_plank_sh:
+    cpy player_inventory_count
+    beq forge_count_plank_sh_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #22
+    bne forge_next_plank_sh
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_plank_sh:
+    iny
+    bne forge_count_plank_sh
+forge_count_plank_sh_done:
+    lda craft_tmp2
+    cmp #2
+    bcc forge_not_enough_materials
+    ; count leather (id 27)
+    lda #0
+    sta craft_tmp3
+    ldy #0
+forge_count_leather_sh:
+    cpy player_inventory_count
+    beq forge_count_leather_sh_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_next_leather_sh
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp3
+    sta craft_tmp3
+forge_next_leather_sh:
+    iny
+    bne forge_count_leather_sh
+forge_count_leather_sh_done:
+    lda craft_tmp3
+    cmp #1
+    bcc forge_not_enough_materials
+    ; consume 3 Iron (id 9), 2 Planks (id 22), and 1 Leather (id 27) using consume_items
+    lda #9
+    sta craft_temp
+    lda #3
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #22
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    ; now create the Shield
+    jmp forge_create_shield
+
+forge_shift_remove_slot_leather_sh:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+forge_shift_loop_leather_sh:
+    cpy craft_tmp2
+    beq forge_shift_done_leather_sh
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp forge_shift_loop_leather_sh
+forge_shift_done_leather_sh:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+
+forge_create_shield:
+    lda #2 ; Shield id
+    lda #90
+    sta craft_tmp2 ; durability 90
+    lda #2
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_shield_success_msg,X
+    beq forge_shield_done
+    jsr modem_out
+    inx
+    bne forge_create_shield
+forge_shield_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_shield_success_msg:
+    .text "\r\nYou forge a sturdy shield, fit for battle.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+; Forge: Armor (6 Iron + 4 Leather)
+forge_do_armor:
+    ; count iron
+    lda #0
+    sta craft_temp
+    ldy #0
+forge_count_iron_a:
+    cpy player_inventory_count
+    beq forge_count_iron_a_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #9
+    bne forge_next_iron_a
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+forge_next_iron_a:
+    iny
+    bne forge_count_iron_a
+forge_count_iron_a_done:
+    lda craft_temp
+    cmp #6
+    bcc forge_not_enough_materials
+    ; count leather (id 27)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+forge_count_leather_a:
+    cpy player_inventory_count
+    beq forge_count_leather_a_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne forge_next_leather_a
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+forge_next_leather_a:
+    iny
+    bne forge_count_leather_a
+forge_count_leather_a_done:
+    lda craft_tmp2
+    cmp #4
+    bcc forge_not_enough_materials
+    ; consume 6 Iron (id 9) and 4 Leather (id 27) using consume_items
+    lda #9
+    sta craft_temp
+    lda #6
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    lda #27
+    sta craft_temp
+    lda #4
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne forge_not_enough_materials
+    ; now create armor
+forge_create_armor:
+    lda #30 ; Armor id
+    lda #120
+    sta craft_tmp2 ; durability 120
+    lda #30
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_armor_success_msg,X
+    beq forge_armor_done
+    jsr modem_out
+    inx
+    bne forge_create_armor
+forge_armor_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_armor_success_msg:
+    .text "\r\nYou assemble a set of armor; it offers solid protection.\r\n[Press any key]\r\n"
+    .byte 0
+
+; -------------------------
+forge_not_enough_materials:
+    ldx #0
+forge_insuf_print:
+    lda craft_insufficient_msg,X
+    beq forge_insuf_done
+    jsr modem_out
+    inx
+    bne forge_insuf_print
+forge_insuf_done:
+    jsr modem_in
+    jmp visit_forge
+
+craft_no_space:
+    ldx #0
+craft_nospace_print:
+    lda craft_no_space_msg,X
+    beq craft_nospace_done
+    jsr modem_out
+    inx
+    bne craft_nospace_print
+craft_nospace_done:
+    jsr modem_in
+    jmp visit_forge
+
+forge_leave:
+    jmp town_show_menu
+
+// Hex Trove - witchy cold-treat shop
+visit_hex_trove:
+    ldx #0
+hextrove_desc_loop:
+        lda hextrove_msg,X
+        beq hextrove_done
+        jsr modem_out
+        inx
+        bne hextrove_desc_loop
+hextrove_done:
+    jsr modem_in
+    jmp town_show_menu
+
+// Food Court East - full meals
+visit_foodcourt_east:
+    ldx #0
+food_east_loop:
+        lda foodcourt_east_msg,X
+        beq food_east_done
+        jsr modem_out
+        inx
+        bne food_east_loop
+food_east_done:
+    jsr modem_in
+    ; Food Court menu - full meals restore stamina
+    ldx #0
+food_east_menu_print:
+    lda food_east_menu_msg,X
+    beq food_east_menu_done
+    jsr modem_out
+    inx
+    bne food_east_menu_print
+food_east_menu_done:
+    jsr modem_in
+    cmp #'1'
+    beq food_east_buy_meal
+    cmp #'0'
+    beq food_east_leave
+    jmp visit_foodcourt_east
+
+food_east_buy_meal:
+    lda player_gold
+    cmp #8
+    bcc food_east_no_gold
+    ; charge 8 gold, restore 8 stamina
+    sec
+    lda player_gold
+    sbc #8
+    sta player_gold
+    lda player_stamina
+    clc
+    adc #8
+    sta player_stamina
+    ldx #0
+food_east_thanks_loop:
+    lda food_east_thanks_msg,X
+    beq food_east_thanks_done
+    jsr modem_out
+    inx
+    bne food_east_thanks_loop
+food_east_thanks_done:
+    jsr modem_in
+    jmp visit_foodcourt_east
+
+food_east_no_gold:
+    ldx #0
+food_east_nogold_loop:
+    lda foodcourt_no_gold_msg,X
+    beq food_east_nogold_done
+    jsr modem_out
+    inx
+    bne food_east_nogold_loop
+food_east_nogold_done:
+    jsr modem_in
+    jmp visit_foodcourt_east
+
+food_east_leave:
+    jmp town_show_menu
+
+// Food Court West - soups and sandwiches
+visit_foodcourt_west:
+    ldx #0
+food_west_loop:
+        lda foodcourt_west_msg,X
+        beq food_west_done
+        jsr modem_out
+        inx
+        bne food_west_loop
+food_west_done:
+    jsr modem_in
+    ; Food Court West menu - light meals restore smaller stamina
+    ldx #0
+food_west_menu_print:
+    lda food_west_menu_msg,X
+    beq food_west_menu_done
+    jsr modem_out
+    inx
+    bne food_west_menu_print
+food_west_menu_done:
+    jsr modem_in
+    cmp #'1'
+    beq food_west_buy_meal
+    cmp #'0'
+    beq food_west_leave
+    jmp visit_foodcourt_west
+
+food_west_buy_meal:
+    lda player_gold
+    cmp #4
+    bcc food_west_no_gold
+    sec
+    lda player_gold
+    sbc #4
+    sta player_gold
+    lda player_stamina
+    clc
+    adc #4
+    sta player_stamina
+    ldx #0
+food_west_thanks_loop:
+    lda food_west_thanks_msg,X
+    beq food_west_thanks_done
+    jsr modem_out
+    inx
+    bne food_west_thanks_loop
+food_west_thanks_done:
+    jsr modem_in
+    jmp visit_foodcourt_west
+
+food_west_no_gold:
+    ldx #0
+food_west_nogold_loop:
+    lda foodcourt_no_gold_msg,X
+    beq food_west_nogold_done
+    jsr modem_out
+    inx
+    bne food_west_nogold_loop
+food_west_nogold_done:
+    jsr modem_in
+    jmp visit_foodcourt_west
+
+food_west_leave:
     jmp town_show_menu
 
 visit_glass_house:
@@ -4500,6 +8324,556 @@ torin_loop:
 alister_done:
     jsr modem_in
     jmp town_show_menu
+
+// Tool Vendor - sells pickaxes
+visit_tool_vendor:
+    ldx #0
+tool_vendor_msg_loop:
+    lda tool_vendor_msg,X
+    beq tool_vendor_msg_done
+    jsr modem_out
+    inx
+    bne tool_vendor_msg_loop
+tool_vendor_msg_done:
+    jsr modem_in
+    cmp #'1'
+    beq tool_buy_pickaxe
+    cmp #'0'
+    beq tool_leave
+    jmp visit_tool_vendor
+
+tool_buy_pickaxe:
+    lda player_gold
+    cmp #25
+    bcc tool_no_gold
+    ; charge 25 gold
+    sec
+    lda player_gold
+    sbc #25
+    sta player_gold
+    ; append a fresh pickaxe with good durability
+    lda #30        ; vendor pickaxe durability
+    sta craft_tmp2
+    lda #14
+    jsr mine_add_or_increment
+    jmp tool_pickaxe_thanks
+
+tool_pickaxe_thanks:
+    ldx #0
+tool_thanks_loop:
+    lda tool_vendor_thanks_msg,X
+    beq tool_thanks_done
+    jsr modem_out
+    inx
+    bne tool_thanks_loop
+tool_thanks_done:
+    jsr modem_in
+    jmp visit_tool_vendor
+
+tool_no_gold:
+    ldx #0
+tool_nogold_loop:
+    lda tool_vendor_no_gold_msg,X
+    beq tool_nogold_done
+    jsr modem_out
+    inx
+    bne tool_nogold_loop
+tool_nogold_done:
+    jsr modem_in
+    jmp visit_tool_vendor
+
+tool_leave:
+    jmp visit_marketplace
+
+tool_vendor_msg:
+    .text "\r\nTOOL VENDOR:\r\n1) Buy Pickaxe (30 gold)\r\n0) Leave\r\n> "
+    .byte 0
+tool_vendor_thanks_msg:
+    .text "\r\nThe vendor polishes the pickaxe and hands it to you.\r\n[Press any key]\r\n"
+    .byte 0
+tool_vendor_no_gold_msg:
+    .text "\r\nYou don't have enough gold for that pickaxe.\r\n[Press any key]\r\n"
+    .byte 0
+
+// Saw Mill - convert Wood -> Planks, buy a Saw
+visit_sawmill:
+    ldx #0
+sawmill_loop:
+        lda sawmill_msg,X
+        beq sawmill_done
+        jsr modem_out
+        inx
+        bne sawmill_loop
+sawmill_done:
+    jsr modem_in
+    ; menu
+    ldx #0
+sawmill_menu_print:
+    lda sawmill_menu_msg,X
+    beq sawmill_menu_print_done
+    jsr modem_out
+    inx
+    bne sawmill_menu_print
+sawmill_menu_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq sawmill_saw_wood
+    cmp #'2'
+    beq sawmill_buy_saw
+    cmp #'0'
+    beq sawmill_leave
+    jmp visit_sawmill
+
+sawmill_saw_wood:
+    ; require 1 Wood (id 21) -> produce 2 Planks (id 22)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+sawmill_count_wood:
+    cpy player_inventory_count
+    beq sawmill_no_wood
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #21
+    bne sawmill_next_wood
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+sawmill_next_wood:
+    iny
+    bne sawmill_count_wood
+sawmill_no_wood:
+    lda craft_tmp2
+    cmp #1
+    bcc sawmill_need_wood
+    ; remove one wood from first wood slot
+    ldy #0
+sawmill_find_wood:
+    cpy player_inventory_count
+    beq sawmill_fail
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #21
+    bne sawmill_find_wood_next
+    ; consume 1 Wood (id 21) across slots
+    lda #21
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    beq sawmill_produce_planks
+    jmp sawmill_fail
+sawmill_find_wood_next:
+    iny
+    jmp sawmill_find_wood
+sawmill_shift_remove_wood:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta craft_tmp2
+    tya
+sawmill_shift_loop_wood:
+    cpy craft_tmp2
+    beq sawmill_shift_done_wood
+    tya
+    clc
+    adc #1
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    sta player_inventory-4,X
+    lda player_inventory+1,X
+    sta player_inventory-3,X
+    lda player_inventory+2,X
+    sta player_inventory-2,X
+    lda player_inventory+3,X
+    sta player_inventory-1,X
+    iny
+    jmp sawmill_shift_loop_wood
+sawmill_shift_done_wood:
+    lda player_inventory_count
+    sec
+    sbc #1
+    sta player_inventory_count
+    jmp sawmill_produce_planks
+
+sawmill_produce_planks:
+    ; add 2 planks (id 22)
+    lda #22
+    jsr mine_add_or_increment
+    lda #22
+    jsr mine_add_or_increment
+    ldx #0
+    lda sawmill_done_msg,X
+    beq sawmill_done_printed
+    jsr modem_out
+    inx
+    bne sawmill_done_printed
+sawmill_done_printed:
+    jsr modem_in
+    jmp visit_sawmill
+
+sawmill_need_wood:
+    ldx #0
+    lda sawmill_need_wood_msg,X
+    beq sawmill_need_wood_done
+    jsr modem_out
+    inx
+    bne sawmill_need_wood
+sawmill_need_wood_done:
+    jsr modem_in
+    jmp visit_sawmill
+
+sawmill_buy_saw:
+    lda player_gold
+    cmp #20
+    bcc sawmill_no_gold
+    sec
+    lda player_gold
+    sbc #20
+    sta player_gold
+    ; give saw item id 23
+    lda #23
+    jsr mine_add_or_increment
+    ldx #0
+    lda sawmill_buy_msg,X
+    beq sawmill_buy_done
+    jsr modem_out
+    inx
+    bne sawmill_buy_msg
+sawmill_buy_done:
+    jsr modem_in
+    jmp visit_sawmill
+
+sawmill_no_gold:
+    ldx #0
+    lda sawmill_no_gold_msg,X
+    beq sawmill_no_gold_done
+    jsr modem_out
+    inx
+    bne sawmill_no_gold
+sawmill_no_gold_done:
+    jsr modem_in
+    jmp visit_sawmill
+
+sawmill_leave:
+    jmp visit_marketplace
+
+sawmill_msg:
+    .text "\r\nSAW MILL:\r\nA steady rhythm of blades and the scent of fresh timber greet you.\r\n"
+    .byte 0
+
+sawmill_menu_msg:
+    .text "\r\n1) Saw Wood -> 2 Planks\r\n2) Buy Saw (20 gold)\r\n0) Leave\r\n> "
+    .byte 0
+
+sawmill_done_msg:
+    .text "\r\nThe mill hums; you pocket the planks.\r\n[Press any key]\r\n"
+    .byte 0
+
+sawmill_need_wood_msg:
+    .text "\r\nYou don't have any wood to saw.\r\n[Press any key]\r\n"
+    .byte 0
+
+sawmill_buy_msg:
+    .text "\r\nThe saw is heavy but sharp. Useful for crafting.\r\n[Press any key]\r\n"
+    .byte 0
+
+sawmill_no_gold_msg:
+    .text "\r\nYou can't afford the saw.\r\n[Press any key]\r\n"
+    .byte 0
+
+// Dense Forest - gather wood, berries, hunt small game
+visit_dense_forest:
+    ldx #0
+dense_forest_loop:
+        lda dense_forest_msg,X
+        beq dense_forest_done
+        jsr modem_out
+        inx
+        bne dense_forest_loop
+dense_forest_done:
+    jsr modem_in
+    ; menu
+    ldx #0
+dense_forest_menu_print:
+    lda dense_forest_menu_msg,X
+    beq dense_forest_menu_print_done
+    jsr modem_out
+    inx
+    bne dense_forest_menu_print
+dense_forest_menu_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq dense_forest_chop_wood
+    cmp #'2'
+    beq dense_forest_forage_berries
+    cmp #'3'
+    beq dense_forest_hunt
+    cmp #'0'
+    beq dense_forest_leave
+    jmp visit_dense_forest
+
+dense_forest_chop_wood:
+    ; require stamina
+    lda player_stamina
+    beq dense_forest_too_tired
+    dec player_stamina
+    jsr get_random
+    and #$03
+    cmp #0
+    beq dense_forest_wood_abundant
+    cmp #1
+    beq dense_forest_wood_found
+    ; else small chance nothing
+    ldx #0
+    lda dense_forest_nothing_msg,X
+    beq dense_forest_nothing_done
+    jsr modem_out
+    inx
+    bne dense_forest_nothing
+dense_forest_nothing_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_wood_found:
+    lda #21
+    jsr mine_add_or_increment
+    ldx #0
+    lda dense_forest_wood_msg,X
+    beq dense_forest_wood_done
+    jsr modem_out
+    inx
+    bne dense_forest_wood_found
+dense_forest_wood_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_wood_abundant:
+    lda #21
+    jsr mine_add_or_increment
+    lda #21
+    jsr mine_add_or_increment
+    ldx #0
+    lda dense_forest_wood_many_msg,X
+    beq dense_forest_wood_many_done
+    jsr modem_out
+    inx
+    bne dense_forest_wood_many
+dense_forest_wood_many_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_forage_berries:
+    lda player_stamina
+    beq dense_forest_too_tired
+    dec player_stamina
+    jsr get_random
+    and #$03
+    cmp #0
+    beq dense_forest_berries_many
+    cmp #1
+    beq dense_forest_berries_found
+    ldx #0
+    lda dense_forest_nothing_msg,X
+    beq dense_forest_nothing2_done
+    jsr modem_out
+    inx
+    bne dense_forest_nothing2
+dense_forest_nothing2_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_berries_found:
+    lda #24
+    jsr mine_add_or_increment
+    ldx #0
+    lda dense_forest_berries_msg,X
+    beq dense_forest_berries_done
+    jsr modem_out
+    inx
+    bne dense_forest_berries_found
+dense_forest_berries_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_berries_many:
+    lda #24
+    jsr mine_add_or_increment
+    lda #24
+    jsr mine_add_or_increment
+    ldx #0
+    lda dense_forest_berries_many_msg,X
+    beq dense_forest_berries_many_done
+    jsr modem_out
+    inx
+    bne dense_forest_berries_many
+dense_forest_berries_many_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_hunt:
+    lda player_stamina
+    cmp #2
+    bcc dense_forest_too_tired
+    sec
+    lda player_stamina
+    sbc #2
+    sta player_stamina
+    jsr get_random
+    and #$01
+    cmp #0
+    beq dense_forest_hunt_success
+    ldx #0
+    lda dense_forest_hunt_fail_msg,X
+    beq dense_forest_hunt_fail_done
+    jsr modem_out
+    inx
+    bne dense_forest_hunt_fail
+dense_forest_hunt_fail_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_hunt_success:
+    lda #25
+    jsr mine_add_or_increment
+    ldx #0
+    lda dense_forest_hunt_msg,X
+    beq dense_forest_hunt_done
+    jsr modem_out
+    inx
+    bne dense_forest_hunt_success
+dense_forest_hunt_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_too_tired:
+    ldx #0
+    lda mine_tired_msg,X
+    beq dense_forest_tired_done
+    jsr modem_out
+    inx
+    bne dense_forest_too_tired
+dense_forest_tired_done:
+    jsr modem_in
+    jmp visit_dense_forest
+
+dense_forest_leave:
+    jmp visit_town
+
+dense_forest_msg:
+    .text "\r\nDENSE FOREST:\r\nTrees crowd overhead and shafts of light pierce the canopy. The air smells of damp earth and green leaves. You can forage, hunt, or fell timber here.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_menu_msg:
+    .text "\r\nDense Forest:\r\n1) Chop Wood\r\n2) Forage Berries\r\n3) Hunt (requires 2 stamina)\r\n0) Return to Town\r\n> "
+    .byte 0
+
+dense_forest_wood_msg:
+    .text "\r\nYou chop a length of wood and carry it back.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_wood_many_msg:
+    .text "\r\nYou find a small grove and haul several lengths of wood.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_nothing_msg:
+    .text "\r\nYou search but find nothing useful.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_berries_msg:
+    .text "\r\nYou pick a handful of ripe berries.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_berries_many_msg:
+    .text "\r\nYou gather a bounty of berries from a thicket.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_hunt_msg:
+    .text "\r\nYou bring down a small game and gut it for meat.\r\n[Press any key]\r\n"
+    .byte 0
+
+dense_forest_hunt_fail_msg:
+    .text "\r\nYou stalk for hours but come away empty-handed.\r\n[Press any key]\r\n"
+    .byte 0
+
+visit_inn:
+    ldx #0
+inn_msg_loop:
+    lda inn_msg,X
+    beq inn_print_done
+    jsr modem_out
+    inx
+    bne inn_msg_loop
+inn_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq inn_rent_room
+    cmp #'0'
+    beq inn_leave
+    jmp visit_inn
+
+inn_rent_room:
+    lda player_gold
+    cmp #20
+    bcc inn_no_gold
+    sec
+    lda player_gold
+    sbc #20
+    sta player_gold
+    ; full restore
+    lda #12
+    sta player_stamina
+    lda #20
+    sta player_hp
+    ldx #0
+inn_thanks_loop:
+    lda inn_rent_thanks_msg,X
+    beq inn_thanks_done
+    jsr modem_out
+    inx
+    bne inn_thanks_loop
+inn_thanks_done:
+    jsr modem_in
+    jmp visit_marketplace
+
+inn_no_gold:
+    ldx #0
+inn_nogold_loop:
+    lda inn_no_gold_msg,X
+    beq inn_nogold_done
+    jsr modem_out
+    inx
+    bne inn_nogold_loop
+inn_nogold_done:
+    jsr modem_in
+    jmp visit_inn
+
+inn_leave:
+    jmp visit_marketplace
+
+inn_msg:
+    .text "\r\nLouden's Rest - Rent a room:\r\n1) Rent Room (20 gold) - full restore\r\n0) Leave\r\n> "
+    .byte 0
+
+inn_rent_thanks_msg:
+    .text "\r\nYou sleep in a warm bed and wake fully restored.\r\n[Press any key]\r\n"
+    .byte 0
+
+inn_no_gold_msg:
+    .text "\r\nYou can't afford the room tonight.\r\n[Press any key]\r\n"
+    .byte 0
 
 visit_loudens_rest:
     ldx #0
@@ -4827,12 +9201,39 @@ market_show_bridge:
     ldx #0
 bridge_loop:
         lda bridge_troll_msg,X
-        beq market_done
+        beq market_menu
         jsr modem_out
         inx
         bne bridge_loop
-market_done:
+market_menu:
+    ; Offer access to Post Office from marketplace
+    ldx #0
+    market_menu_msg_loop:
+        lda market_menu_msg,X
+        beq market_menu_done
+        jsr modem_out
+        inx
+        bne market_menu_msg_loop
+market_menu_done:
     jsr modem_in
+    cmp #'1'
+    beq market_back
+    cmp #'2'
+    beq visit_post_office
+    cmp #'3'
+    beq visit_mine
+    cmp #'4'
+    beq visit_quarry
+    cmp #'5'
+    beq visit_tool_vendor
+    cmp #'6'
+    beq visit_inn
+    cmp #'7'
+    beq visit_sawmill
+    cmp #'8'
+    beq visit_tannery
+    jmp market_back
+market_back:
     jmp town_show_menu
 
 // Restock shop: small random price adjustments when visiting marketplace
@@ -4850,6 +9251,10 @@ restock_loop2:
     cpx shop_items_count
     bne restock_loop2
     rts
+
+market_menu_msg:
+    .text "\r\nMarketplace:\r\n1. Back to Town\r\n2. Post Office\r\n3. Mine\r\n4. Gem Quarry\r\n5. Tool Vendor\r\n6. Inn (Rent a room)\r\n7. Saw Mill\r\n8. Tannery\r\n> "
+    .byte 0
 
 visit_witch_tent:
     ldx #0
@@ -4884,6 +9289,14 @@ not_witch_potions:
     cmp #'4'
     bne witch_menu_done
     jmp town_show_menu
+not_witch_back:
+    cmp #'5'
+    bne not_witch_craft
+    jmp visit_mystic_craft
+not_witch_craft:
+    cmp #'6'
+    bne witch_menu_done
+    jmp visit_mystic_research
 
 talk_tammis:
     ldx #0
@@ -5056,23 +9469,203 @@ the_bridge_done:
 // Kira's Apothecary visit routine
 visit_apothecary:
     ldx #0
-apothecary_loop:
-        lda kira_apothecary_msg,X
-        beq apothecary_show_kira
-        jsr modem_out
-        inx
-        bne apothecary_loop
-apothecary_show_kira:
+    lda kira_apothecary_msg,X
+    beq apothecary_show_menu
+    jsr modem_out
+    inx
+    bne visit_apothecary
+apothecary_show_menu:
     ldx #0
-kira_loop:
-        lda kira_msg,X
-        beq apothecary_done
-        jsr modem_out
-        inx
-        bne kira_loop
-apothecary_done:
+    lda apothecary_menu_msg,X
+    beq apothecary_menu_done
+    jsr modem_out
+    inx
+    bne apothecary_show_menu
+apothecary_menu_done:
     jsr modem_in
-    jmp town_show_menu
+    cmp #'1'
+    beq apoth_do_heal
+    cmp #'2'
+    beq apoth_do_poison
+    cmp #'0'
+    beq town_show_menu
+    jmp visit_apothecary
+
+; Apothecary crafting handlers
+apoth_do_heal:
+    ; requires 1 Gem (id 6) and 1 Berry (id 24)
+    lda #0
+    sta craft_temp
+    ldy #0
+apoth_count_gems:
+    cpy player_inventory_count
+    beq apoth_count_gems_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne apoth_next_gem
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+apoth_next_gem:
+    iny
+    bne apoth_count_gems
+apoth_count_gems_done:
+    lda craft_temp
+    cmp #1
+    bcc apoth_no_materials
+    ; count Berries (id 24)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+apoth_count_berries:
+    cpy player_inventory_count
+    beq apoth_count_berries_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #24
+    bne apoth_next_berry
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+apoth_next_berry:
+    iny
+    bne apoth_count_berries
+apoth_count_berries_done:
+    lda craft_tmp2
+    cmp #1
+    bcc apoth_no_materials
+    ; consume 1 Gem
+    lda #6
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne apoth_no_materials
+    ; consume 1 Berry
+    lda #24
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne apoth_no_materials
+    ; give Healing Potion (id 35)
+    lda #0
+    sta craft_tmp2
+    lda #35
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_heal_success_msg,X
+    beq apoth_heal_done
+    jsr modem_out
+    inx
+    bne apoth_do_heal
+apoth_heal_done:
+    jsr modem_in
+    jmp visit_apothecary
+
+apoth_do_poison:
+    ; requires 1 Meat (id 25) and 1 Berry (id 24)
+    lda #0
+    sta craft_temp
+    ldy #0
+apoth_count_meat:
+    cpy player_inventory_count
+    beq apoth_count_meat_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #25
+    bne apoth_next_meat
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+apoth_next_meat:
+    iny
+    bne apoth_count_meat
+apoth_count_meat_done:
+    lda craft_temp
+    cmp #1
+    bcc apoth_no_materials
+    ; count Berries (id 24)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+apoth_count_berries2:
+    cpy player_inventory_count
+    beq apoth_count_berries2_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #24
+    bne apoth_next_berry2
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+apoth_next_berry2:
+    iny
+    bne apoth_count_berries2
+apoth_count_berries2_done:
+    lda craft_tmp2
+    cmp #1
+    bcc apoth_no_materials
+    ; consume 1 Meat
+    lda #25
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne apoth_no_materials
+    ; consume 1 Berry
+    lda #24
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne apoth_no_materials
+    ; give Poison (id 36)
+    lda #0
+    sta craft_tmp2
+    lda #36
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_poison_success_msg,X
+    beq apoth_poison_done
+    jsr modem_out
+    inx
+    bne apoth_do_poison
+apoth_poison_done:
+    jsr modem_in
+    jmp visit_apothecary
+
+apoth_no_materials:
+    ldx #0
+    lda apothecary_insuf_msg,X
+    beq apoth_no_mat_done
+    jsr modem_out
+    inx
+    bne apoth_no_materials
+apoth_no_mat_done:
+    jsr modem_in
+    jmp visit_apothecary
 
 // === THE STAGE - GREG THE FIRE DANCER ===
 visit_the_stage:
@@ -5101,6 +9694,57 @@ stage_menu_loop:
         bne stage_menu_loop
 stage_menu_done:
     jsr modem_in
+
+print_detain_stocks:
+    ldx #0
+detain_loop_stocks:
+    lda detained_stocks_msg,X
+    beq detain_done_stocks
+    jsr modem_out
+    inx
+    bne detain_loop_stocks
+detain_done_stocks:
+    jsr modem_in
+    dec detain_timer
+    lda detain_timer
+    beq clear_detain_type
+    jmp town_show_menu
+
+print_detain_jail:
+    ldx #0
+detain_loop_jail:
+    lda detained_jail_msg,X
+    beq detain_done_jail
+    jsr modem_out
+    inx
+    bne detain_loop_jail
+detain_done_jail:
+    jsr modem_in
+    dec detain_timer
+    lda detain_timer
+    beq clear_detain_type
+    jmp town_show_menu
+
+print_detain_generic:
+    ldx #0
+detain_loop_generic:
+    lda detained_stocks_msg,X
+    beq detain_done_generic
+    jsr modem_out
+    inx
+    bne detain_loop_generic
+detain_done_generic:
+    jsr modem_in
+    dec detain_timer
+    lda detain_timer
+    beq clear_detain_type
+    jmp town_show_menu
+
+clear_detain_type:
+    lda #0
+    sta detain_type
+    jmp town_show_menu
+
     cmp #'1'
     bne not_watch_dance
     jmp watch_fire_dance
@@ -5174,6 +9818,262 @@ tip_thanks_loop:
         jsr modem_out
         inx
         bne tip_thanks_loop
+; -------------------------
+; Mystic Tent - Crafting
+visit_mystic_craft:
+    ldx #0
+    lda mystic_craft_menu_msg,X
+    beq mystic_craft_done
+    jsr modem_out
+    inx
+    bne visit_mystic_craft
+mystic_craft_done:
+    jsr modem_in
+    cmp #'1'
+    beq mystic_do_scroll
+    cmp #'2'
+    beq mystic_do_trinket
+    cmp #'0'
+    beq visit_witch_tent
+    jmp visit_mystic_craft
+
+mystic_do_scroll:
+    ; count Gems (id 6)
+    lda #0
+    sta craft_temp
+    ldy #0
+mystic_count_gems:
+    cpy player_inventory_count
+    beq mystic_count_gems_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne mystic_next_gem
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+mystic_next_gem:
+    iny
+    bne mystic_count_gems
+mystic_count_gems_done:
+    lda craft_temp
+    cmp #1
+    bcc mystic_no_materials
+    ; count Leather (id 27)
+    lda #0
+    sta craft_tmp2
+    ldy #0
+mystic_count_leather:
+    cpy player_inventory_count
+    beq mystic_count_leather_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne mystic_next_leather
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+mystic_next_leather:
+    iny
+    bne mystic_count_leather
+mystic_count_leather_done:
+    lda craft_tmp2
+    cmp #1
+    bcc mystic_no_materials
+    ; consume 1 Gem and 1 Leather
+    lda #6
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne mystic_no_materials
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne mystic_no_materials
+    ; give Spell Tome (id 33)
+    lda #0
+    sta craft_tmp2
+    lda #33
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_scroll_success_msg,X
+    beq mystic_scroll_done
+    jsr modem_out
+    inx
+    bne mystic_do_scroll
+mystic_scroll_done:
+    jsr modem_in
+    jmp visit_mystic_craft
+
+mystic_do_trinket:
+    ; requires 2 Gems + 1 Leather
+    lda #0
+    sta craft_temp
+    ldy #0
+mystic_count_gems2:
+    cpy player_inventory_count
+    beq mystic_count_gems2_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #6
+    bne mystic_next_gem2
+    lda player_inventory+1,X
+    clc
+    adc craft_temp
+    sta craft_temp
+mystic_next_gem2:
+    iny
+    bne mystic_count_gems2
+mystic_count_gems2_done:
+    lda craft_temp
+    cmp #2
+    bcc mystic_no_materials
+    ; count Leather
+    lda #0
+    sta craft_tmp2
+    ldy #0
+mystic_count_leather2:
+    cpy player_inventory_count
+    beq mystic_count_leather2_done
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory,X
+    cmp #27
+    bne mystic_next_leather2
+    lda player_inventory+1,X
+    clc
+    adc craft_tmp2
+    sta craft_tmp2
+mystic_next_leather2:
+    iny
+    bne mystic_count_leather2
+mystic_count_leather2_done:
+    lda craft_tmp2
+    cmp #1
+    bcc mystic_no_materials
+    ; consume 2 Gems and 1 Leather
+    lda #6
+    sta craft_temp
+    lda #2
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne mystic_no_materials
+    lda #27
+    sta craft_temp
+    lda #1
+    sta craft_tmp2
+    jsr consume_items
+    lda craft_tmp2
+    bne mystic_no_materials
+    ; give Magic Item (id 34)
+    lda #0
+    sta craft_tmp2
+    lda #34
+    jsr mine_add_or_increment
+    ldx #0
+    lda craft_trinket_success_msg,X
+    beq mystic_trinket_done
+    jsr modem_out
+    inx
+    bne mystic_do_trinket
+mystic_trinket_done:
+    jsr modem_in
+    jmp visit_mystic_craft
+
+mystic_no_materials:
+    ldx #0
+    lda mystic_insuf_msg,X
+    beq mystic_no_mat_done
+    jsr modem_out
+    inx
+    bne mystic_no_materials
+mystic_no_mat_done:
+    jsr modem_in
+    jmp visit_mystic_craft
+
+; -------------------------
+; Mystic Tent - Research
+visit_mystic_research:
+    ldx #0
+    lda research_menu_msg,X
+    beq research_menu_done
+    jsr modem_out
+    inx
+    bne visit_mystic_research
+research_menu_done:
+    jsr modem_in
+    cmp #'1'
+    beq mystic_do_research
+    cmp #'0'
+    beq visit_witch_tent
+    jmp visit_mystic_research
+
+mystic_do_research:
+    lda player_gold
+    cmp #20
+    bcc mystic_research_no_gold
+    sec
+    lda player_gold
+    sbc #20
+    sta player_gold
+    jsr get_random
+    and #$03
+    bne mystic_research_fail
+    ; success: grant Spell Tome (id 33)
+    lda #0
+    sta craft_tmp2
+    lda #33
+    jsr mine_add_or_increment
+    ldx #0
+    lda research_success_msg,X
+    beq research_success_done
+    jsr modem_out
+    inx
+    bne mystic_do_research
+research_success_done:
+    jsr modem_in
+    jmp visit_mystic_research
+
+mystic_research_fail:
+    ldx #0
+    lda research_fail_msg,X
+    beq research_fail_done
+    jsr modem_out
+    inx
+    bne mystic_research_fail
+research_fail_done:
+    jsr modem_in
+    jmp visit_mystic_research
+
+mystic_research_no_gold:
+    ldx #0
+    lda tool_vendor_no_gold_msg,X
+    beq mystic_research_no_gold_done
+    jsr modem_out
+    inx
+    bne mystic_research_no_gold
+mystic_research_no_gold_done:
+    jsr modem_in
+    jmp visit_mystic_research
 tip_thanks_done:
     jsr modem_in
     jmp stage_show_menu
@@ -9099,9 +13999,31 @@ print_item_name:
             and #$07
             bne print_item_name
 item_name_done:
-        // Print quantity
+        // Print quantity or durability if present
         lda #' '
         jsr modem_out
+        ; compute slot base = Y * 4
+        tya
+        asl
+        asl
+        tax
+        lda player_inventory+2,X  ; durability byte
+        beq print_inv_count
+        ; print durability as " (d:NN)"
+        lda #' '
+        jsr modem_out
+        lda #'('
+        jsr modem_out
+        lda #'d'
+        jsr modem_out
+        lda #':'
+        jsr modem_out
+        lda player_inventory+2,X
+        jsr print_byte_decimal
+        lda #')'
+        jsr modem_out
+        jmp print_inv_done
+    print_inv_count:
         lda #'x'
         jsr modem_out
         tya
@@ -9114,6 +14036,7 @@ item_name_done:
         clc
         adc #'0'
         jsr modem_out
+    print_inv_done:
         lda #13
         jsr modem_out
         iny
@@ -9184,6 +14107,28 @@ offer_what_done:
     cmp player_inventory_count
     bcs go_create_trade_again
     sta trade_offer_item
+    ; Disallow offering durable (per-slot) items which carry slot metadata
+    lda trade_offer_item
+    tay
+    tya
+    asl
+    asl
+    tax
+    lda player_inventory+2,X
+    cmp #0
+    beq offer_what_continue
+    ; Durable item selected - show message and abort
+    ldx #0
+durable_offer_msg_loop:
+        lda durable_offer_msg,X
+        beq durable_offer_done
+        jsr modem_out
+        inx
+        bne durable_offer_msg_loop
+durable_offer_done:
+    jsr modem_in
+    jmp trade_menu
+offer_what_continue:
     // Ask what you want
     ldx #0
 want_what_loop:
@@ -9236,6 +14181,11 @@ want_what_msg:
     .text "\r\nWant which item? (1-8): "
 trade_created_msg:
     .text "\r\nTrade offer posted!\r\n[Press any key]\r\n"
+    .byte 0
+
+durable_offer_msg:
+    .text "\r\nDurable/tools cannot be offered on the trade board.\r\n[Press any key]\r\n"
+    .byte 0
 
 view_my_trade_offers:
     lda trade_offers_count

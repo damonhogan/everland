@@ -271,8 +271,15 @@ Directory (25 Locations)</a></li>
 id="toc-major-npcs-by-location">Major NPCs by Location</a></li>
 </ul></li>
 <li><a href="#recent-additions-updates"
-id="toc-recent-additions-updates">Recent Additions &amp;
-Updates</a></li>
+id="toc-recent-additions-updates">Recent Additions &amp; Updates</a>
+<ul>
+<li><a href="#detailed-notes-on-recent-additions-2026-02-06"
+id="toc-detailed-notes-on-recent-additions-2026-02-06">Detailed Notes on
+Recent Additions (2026-02-06)</a></li>
+<li><a href="#expanded-crafting-new-locations"
+id="toc-expanded-crafting-new-locations">Expanded Crafting &amp; New
+Locations</a></li>
+</ul></li>
 <li><a href="#social-room-features" id="toc-social-room-features">Social
 &amp; Room Features</a>
 <ul>
@@ -488,6 +495,12 @@ Storage</a></li>
 id="toc-performance-considerations">Performance Considerations</a></li>
 </ul></li>
 <li><a href="#credits" id="toc-credits">Credits</a></li>
+<li><a href="#appendix-a-crafting-item-ids"
+id="toc-appendix-a-crafting-item-ids">Appendix A: Crafting Item
+IDs</a></li>
+<li><a href="#appendix-b-crafting-cooking-recipes"
+id="toc-appendix-b-crafting-cooking-recipes">Appendix B: Crafting &amp;
+Cooking Recipes</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -1008,6 +1021,84 @@ Sundial, Silken Drapes) — see Room Shop Items below for prices.</p></li>
 <code>V</code> has been added to the main menu for fast saving. This
 invokes the same save routine as the regular Save option and provides a
 short confirmation message.</p></li>
+</ul>
+<h3 id="detailed-notes-on-recent-additions-2026-02-06">Detailed Notes on
+Recent Additions (2026-02-06)</h3>
+<ul>
+<li><p><strong>NPC Proactive Greetings</strong>: While browsing the Town
+menu, NPCs may occasionally display short flavor greetings. These are
+cosmetic only and do not affect quests or stats.</p></li>
+<li><p><strong>Circus — Juggler’s Challenge</strong>: The Circus Tent
+(Town key <code>Q</code>) hosts a three-round skill/dex challenge. Each
+round requires a simple timing/choice input; succeeding grants a small
+gold reward and can update your persistent
+<code>circus_high_score</code> recorded in-game.</p></li>
+<li><p><strong>Arena Ticketing &amp; Prize Pool</strong>: Entering the
+Arena requires either a single-session Arena Ticket (5g) or an Arena
+Season Pass (30g). Session tickets are consumed on entry; season passes
+persist in your account. Lost bets contribute to an in-game
+<code>arena_prize_pool</code>; winners may draw from that pool in
+addition to standard rewards.</p></li>
+<li><p><strong>Train Timetable &amp; Conductor Flavor</strong>: At the
+Train Station you can <code>View Timetable</code> to see scheduled
+stops. The conductor now announces the upcoming stop as the train
+approaches and may play short flavor lines. The system includes a
+dynamic delay factor that can affect the train’s timing for
+immersion.</p></li>
+<li><p><strong>Marketplace Restock &amp; Expanded Items</strong>: The
+Room Shop now contains three additional decorative items (Velvet
+Cushions — 35g, Bronze Sundial — 45g, Silken Drapes — 55g). Visiting the
+marketplace may trigger a light restock/price-adjust routine that shifts
+shop prices slightly over time.</p></li>
+<li><p><strong>Quick-Save &amp; Autosave Behavior</strong>: Press
+<code>V</code> from the main menu for a quick save. The autosave system
+uses an alternating backup filename so recent autosaves do not overwrite
+the primary save; autosave alternates between <code>@0:EVSAVE,S,W</code>
+and <code>@0:EVSAVE1,S,W</code> (labels <code>save_filename</code> and
+<code>save_filename_alt</code> in the source). Autosave is triggered
+periodically by the main loop (configurable in code).</p></li>
+</ul>
+<p>These notes expand on the brief summaries in “Recent Additions &amp;
+Updates” — see the relevant in-game menus (Train Station, Circus Tent,
+Arena, Marketplace, Main Menu) for interactive access.</p>
+<h3 id="expanded-crafting-new-locations">Expanded Crafting &amp; New
+Locations</h3>
+<ul>
+<li><strong>Apothecary (Kira’s)</strong>: Craft Healing Potions and
+Poisons at <code>Kira's Apothecary</code> using local ingredients.
+Healing Potion (1 Gem + 1 Berry) restores health effects; Poison (1 Meat
++ 1 Berry) is a crafted tincture for hostile uses. These flows use the
+<code>consume_items</code> helper to correctly remove materials even
+when split across inventory slots.</li>
+<li><strong>Mystic’s Tent</strong>: The Mystic Tent adds Mystic Crafting
+(craft Spell Tomes and Magic Items) and Spell Research (chance-based
+research that may yield Spell Tomes). New items include
+<code>SpellTm</code> and <code>MagItm</code>.</li>
+<li><strong>Tannery</strong>: Convert <code>Hide</code> into
+<code>Leather</code> and perform simple leatherworking used by Forge
+recipes for armor and tools.</li>
+<li><strong>Saw Mill</strong>: Convert <code>Wood</code> into
+<code>Plank</code> and craft saw-related items; planks are used by
+tool/weapon recipes at the <code>Forge</code>.</li>
+<li><strong>Forge expansions</strong>: New recipes for
+<code>Knife</code>, <code>Dagger</code>, <code>Hammer</code>,
+<code>Axe</code>, <code>Sword</code>, <code>Shield</code>, and
+<code>Armor</code> consume iron, planks, and leather and produce durable
+items with per-slot durability metadata.</li>
+<li><strong>Inventory &amp; Durability</strong>: Inventory slots support
+per-slot metadata (durability) stored alongside item count; durable
+tools/items are non-stackable and their durability is shown in
+<code>I</code> (Inventory). The <code>mine_add_or_increment</code> and
+<code>consume_items</code> routines were updated to handle durable items
+and split-slot removals.</li>
+<li><strong>Trade restrictions</strong>: The trade/posting UI blocks
+listing of durable/tools to prevent posting items that carry per-slot
+metadata; a clear message is shown when attempted.</li>
+<li><strong>New items</strong>: Spell Tome (<code>SpellTm</code>), Magic
+Item (<code>MagItm</code>), Healing Potion (<code>HealPot</code>),
+Poison (<code>Poison</code>), and other crafting items (Plank, Leather,
+Knife, Dagger, Hammer, Axe). See the <code>item_names</code> table in
+the source for exact ordering and IDs.</li>
 </ul>
 <h4 id="mythos-npcs">Mythos NPCs</h4>
 <table>
@@ -3043,6 +3134,247 @@ access</li>
 </ul>
 <hr />
 <h2 id="credits">Credits</h2>
+<hr />
+<h2 id="appendix-a-crafting-item-ids">Appendix A: Crafting Item IDs</h2>
+<p>The following table lists every entry in the <code>item_names</code>
+table and its 0-based ID (index) used throughout the BBS source.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Item</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Sword</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Shield</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Potion</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Ring</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Amulet</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Scroll</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Gem</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Key</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Copper</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Iron</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Silver</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Ruby</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Sapphire</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Emerald</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Pickaxe</td>
+</tr>
+<tr>
+<td>15</td>
+<td>RingR</td>
+</tr>
+<tr>
+<td>16</td>
+<td>RingS</td>
+</tr>
+<tr>
+<td>17</td>
+<td>RingE</td>
+</tr>
+<tr>
+<td>18</td>
+<td>AmuR</td>
+</tr>
+<tr>
+<td>19</td>
+<td>AmuS</td>
+</tr>
+<tr>
+<td>20</td>
+<td>AmuE</td>
+</tr>
+<tr>
+<td>21</td>
+<td>Wood</td>
+</tr>
+<tr>
+<td>22</td>
+<td>Plank</td>
+</tr>
+<tr>
+<td>23</td>
+<td>Saw</td>
+</tr>
+<tr>
+<td>24</td>
+<td>Berry</td>
+</tr>
+<tr>
+<td>25</td>
+<td>Meat</td>
+</tr>
+<tr>
+<td>26</td>
+<td>Hide</td>
+</tr>
+<tr>
+<td>27</td>
+<td>Leather</td>
+</tr>
+<tr>
+<td>28</td>
+<td>Knife</td>
+</tr>
+<tr>
+<td>29</td>
+<td>Dagger</td>
+</tr>
+<tr>
+<td>30</td>
+<td>Armor</td>
+</tr>
+<tr>
+<td>31</td>
+<td>Hammer</td>
+</tr>
+<tr>
+<td>32</td>
+<td>Axe</td>
+</tr>
+<tr>
+<td>33</td>
+<td>SpellTm</td>
+</tr>
+<tr>
+<td>34</td>
+<td>MagItm</td>
+</tr>
+<tr>
+<td>35</td>
+<td>HealPot</td>
+</tr>
+<tr>
+<td>36</td>
+<td>Poison</td>
+</tr>
+<tr>
+<td>Poison (<code>Poison</code>)</td>
+<td>36</td>
+</tr>
+</tbody>
+</table>
+<h2 id="appendix-b-crafting-cooking-recipes">Appendix B: Crafting &amp;
+Cooking Recipes</h2>
+<p>This appendix consolidates all crafting and cooking recipes
+implemented in <code>bbs/everland_bbs.asm</code>.</p>
+<ul>
+<li>Forge (menu-driven):
+<ul>
+<li>Ring: 2 × <code>Gem</code> (id 6) -&gt; <code>Ring</code> (id
+3)</li>
+<li>Amulet: 3 × <code>Gem</code> (id 6) -&gt; <code>Amulet</code> (id
+4)</li>
+<li>Potion (Forge): 1 × <code>Gem</code> (id 6) -&gt;
+<code>Potion</code> (id 2)</li>
+<li>Cut Gem: 1 × <code>Gem</code> (id 6) -&gt; random <code>Ruby</code>
+(11) / <code>Sapphire</code> (12) / <code>Emerald</code> (13)</li>
+<li>Pickaxe: 2 × <code>Iron</code> (id 9) + 1 × <code>Plank</code> (id
+22) -&gt; <code>Pickaxe</code> (id 14)</li>
+<li>Knife: 1 × <code>Iron</code> (id 9) + 1 × <code>Leather</code> (id
+27) -&gt; <code>Knife</code> (id 28)</li>
+<li>Dagger: 2 × <code>Iron</code> (id 9) + 1 × <code>Leather</code> (id
+27) -&gt; <code>Dagger</code> (id 29)</li>
+<li>Hammer: 2 × <code>Iron</code> (id 9) + 1 × <code>Plank</code> (id
+22) -&gt; <code>Hammer</code> (id 31)</li>
+<li>Axe: 2 × <code>Iron</code> (id 9) + 1 × <code>Plank</code> (id 22) +
+1 × <code>Leather</code> (id 27) -&gt; <code>Axe</code> (id 32)</li>
+<li>Sword: 4 × <code>Iron</code> (id 9) + 2 × <code>Plank</code> (id 22)
++ 1 × <code>Leather</code> (id 27) -&gt; <code>Sword</code> (id 0)</li>
+<li>Shield: 3 × <code>Iron</code> (id 9) + 2 × <code>Plank</code> (id
+22) + 1 × <code>Leather</code> (id 27) -&gt; <code>Shield</code> (id
+1)</li>
+<li>Armor: 6 × <code>Iron</code> (id 9) + 4 × <code>Leather</code> (id
+27) -&gt; <code>Armor</code> (id 30)</li>
+</ul></li>
+<li>Mystic Tent:
+<ul>
+<li>Spell Tome (<code>SpellTm</code>, id 33): 1 × <code>Gem</code> (id
+6) + 1 × <code>Leather</code> (id 27)</li>
+<li>Magic Item (<code>MagItm</code>, id 34): 2 × <code>Gem</code> (id 6)
++ 1 × <code>Leather</code> (id 27)</li>
+<li>Spell Research: pay 20 gold (chance-based) → may grant
+<code>SpellTm</code> (id 33)</li>
+</ul></li>
+<li>Kira’s Apothecary:
+<ul>
+<li>Healing Potion (<code>HealPot</code>, id 35): 1 × <code>Gem</code>
+(id 6) + 1 × <code>Berry</code> (id 24)</li>
+<li>Poison (<code>Poison</code>, id 36): 1 × <code>Meat</code> (id 25) +
+1 × <code>Berry</code> (id 24)</li>
+</ul></li>
+<li>Tannery:
+<ul>
+<li>Leather (id 27): 1 × <code>Hide</code> (id 26) -&gt;
+<code>Leather</code> (id 27)</li>
+</ul></li>
+<li>Saw Mill:
+<ul>
+<li>Plank (id 22): 1 × <code>Wood</code> (id 21) -&gt;
+<code>Plank</code> (id 22)</li>
+<li>You can also buy a <code>Saw</code> (id 23) from the Saw Mill
+vendor</li>
+</ul></li>
+<li>Cooking System (Food Court &amp; Cooking menu):
+<ul>
+<li>Fish Stew: 2 × fish (tracked by <code>fish_caught</code>) -&gt; +1
+meal (consumable)</li>
+<li>Grand Feast: 5 × fish -&gt; +3 meals</li>
+<li>Eat Meal: consumes 1 meal to grant a small buff/effect</li>
+</ul></li>
+</ul>
+<p>Notes: - All crafting removal operations use the
+<code>consume_items</code> helper, so materials are removed correctly
+even when split across multiple inventory slots. - Durable items
+produced by the Forge (tools/weapons with durability) are created with
+per-slot metadata (durability) and are non-stackable; the inventory
+routines store durability in the slot+2 byte.</p>
 <ul>
 <li><strong>Producer</strong>: Damon Hogan</li>
 <li><strong>Inspired by</strong>: Perry Fraptic (RetroRecipes

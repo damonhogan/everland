@@ -260,6 +260,16 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 
 These notes expand on the brief summaries in "Recent Additions & Updates" — see the relevant in-game menus (Train Station, Circus Tent, Arena, Marketplace, Main Menu) for interactive access.
 
+### Expanded Crafting & New Locations
+- **Apothecary (Kira's)**: Craft Healing Potions and Poisons at `Kira's Apothecary` using local ingredients. Healing Potion (1 Gem + 1 Berry) restores health effects; Poison (1 Meat + 1 Berry) is a crafted tincture for hostile uses. These flows use the `consume_items` helper to correctly remove materials even when split across inventory slots.
+- **Mystic's Tent**: The Mystic Tent adds Mystic Crafting (craft Spell Tomes and Magic Items) and Spell Research (chance-based research that may yield Spell Tomes). New items include `SpellTm` and `MagItm`.
+- **Tannery**: Convert `Hide` into `Leather` and perform simple leatherworking used by Forge recipes for armor and tools.
+- **Saw Mill**: Convert `Wood` into `Plank` and craft saw-related items; planks are used by tool/weapon recipes at the `Forge`.
+- **Forge expansions**: New recipes for `Knife`, `Dagger`, `Hammer`, `Axe`, `Sword`, `Shield`, and `Armor` consume iron, planks, and leather and produce durable items with per-slot durability metadata.
+- **Inventory & Durability**: Inventory slots support per-slot metadata (durability) stored alongside item count; durable tools/items are non-stackable and their durability is shown in `I` (Inventory). The `mine_add_or_increment` and `consume_items` routines were updated to handle durable items and split-slot removals.
+- **Trade restrictions**: The trade/posting UI blocks listing of durable/tools to prevent posting items that carry per-slot metadata; a clear message is shown when attempted.
+- **New items**: Spell Tome (`SpellTm`), Magic Item (`MagItm`), Healing Potion (`HealPot`), Poison (`Poison`), and other crafting items (Plank, Leather, Knife, Dagger, Hammer, Axe). See the `item_names` table in the source for exact ordering and IDs.
+
 
 #### Mythos NPCs
 | NPC | Role | Quest Chain |
@@ -1730,6 +1740,95 @@ When pasting custom lore books via the Library menu:
 ---
 
 ## Credits
+
+---
+
+## Appendix A: Crafting Item IDs
+The following table lists every entry in the `item_names` table and its 0-based ID (index) used throughout the BBS source.
+
+| ID | Item |
+|----|------|
+| 0 | Sword |
+| 1 | Shield |
+| 2 | Potion |
+| 3 | Ring |
+| 4 | Amulet |
+| 5 | Scroll |
+| 6 | Gem |
+| 7 | Key |
+| 8 | Copper |
+| 9 | Iron |
+| 10 | Silver |
+| 11 | Ruby |
+| 12 | Sapphire |
+| 13 | Emerald |
+| 14 | Pickaxe |
+| 15 | RingR |
+| 16 | RingS |
+| 17 | RingE |
+| 18 | AmuR |
+| 19 | AmuS |
+| 20 | AmuE |
+| 21 | Wood |
+| 22 | Plank |
+| 23 | Saw |
+| 24 | Berry |
+| 25 | Meat |
+| 26 | Hide |
+| 27 | Leather |
+| 28 | Knife |
+| 29 | Dagger |
+| 30 | Armor |
+| 31 | Hammer |
+| 32 | Axe |
+| 33 | SpellTm |
+| 34 | MagItm |
+| 35 | HealPot |
+| 36 | Poison |
+| Poison (`Poison`) | 36 |
+
+## Appendix B: Crafting & Cooking Recipes
+This appendix consolidates all crafting and cooking recipes implemented in `bbs/everland_bbs.asm`.
+
+- Forge (menu-driven):
+	- Ring: 2 × `Gem` (id 6) -> `Ring` (id 3)
+	- Amulet: 3 × `Gem` (id 6) -> `Amulet` (id 4)
+	- Potion (Forge): 1 × `Gem` (id 6) -> `Potion` (id 2)
+	- Cut Gem: 1 × `Gem` (id 6) -> random `Ruby` (11) / `Sapphire` (12) / `Emerald` (13)
+	- Pickaxe: 2 × `Iron` (id 9) + 1 × `Plank` (id 22) -> `Pickaxe` (id 14)
+	- Knife: 1 × `Iron` (id 9) + 1 × `Leather` (id 27) -> `Knife` (id 28)
+	- Dagger: 2 × `Iron` (id 9) + 1 × `Leather` (id 27) -> `Dagger` (id 29)
+	- Hammer: 2 × `Iron` (id 9) + 1 × `Plank` (id 22) -> `Hammer` (id 31)
+	- Axe: 2 × `Iron` (id 9) + 1 × `Plank` (id 22) + 1 × `Leather` (id 27) -> `Axe` (id 32)
+	- Sword: 4 × `Iron` (id 9) + 2 × `Plank` (id 22) + 1 × `Leather` (id 27) -> `Sword` (id 0)
+	- Shield: 3 × `Iron` (id 9) + 2 × `Plank` (id 22) + 1 × `Leather` (id 27) -> `Shield` (id 1)
+	- Armor: 6 × `Iron` (id 9) + 4 × `Leather` (id 27) -> `Armor` (id 30)
+
+- Mystic Tent:
+	- Spell Tome (`SpellTm`, id 33): 1 × `Gem` (id 6) + 1 × `Leather` (id 27)
+	- Magic Item (`MagItm`, id 34): 2 × `Gem` (id 6) + 1 × `Leather` (id 27)
+	- Spell Research: pay 20 gold (chance-based) → may grant `SpellTm` (id 33)
+
+- Kira's Apothecary:
+	- Healing Potion (`HealPot`, id 35): 1 × `Gem` (id 6) + 1 × `Berry` (id 24)
+	- Poison (`Poison`, id 36): 1 × `Meat` (id 25) + 1 × `Berry` (id 24)
+
+- Tannery:
+	- Leather (id 27): 1 × `Hide` (id 26) -> `Leather` (id 27)
+
+- Saw Mill:
+	- Plank (id 22): 1 × `Wood` (id 21) -> `Plank` (id 22)
+	- You can also buy a `Saw` (id 23) from the Saw Mill vendor
+
+- Cooking System (Food Court & Cooking menu):
+	- Fish Stew: 2 × fish (tracked by `fish_caught`) -> +1 meal (consumable)
+	- Grand Feast: 5 × fish -> +3 meals
+	- Eat Meal: consumes 1 meal to grant a small buff/effect
+
+Notes:
+- All crafting removal operations use the `consume_items` helper, so materials are removed correctly even when split across multiple inventory slots.
+- Durable items produced by the Forge (tools/weapons with durability) are created with per-slot metadata (durability) and are non-stackable; the inventory routines store durability in the slot+2 byte.
+
 
 - **Producer**: Damon Hogan
 - **Inspired by**: Perry Fraptic (RetroRecipes YouTube)
