@@ -157,7 +157,7 @@ Everland BBS Door Game is a text-adventure door game for BBS systems, written in
 - **Quests**: Frost spell mastery, wolf challenge survival
 - **Guild**: Frost Weavers Guild
 
-#### 2.Ore (Kingdom of Knights and Memory)
+#### 2.Lore (Kingdom of Knights and Memory)
 - **Theme**: Medieval kingdom, knights, ancient oaths
 - **Key NPCs**: Lady Cordelia, Grim the Blackheart
 - **Quests**: Knight's oath, Battle for the Cursed Garden
