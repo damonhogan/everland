@@ -499,11 +499,11 @@ skill_points: .byte 5                // Unspent skill points
 skill_combat: .byte 0                // Combat tree level (0-10)
 skill_magic: .byte 0                 // Magic tree level (0-10)
 skill_social: .byte 0                // Social tree level (0-10)
-skill_survival: .byte 0              // Survival tree level (0-10)
+skill_stealth: .byte 0              // Stealth tree level (0-10)
 combat_perks: .byte 0                // Bit flags for combat perks unlocked
 magic_perks: .byte 0                 // Bit flags for magic perks unlocked
 social_perks: .byte 0                // Bit flags for social perks unlocked
-survival_perks: .byte 0              // Bit flags for survival perks unlocked
+stealth_perks: .byte 0              // Bit flags for stealth perks unlocked
 player_level: .byte 1                // Player level (gain SP on level up)
 player_xp: .word 0                   // Experience points
 xp_to_next: .word 100                // XP needed for next level
@@ -1248,6 +1248,9 @@ kira_apothecary_msg:
     .byte 0
 kira_msg:
     .text "\r\nKira stands behind the counter, hair like newly spun gold, hands dusted with dried petals. Her smile is warm - the kind that makes aches feel remote.\r\n\r\n'Welcome, Mr. Damon! Balm of Quick Mend for wounds, Oil of Orchid for massages... or perhaps just a moment of care?'\r\n\r\nShe whispers: 'I too am an aspiring magic-user - small charms, healing threads, sachets for restless spirits.'\r\n\r\nFirst Light Quest Chain:\r\n1. Accept healing for your wounds\r\n2. Experience the massage table with scented oils\r\n3. Share stories of magic and craft\r\n4. Return at dusk when the lamp is lit\r\n\r\n'We'll call it mutual craft - you mend quarrels, I mend weariness.'\r\n\r\n(Quest: Return at dusk to speak of other matters.)\r\n[Press any key]\r\n"
+    .byte 0
+apothecary_menu_msg:
+    .text "\r\nKIRA'S APOTHECARY - Crafting Table:\r\n1) Healing Potion (1 Gem + 1 Berry)\r\n2) Poison (1 Meat + 1 Berry)\r\n3) Browse Recipes\r\n0) Leave\r\n> "
     .byte 0
 
 // === THE STAGE - GREG THE FIRE DANCER MESSAGES ===
@@ -2266,11 +2269,15 @@ save_write_data:
     jsr $FFD2
     lda skill_social
     jsr $FFD2
-    lda skill_survival
+    lda skill_stealth
     jsr $FFD2
     lda skill_points
     jsr $FFD2
     lda dungeon_deepest
+    jsr $FFD2
+    lda guard_alert_level
+    jsr $FFD2
+    lda witness_count
     jsr $FFD2
     // Close file
     jsr $FFCC    // CLRCHN
@@ -2369,11 +2376,15 @@ load_read_data:
     jsr $FFCF
     sta skill_social
     jsr $FFCF
-    sta skill_survival
+    sta skill_stealth
     jsr $FFCF
     sta skill_points
     jsr $FFCF
     sta dungeon_deepest
+    jsr $FFCF
+    sta guard_alert_level
+    jsr $FFCF
+    sta witness_count
     // Close file
     jsr $FFCC    // CLRCHN
     lda #1
@@ -4337,7 +4348,191 @@ kira_loop:
         bne kira_loop
 apothecary_done:
     jsr modem_in
-    jmp town_show_menu
+    ; show apothecary crafting menu
+    ldx #0
+show_apoth_menu:
+    lda apothecary_menu_msg,X
+    beq apoth_menu_prompt
+    jsr modem_out
+    inx
+    bne show_apoth_menu
+apoth_menu_prompt:
+    jsr modem_in
+    cmp #'1'
+    beq apoth_do_heal
+    cmp #'2'
+    beq apoth_do_poison
+    cmp #'3'
+    beq visit_cooking_menu
+    cmp #'0'
+    beq town_show_menu
+    jmp visit_apothecary
+
+; Cooking menu header for custom build
+cooking_menu_msg:
+    .text "\r\nCOOKING & APOTHECARY RECIPES:\r\nSelect a recipe index to craft at this station.\r\n(Enter the recipe table index shown)\r\n> "
+    .byte 0
+
+; Visit the cooking/apothecary recipe browser (filters recipes by APOTHECARY station)
+visit_cooking_menu:
+    ; print header
+    ldx #0
+cook_print_loop_cust:
+    lda cooking_menu_msg,X
+    beq cook_print_done_cust
+    jsr modem_out
+    inx
+    bne cook_print_loop_cust
+cook_print_done_cust:
+    jsr modem_in
+    ; iterate recipes_table and print entries for station == RECIPE_STATION_APOTH
+    lda #<recipes_table
+    sta recipes_ptr_lo
+    lda #>recipes_table
+    sta recipes_ptr_hi
+    ldx #0
+list_cook_loop_cust:
+    txa
+    cmp #recipe_count
+    bcs list_cook_done_cust
+    ; read station_id at offset +1
+    ldy #1
+    lda (recipes_ptr_lo),y
+    cmp #RECIPE_STATION_APOTH
+    bne skip_cook_print_cust
+    ; print index (same formatting as craft menu)
+    txa
+    cmp #10
+    bcc cook_print_single_cust
+    cmp #20
+    bcc cook_print_ten_cust
+    cmp #30
+    bcc cook_print_twenty_cust
+    lda #'3'
+    jsr modem_out
+    txa
+    sec
+    sbc #30
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp cook_print_after_index_cust
+cook_print_ten_cust:
+    lda #'2'
+    jsr modem_out
+    txa
+    sec
+    sbc #20
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp cook_print_after_index_cust
+cook_print_twenty_cust:
+    lda #'1'
+    jsr modem_out
+    txa
+    sec
+    sbc #10
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp cook_print_after_index_cust
+cook_print_single_cust:
+    txa
+    clc
+    adc #'0'
+    jsr modem_out
+cook_print_after_index_cust:
+    lda #'.'
+    jsr modem_out
+    lda #' '
+    jsr modem_out
+    ; read output_id at offset +2
+    ldy #2
+    lda (recipes_ptr_lo),y
+    sta craft_out_id
+    ; compute name offset = craft_out_id * 8
+    lda craft_out_id
+    asl
+    asl
+    asl
+    tax
+print_cook_name_cust:
+    lda item_names,X
+    cmp #$20
+    beq cook_name_done_cust
+    jsr modem_out
+    inx
+    txa
+    and #$07
+    bne print_cook_name_cust
+cook_name_done_cust:
+    ; newline
+    lda #13
+    jsr modem_out
+    lda #10
+    jsr modem_out
+skip_cook_print_cust:
+    ; advance pointer by 15 bytes
+    lda recipes_ptr_lo
+    clc
+    adc #15
+    sta recipes_ptr_lo
+    lda recipes_ptr_hi
+    adc #0
+    sta recipes_ptr_hi
+    inx
+    jmp list_cook_loop_cust
+list_cook_done_cust:
+    ; prompt for index (same entry parsing as craft menu)
+    ldx #0
+    ldy #0
+    lda #0
+    sta temp_amount
+read_cook_index_cust:
+    jsr modem_in
+    cmp #13
+    beq read_cook_done_cust
+    cmp #'0'
+    bcc read_cook_index_cust
+    cmp #'9'
+    bcs read_cook_index_cust
+    sec
+    sbc #'0'
+    ; multiply temp_amount by 10
+    lda temp_amount
+    tay
+    lda temp_amount
+    asl
+    asl
+    asl
+    sta craft_tmp2
+    lda temp_amount
+    asl
+    clc
+    adc craft_tmp2
+    sta temp_amount
+    clc
+    adc A
+    sta temp_amount
+    jmp read_cook_index_cust
+read_cook_done_cust:
+    lda temp_amount
+    jsr craft_execute
+    lda craft_last_result
+    cmp #0
+    beq craft_result_ok
+    cmp #2
+    beq craft_result_insuff
+    cmp #3
+    beq craft_result_fail
+    cmp #1
+    beq craft_result_notfound
+    jmp cook_menu_return_cust
+    ; reuse existing result prints
+cook_menu_return_cust:
+    jsr modem_in
+    rts
 
 // === THE STAGE - GREG THE FIRE DANCER ===
 visit_the_stage:
@@ -13894,6 +14089,31 @@ rep_score_loop:
 rep_score_done:
     lda player_reputation
     jsr print_byte_decimal
+rep_guards_msg:
+    .text "\r\nGuard Alert Level: "
+    .byte 0
+rep_witnesses_msg:
+    .text "\r\nWitnesses Noted: "
+    .byte 0
+   ; show guard alert and witness counts
+    ldx #0
+    lda rep_guards_msg,X
+    beq rep_guards_done
+    jsr modem_out
+    inx
+    bne rep_guards_done
+rep_guards_done:
+    lda guard_alert_level
+    jsr print_byte_decimal
+    ldx #0
+    lda rep_witnesses_msg,X
+    beq rep_witnesses_done
+    jsr modem_out
+    inx
+    bne rep_witnesses_done
+rep_witnesses_done:
+    lda witness_count
+    jsr print_byte_decimal
     ldx #0
 rep_100_loop:
         lda rep_100_msg,X
@@ -20715,17 +20935,17 @@ skills_social_num:
     lda #')'
     jsr modem_out
     ldx #0
-skills_show_surv:
-        lda skills_surv_label,X
-        beq skills_surv_num
-        jsr modem_out
-        inx
-        cpx #16
-        bne skills_show_surv
-skills_surv_num:
+skills_show_stealth:
+    lda skills_stealth_label,X
+    beq skills_stealth_num
+    jsr modem_out
+    inx
+    cpx #16
+    bne skills_show_stealth
+skills_stealth_num:
     lda #'('
     jsr modem_out
-    lda skill_survival
+    lda skill_stealth
     clc
     adc #'0'
     jsr modem_out
@@ -20747,7 +20967,7 @@ skills_get_input:
     cmp #'3'
     beq go_skills_social
     cmp #'4'
-    beq go_skills_survival
+    beq go_skills_stealth
     cmp #'5'
     beq go_skills_perks
     cmp #'0'
@@ -20757,8 +20977,8 @@ go_skills_magic:
     jmp skills_upgrade_magic
 go_skills_social:
     jmp skills_upgrade_social
-go_skills_survival:
-    jmp skills_upgrade_survival
+go_skills_stealth:
+    jmp skills_upgrade_stealth
 go_skills_perks:
     jmp skills_view_perks
 go_skills_back2:
@@ -20879,34 +21099,34 @@ go_skills_no_points1:
     jmp skills_no_points
 go_skills_maxed1:
     jmp skills_maxed
-skills_upgrade_survival:
+skills_upgrade_stealth:
     lda skill_points
     beq go_skills_no_points2
-    lda skill_survival
+    lda skill_stealth
     cmp #10
     bcs go_skills_maxed2
     dec skill_points
-    inc skill_survival
-    lda skill_survival
+    inc skill_stealth
+    lda skill_stealth
     cmp #3
-    bne surv_not_3
-    lda survival_perks
+    bne stealth_not_3
+    lda stealth_perks
     ora #$01
-    sta survival_perks
-surv_not_3:
-    lda skill_survival
+    sta stealth_perks
+stealth_not_3:
+    lda skill_stealth
     cmp #6
-    bne surv_not_6
-    lda survival_perks
+    bne stealth_not_6
+    lda stealth_perks
     ora #$02
-    sta survival_perks
-surv_not_6:
-    lda skill_survival
+    sta stealth_perks
+stealth_not_6:
+    lda skill_stealth
     cmp #9
     bne go_skill_upgraded3
-    lda survival_perks
+    lda stealth_perks
     ora #$04
-    sta survival_perks
+    sta stealth_perks
 go_skill_upgraded3:
     jmp skill_upgraded
 go_skills_no_points2:
@@ -20965,14 +21185,14 @@ perks_social_loop:
         jsr modem_out
         inx
         bne perks_social_loop
-perks_show_surv:
+perks_show_stealth:
     ldx #0
-perks_surv_loop:
-        lda perks_surv_msg,X
+perks_stealth_loop:
+        lda perks_stealth_msg,X
         beq perks_done
         jsr modem_out
         inx
-        bne perks_surv_loop
+        bne perks_stealth_loop
 perks_done:
     jsr modem_in
     jmp skills_menu
@@ -20991,8 +21211,8 @@ skills_magic_label:
 skills_social_label:
     .text "\r\n3. SOCIAL "
     .byte 0
-skills_surv_label:
-    .text "\r\n4. SURVIVAL "
+skills_stealth_label:
+    .text "\r\n4. STEALTH "
     .byte 0
 skills_prompt_msg:
     .text "\r\n\r\n5. View Perks\r\n0. Back\r\n> "
@@ -21018,8 +21238,8 @@ perks_magic_msg:
 perks_social_msg:
     .text "SOCIAL:\r\n Lv3: Better prices\r\n Lv6: More XP\r\n Lv9: Faction bonus\r\n\r\n"
     .byte 0
-perks_surv_msg:
-    .text "SURVIVAL:\r\n Lv3: More HP\r\n Lv6: Find items\r\n Lv9: Cheat death\r\n\r\n[Press any key]\r\n"
+perks_stealth_msg:
+    .text "STEALTH:\r\n Lv3: Better sneaking\r\n Lv6: Detect less often\r\n Lv9: Escape capture\r\n\r\n[Press any key]\r\n"
     .byte 0
 
 // End of file

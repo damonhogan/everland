@@ -308,6 +308,167 @@ craft_menu_done:
     jsr modem_in
     rts
 
+; Visit the cooking/apothecary recipe browser (filters recipes by APOTHECARY station)
+visit_cooking_menu:
+    ; print header
+    ldx #0
+cook_print_loop:
+    lda cooking_menu_msg,X
+    beq cook_print_done
+    jsr modem_out
+    inx
+    bne cook_print_loop
+cook_print_done:
+    jsr modem_in
+    ; iterate recipes_table and print entries for station == RECIPE_STATION_APOTH
+    lda #<recipes_table
+    sta recipes_ptr_lo
+    lda #>recipes_table
+    sta recipes_ptr_hi
+    ldx #0
+list_cook_loop:
+    txa
+    cmp #recipe_count
+    bcs list_cook_done
+    ; read station_id at offset +1
+    ldy #1
+    lda (recipes_ptr_lo),y
+    cmp #RECIPE_STATION_APOTH
+    bne skip_cook_print
+    ; print index (same formatting as craft menu)
+    txa
+    cmp #10
+    bcc cook_print_single
+    cmp #20
+    bcc cook_print_ten
+    cmp #30
+    bcc cook_print_twenty
+    lda #'3'
+    jsr modem_out
+    txa
+    sec
+    sbc #30
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp cook_print_after_index
+cook_print_ten:
+    lda #'2'
+    jsr modem_out
+    txa
+    sec
+    sbc #20
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp cook_print_after_index
+cook_print_twenty:
+    lda #'1'
+    jsr modem_out
+    txa
+    sec
+    sbc #10
+    clc
+    adc #'0'
+    jsr modem_out
+    jmp cook_print_after_index
+cook_print_single:
+    txa
+    clc
+    adc #'0'
+    jsr modem_out
+cook_print_after_index:
+    lda #'.'
+    jsr modem_out
+    lda #' '
+    jsr modem_out
+    ; read output_id at offset +2
+    ldy #2
+    lda (recipes_ptr_lo),y
+    sta craft_out_id
+    ; compute name offset = craft_out_id * 8
+    lda craft_out_id
+    asl
+    asl
+    asl
+    tax
+print_cook_name:
+    lda item_names,X
+    cmp #$20
+    beq cook_name_done
+    jsr modem_out
+    inx
+    txa
+    and #$07
+    bne print_cook_name
+cook_name_done:
+    ; newline
+    lda #13
+    jsr modem_out
+    lda #10
+    jsr modem_out
+skip_cook_print:
+    ; advance pointer by 15 bytes
+    lda recipes_ptr_lo
+    clc
+    adc #15
+    sta recipes_ptr_lo
+    lda recipes_ptr_hi
+    adc #0
+    sta recipes_ptr_hi
+    inx
+    jmp list_cook_loop
+list_cook_done:
+    ; prompt for index (same entry parsing as craft menu)
+    ldx #0
+    ldy #0
+    lda #0
+    sta temp_amount
+read_cook_index:
+    jsr modem_in
+    cmp #13
+    beq read_cook_done
+    cmp #'0'
+    bcc read_cook_index
+    cmp #'9'
+    bcs read_cook_index
+    sec
+    sbc #'0'
+    ; multiply temp_amount by 10
+    lda temp_amount
+    tay
+    lda temp_amount
+    asl
+    asl
+    asl
+    sta craft_tmp2
+    lda temp_amount
+    asl
+    clc
+    adc craft_tmp2
+    sta temp_amount
+    clc
+    adc A
+    sta temp_amount
+    jmp read_cook_index
+read_cook_done:
+    lda temp_amount
+    jsr craft_execute
+    lda craft_last_result
+    cmp #0
+    beq craft_result_ok
+    cmp #2
+    beq craft_result_insuff
+    cmp #3
+    beq craft_result_fail
+    cmp #1
+    beq craft_result_notfound
+    jmp cook_menu_return
+    ; reuse existing result prints
+cook_menu_return:
+    jsr modem_in
+    rts
+
 // --- Mini-Games Data ---
 game_rng_seed: .byte $A7             // Random seed
 player_high_score: .byte 0           // Best game score
@@ -604,6 +765,10 @@ recipe_known: .byte 1                // Recipes unlocked (bitmask)
 buff_active: .byte 0                 // 0=none, 1=luck, 2=strength
 buff_timer: .byte 0                  // Buff turns remaining
 
+cooking_menu_msg:
+    .text "\r\nCOOKING & APOTHECARY RECIPES:\r\nSelect a recipe index to craft at this station.\r\n(Enter the recipe table index shown)\r\n> "
+    .byte 0
+
 // --- Dueling Data ---
 duel_wins: .byte 0                   // Total duels won
 duel_losses: .byte 0                 // Total duels lost
@@ -779,11 +944,11 @@ skill_points: .byte 5                // Unspent skill points
 skill_combat: .byte 0                // Combat tree level (0-10)
 skill_magic: .byte 0                 // Magic tree level (0-10)
 skill_social: .byte 0                // Social tree level (0-10)
-skill_survival: .byte 0              // Survival tree level (0-10)
+skill_stealth: .byte 0              // Stealth tree level (0-10)
 combat_perks: .byte 0                // Bit flags for combat perks unlocked
 magic_perks: .byte 0                 // Bit flags for magic perks unlocked
 social_perks: .byte 0                // Bit flags for social perks unlocked
-survival_perks: .byte 0              // Bit flags for survival perks unlocked
+stealth_perks: .byte 0              // Bit flags for stealth perks unlocked
 player_level: .byte 1                // Player level (gain SP on level up)
 player_xp: .word 0                   // Experience points
 xp_to_next: .word 100                // XP needed for next level
@@ -818,6 +983,7 @@ market_event_notify_loop:
 market_event_notify_done:
     lda market_event_interval
     sta market_event_counter
+    jsr guard_patrol
     jsr print_main_menu
     jsr get_menu_input
     cmp #'1'
@@ -1739,7 +1905,7 @@ kira_msg:
     .text "\r\nKira stands behind the counter, hair like newly spun gold, hands dusted with dried petals. Her smile is warm - the kind that makes aches feel remote.\r\n\r\n'Welcome, Mr. Damon! Balm of Quick Mend for wounds, Oil of Orchid for massages... or perhaps just a moment of care?'\r\n\r\nShe whispers: 'I too am an aspiring magic-user - small charms, healing threads, sachets for restless spirits.'\r\n\r\nFirst Light Quest Chain:\r\n1. Accept healing for your wounds\r\n2. Experience the massage table with scented oils\r\n3. Share stories of magic and craft\r\n4. Return at dusk when the lamp is lit\r\n\r\n'We'll call it mutual craft - you mend quarrels, I mend weariness.'\r\n\r\n(Quest: Return at dusk to speak of other matters.)\r\n[Press any key]\r\n"
     .byte 0
 apothecary_menu_msg:
-    .text "\r\nKIRA'S APOTHECARY - Crafting Table:\r\n1) Healing Potion (1 Gem + 1 Berry)\r\n2) Poison (1 Meat + 1 Berry)\r\n0) Leave\r\n> "
+    .text "\r\nKIRA'S APOTHECARY - Crafting Table:\r\n1) Healing Potion (1 Gem + 1 Berry)\r\n2) Poison (1 Meat + 1 Berry)\r\n3) Browse Recipes\r\n0) Leave\r\n> "
     .byte 0
 craft_heal_success_msg:
     .text "\r\nYou carefully distill the ingredients into a small vial. A warm light emanates from the liquid.\r\n[Press any key]\r\n"
@@ -2776,11 +2942,15 @@ save_write_data:
     jsr $FFD2
     lda skill_social
     jsr $FFD2
-    lda skill_survival
+    lda skill_stealth
     jsr $FFD2
     lda skill_points
     jsr $FFD2
     lda dungeon_deepest
+    jsr $FFD2
+    lda guard_alert_level
+    jsr $FFD2
+    lda witness_count
     jsr $FFD2
     // Close file
     jsr $FFCC    // CLRCHN
@@ -2934,13 +3104,16 @@ load_read_data:
     jsr $FFCF
     sta skill_magic
     jsr $FFCF
-    sta skill_social
     jsr $FFCF
-    sta skill_survival
+    sta skill_stealth
     jsr $FFCF
     sta skill_points
     jsr $FFCF
     sta dungeon_deepest
+    jsr $FFCF
+    sta guard_alert_level
+    jsr $FFCF
+    sta witness_count
     // Close file
     jsr $FFCC    // CLRCHN
     lda #1
@@ -5002,7 +5175,39 @@ archery_loop:
         inx
         bne archery_loop
 archery_done:
+    ; present a small menu: 1=target challenge, 2=ask Collin (rogue quest), 0=leave
+    ldx #0
+archery_menu_prompt:
+    lda "\r\nARCHERY MENU:\r\n1. Target challenge\r\n2. Talk to Collin (rogue quest)\r\n0. Leave\r\n> ",X
+    beq archery_menu_printed
+    jsr modem_out
+    inx
+    bne archery_menu_prompt
+archery_menu_printed:
     jsr modem_in
+    cmp #'1'
+    beq archery_do_challenge
+    cmp #'2'
+    beq archery_rogue_offer
+    cmp #'0'
+    beq archery_leave
+    jmp visit_archery
+archery_do_challenge:
+    jsr archery_minigame
+    jmp town_show_menu
+archery_rogue_offer:
+    ldx #0
+    lda collin_msg,X
+    beq archery_rogue_offer_done
+    jsr modem_out
+    inx
+    bne archery_rogue_offer
+archery_rogue_offer_done:
+    ; execute rogue quest severity=2 (major)
+    lda #2
+    jsr execute_rogue_quest
+    jmp town_show_menu
+archery_leave:
     jmp town_show_menu
 
 // Ax throwing range
@@ -5015,7 +5220,39 @@ ax_loop:
         inx
         bne ax_loop
 ax_done:
+    ; present small menu: 1=throw, 2=talk to William (rogue quest), 0=leave
+    ldx #0
+ax_menu_prompt:
+    lda "\r\nAXE PIT MENU:\r\n1. Throw an axe\r\n2. Talk to William (rogue task)\r\n0. Leave\r\n> ",X
+    beq ax_menu_printed
+    jsr modem_out
+    inx
+    bne ax_menu_prompt
+ax_menu_printed:
     jsr modem_in
+    cmp #'1'
+    beq ax_do_throw
+    cmp #'2'
+    beq ax_rogue_offer
+    cmp #'0'
+    beq ax_leave
+    jmp visit_ax_throwing
+ax_do_throw:
+    jsr axe_minigame
+    jmp town_show_menu
+ax_rogue_offer:
+    ldx #0
+    lda william_msg,X
+    beq ax_rogue_offer_done
+    jsr modem_out
+    inx
+    bne ax_rogue_offer
+ax_rogue_offer_done:
+    ; execute rogue quest severity=1 (minor)
+    lda #1
+    jsr execute_rogue_quest
+    jmp town_show_menu
+ax_leave:
     jmp town_show_menu
 
 // Local jail
@@ -9487,6 +9724,8 @@ apothecary_menu_done:
     beq apoth_do_heal
     cmp #'2'
     beq apoth_do_poison
+    cmp #'3'
+    beq visit_cooking_menu
     cmp #'0'
     beq town_show_menu
     jmp visit_apothecary
@@ -26626,16 +26865,16 @@ skills_social_num:
     jsr modem_out
     ldx #0
 skills_show_surv:
-        lda skills_surv_label,X
-        beq skills_surv_num
+        lda skills_stealth_label,X
+        beq skills_stealth_num
         jsr modem_out
         inx
         cpx #16
         bne skills_show_surv
-skills_surv_num:
+skills_stealth_num:
     lda #'('
     jsr modem_out
-    lda skill_survival
+    lda skill_stealth
     clc
     adc #'0'
     jsr modem_out
@@ -26657,7 +26896,7 @@ skills_get_input:
     cmp #'3'
     beq go_skills_social
     cmp #'4'
-    beq go_skills_survival
+    beq go_skills_stealth
     cmp #'5'
     beq go_skills_perks
     cmp #'0'
@@ -26667,8 +26906,8 @@ go_skills_magic:
     jmp skills_upgrade_magic
 go_skills_social:
     jmp skills_upgrade_social
-go_skills_survival:
-    jmp skills_upgrade_survival
+go_skills_stealth:
+    jmp skills_upgrade_stealth
 go_skills_perks:
     jmp skills_view_perks
 go_skills_back2:
@@ -26925,34 +27164,34 @@ ach_train_locked_msg:
 tutorial_msg:
     .text "\r\n=== QUICK TUTORIAL ===\r\n- Circus: Test your timing in the Juggler's Challenge (Town key Q).\r\n- Arena: Buy a ticket or a season pass to enter; bets contribute to the prize pool.\r\n- Train: Buy a ticket to ride or get a season pass for unlimited rides.\r\n\r\n[Press any key to continue]\r\n"
     .byte 0
-skills_upgrade_survival:
+skills_upgrade_stealth:
     lda skill_points
     beq go_skills_no_points2
-    lda skill_survival
+    lda skill_stealth
     cmp #10
     bcs go_skills_maxed2
     dec skill_points
-    inc skill_survival
-    lda skill_survival
+    inc skill_stealth
+    lda skill_stealth
     cmp #3
-    bne surv_not_3
-    lda survival_perks
+    bne stealth_not_3
+    lda stealth_perks
     ora #$01
-    sta survival_perks
-surv_not_3:
-    lda skill_survival
+    sta stealth_perks
+stealth_not_3:
+    lda skill_stealth
     cmp #6
-    bne surv_not_6
-    lda survival_perks
+    bne stealth_not_6
+    lda stealth_perks
     ora #$02
-    sta survival_perks
-surv_not_6:
-    lda skill_survival
+    sta stealth_perks
+stealth_not_6:
+    lda skill_stealth
     cmp #9
     bne go_skill_upgraded3
-    lda survival_perks
+    lda stealth_perks
     ora #$04
-    sta survival_perks
+    sta stealth_perks
 go_skill_upgraded3:
     jmp skill_upgraded
 go_skills_no_points2:
@@ -27011,14 +27250,14 @@ perks_social_loop:
         jsr modem_out
         inx
         bne perks_social_loop
-perks_show_surv:
+perks_show_stealth:
     ldx #0
-perks_surv_loop:
-        lda perks_surv_msg,X
+perks_stealth_loop:
+        lda perks_stealth_msg,X
         beq perks_done
         jsr modem_out
         inx
-        bne perks_surv_loop
+        bne perks_stealth_loop
 perks_done:
     jsr modem_in
     jmp skills_menu
@@ -27037,8 +27276,8 @@ skills_magic_label:
 skills_social_label:
     .text "\r\n3. SOCIAL "
     .byte 0
-skills_surv_label:
-    .text "\r\n4. SURVIVAL "
+skills_stealth_label:
+    .text "\r\n4. STEALTH "
     .byte 0
 skills_prompt_msg:
     .text "\r\n\r\n5. View Perks\r\n0. Back\r\n> "
@@ -27064,8 +27303,537 @@ perks_magic_msg:
 perks_social_msg:
     .text "SOCIAL:\r\n Lv3: Better prices\r\n Lv6: More XP\r\n Lv9: Faction bonus\r\n\r\n"
     .byte 0
-perks_surv_msg:
-    .text "SURVIVAL:\r\n Lv3: More HP\r\n Lv6: Find items\r\n Lv9: Cheat death\r\n\r\n[Press any key]\r\n"
+perks_stealth_msg:
+    .text "STEALTH:\r\n Lv3: Better sneaking\r\n Lv6: Detect less often\r\n Lv9: Escape capture\r\n\r\n[Press any key]\r\n"
     .byte 0
+
+; --- New: Archery & Axe-Throwing locations, NPCs, Crime System ---
+archery_desc_msg:
+    .text "\r\nYou arrive at the Archery Range. Targets await. Collin the rogue stands by, challenging visitors to darker wagers.\r\n"
+    .byte 0
+archery_menu_msg:
+    .text "\r\nARCHERY RANGE:\r\n1. Take the standard target challenge\r\n0. Leave\r\n> "
+    .byte 0
+archery_success_msg:
+    .text "\r\nYour arrow finds the mark! Reward granted.\r\n"
+    .byte 0
+archery_fail_msg:
+    .text "\r\nYou miss the target. Better luck next time.\r\n"
+    .byte 0
+
+axe_desc_msg:
+    .text "\r\nYou stand before the Axe-Throwing Pit. William the rogue polishes his axes and offers wagers of a darker sort.\r\n"
+    .byte 0
+axe_menu_msg:
+    .text "\r\nAXE THROWING PIT:\r\n1. Throw an axe at the target\r\n0. Leave\r\n> "
+    .byte 0
+axe_success_msg:
+    .text "\r\nDead center! The crowd cheers.\r\n"
+    .byte 0
+axe_fail_msg:
+    .text "\r\nThe axe skids off the target and buries in the dirt.\r\n"
+    .byte 0
+
+collin_msg:
+    .text "\r\nCollin (rogue): 'You look like someone who enjoys a dangerous bet... I have a task, but it's not clean.'\r\n"
+    .byte 0
+william_msg:
+    .text "\r\nWilliam (rogue): 'Axe and coin — sometimes they smell the same. Take this job if you dare.'\r\n"
+    .byte 0
+edwin_msg:
+    .text "\r\nEdwin (Constable): 'Break the law and you answer to the constable. Pay your fine or serve your time.'\r\n"
+    .byte 0
+
+crime_caught_msg:
+    .text "\r\nYou have been caught committing a crime. The knights will escort you to face justice...\r\n"
+    .byte 0
+stocks_msg:
+    .text "\r\nYou are placed in the stocks. Pay a small fine to leave early, or wait out the time.\r\n"
+    .byte 0
+jail_msg:
+    .text "\r\nYou are taken to the jail. The constable holds the keys. Pay or wait.\r\n"
+    .byte 0
+
+; Simple state for crime handling (persistent bytes)
+crime_flag:
+    .byte 0    ; 0=none,1=in_stocks,2=in_jail
+jail_timer:
+    .byte 0    ; remaining ticks in jail
+
+; Visit Archery range
+visit_archery:
+    ldx #0
+archery_desc_loop:
+    lda archery_desc_msg,X
+    beq archery_desc_done
+    jsr modem_out
+    inx
+    bne archery_desc_loop
+archery_desc_done:
+    ; print menu
+    ldx #0
+archery_menu_print:
+    lda archery_menu_msg,X
+    beq archery_menu_print_done
+    jsr modem_out
+    inx
+    bne archery_menu_print
+archery_menu_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq archery_do_challenge
+    cmp #'0'
+    beq archery_leave
+    jmp visit_archery
+archery_do_challenge:
+    jsr archery_minigame
+    rts
+archery_leave:
+    rts
+
+archery_minigame:
+    ; simple chance-based minigame using get_random
+    lda #0
+    sta temp_amount
+    jsr get_random
+    ; success if random < 120 (approx 47% chance)
+    cmp #120
+    bcc archery_hit
+    ; miss
+    ldx #0
+archery_miss_print:
+    lda archery_fail_msg,X
+    beq archery_miss_done
+    jsr modem_out
+    inx
+    bne archery_miss_print
+archery_miss_done:
+    rts
+archery_hit:
+    ldx #0
+archery_hit_print:
+    lda archery_success_msg,X
+    beq archery_hit_done
+    jsr modem_out
+    inx
+    bne archery_hit_print
+archery_hit_done:
+    rts
+
+; Visit Axe Throwing pit
+visit_axe_throwing:
+    ldx #0
+axe_desc_loop:
+    lda axe_desc_msg,X
+    beq axe_desc_done
+    jsr modem_out
+    inx
+    bne axe_desc_loop
+axe_desc_done:
+    ldx #0
+axe_menu_print:
+    lda axe_menu_msg,X
+    beq axe_menu_print_done
+    jsr modem_out
+    inx
+    bne axe_menu_print
+axe_menu_print_done:
+    jsr modem_in
+    cmp #'1'
+    beq axe_do_throw
+    cmp #'0'
+    beq axe_leave
+    jmp visit_axe_throwing
+axe_do_throw:
+    jsr axe_minigame
+    rts
+axe_leave:
+    rts
+
+axe_minigame:
+    ; get random and determine success threshold
+    jsr get_random
+    cmp #100
+    bcc axe_hit
+    ; fail
+    ldx #0
+axe_fail_print:
+    lda axe_fail_msg,X
+    beq axe_fail_done
+    jsr modem_out
+    inx
+    bne axe_fail_print
+axe_fail_done:
+    rts
+axe_hit:
+    ldx #0
+axe_hit_print:
+    lda axe_success_msg,X
+    beq axe_hit_done
+    jsr modem_out
+    inx
+    bne axe_hit_print
+axe_hit_done:
+    rts
+
+; Handle capture for crimes. Input: A = severity (1=stocks,2=jail)
+handle_crime_capture:
+    pha
+    cmp #1
+    beq do_stocks
+    cmp #2
+    beq do_jail
+    pla
+    rts
+do_stocks:
+    pla
+    lda #1
+    sta crime_flag
+    lda #10
+    sta jail_timer   ; use jail_timer as generic timer for stocks duration
+    ldx #0
+    clc
+stocks_print_loop:
+    lda crime_caught_msg,X
+    beq stocks_print_done
+    jsr modem_out
+    inx
+    bne stocks_print_loop
+stocks_print_done:
+    ldx #0
+stocks_placed_print:
+    lda stocks_msg,X
+    beq stocks_placed_done
+    jsr modem_out
+    inx
+    bne stocks_placed_print
+stocks_placed_done:
+    rts
+do_jail:
+    pla
+    lda #2
+    sta crime_flag
+    lda #30
+    sta jail_timer
+    ldx #0
+jail_print_loop:
+    lda crime_caught_msg,X
+    beq jail_print_done
+    jsr modem_out
+    inx
+    bne jail_print_loop
+jail_print_done:
+    ldx #0
+jail_placed_print:
+    lda jail_msg,X
+    beq jail_placed_done
+    jsr modem_out
+    inx
+    bne jail_placed_print
+jail_placed_done:
+    rts
+
+; Guard/witness state
+guard_alert_level: .byte 0    ; 0=none, higher values increase patrol response
+witness_count: .byte 0        ; number of recent witnesses
+
+rogue_witnessed_msg:
+    .text "\r\nWitnesses have noted suspicious activity; guards may be alerted.\r\n"
+    .byte 0
+
+; Guard patrol: called periodically (e.g., on market events)
+; If guard_alert_level is high, patrol may escalate to capture.
+guard_patrol:
+    lda guard_alert_level
+    beq guard_patrol_done
+    ; roll random to see if guards act
+    jsr get_random
+    ; chance threshold = 220 - (guard_alert_level * 40)
+    lda guard_alert_level
+    clc
+    adc #0
+    tay
+    lda #220
+    sec
+    sbc guard_alert_level
+    sta craft_tmp2
+    cmp craft_tmp2
+    bcc guard_patrol_noaction
+    ; Guards act: severity depends on alert_level
+    lda guard_alert_level
+    cmp #2
+    bcs guard_patrol_jail
+    lda #1
+    jsr handle_crime_capture
+    ; reduce alert level after action
+    lda guard_alert_level
+    dec
+    sta guard_alert_level
+    rts
+guard_patrol_jail:
+    lda #2
+    jsr handle_crime_capture
+    lda #0
+    sta guard_alert_level
+    rts
+guard_patrol_noaction:
+    ; decay alert level slightly over time
+    lda guard_alert_level
+    beq guard_patrol_done
+    dec
+    sta guard_alert_level
+guard_patrol_done:
+    rts
+
+; Visit Constable (Edwin) - pay fine or wait
+visit_constable:
+    ldx #0
+edwin_greet_loop:
+    lda edwin_msg,X
+    beq edwin_greet_done
+    jsr modem_out
+    inx
+    bne edwin_greet_loop
+edwin_greet_done:
+    ; If not in trouble, exit
+    lda crime_flag
+    beq edwin_no_action
+    ; Offer pay or wait
+    ldx #0
+    lda "\r\n1. Pay fine (50g) to be released\r\n0. Wait out your time\r\n> ",X
+    beq edwin_offer_done
+    jsr modem_out
+    inx
+    bne edwin_greet_done
+edwin_offer_done:
+    jsr modem_in
+    cmp #'1'
+    beq edwin_pay_fine
+    cmp #'0'
+    beq edwin_wait
+    jmp visit_constable
+edwin_pay_fine:
+    ; attempt to deduct coins (simple: reduce gold if available)
+    lda player_gold
+    cmp #50
+    bcc edwin_cant_pay
+    sec
+    sbc #50
+    sta player_gold
+    lda #0
+    sta crime_flag
+    lda #0
+    sta jail_timer
+    ldx #0
+    lda "\r\nYou pay the fine and are released.\r\n",X
+    beq edwin_paid_done
+    jsr modem_out
+    inx
+    bne edwin_paid_done
+edwin_paid_done:
+    rts
+edwin_cant_pay:
+    ldx #0
+    lda "\r\nYou do not have enough gold to pay the fine.\r\n",X
+    beq edwin_paid_done2
+    jsr modem_out
+    inx
+    bne edwin_paid_done2
+edwin_paid_done2:
+    rts
+edwin_wait:
+    ; simply return to allow timer to elapse
+    rts
+
+rogue_success_msg:
+    .text "\r\nYou complete the task without being caught.\r\n"
+    .byte 0
+
+rogue_reward_minor_msg:
+    .text "\r\nYou slip away with the spoils: +20 gold, +5 XP, reputation +1.\r\n"
+    .byte 0
+
+rogue_reward_major_msg:
+    .text "\r\nA masterful job — +50 gold, +15 XP, reputation +3.\r\n"
+    .byte 0
+
+rogue_spotted_msg:
+    .text "\r\nYou were seen, but managed to avoid capture. You lose some standing and pay a small fine.\r\n"
+    .byte 0
+
+; Execute a rogue quest: A = severity (1=minor,2=major)
+; Uses `skill_stealth` to reduce detection chance.
+execute_rogue_quest:
+    sta temp_amount     ; store severity
+    lda temp_amount
+    cmp #1
+    beq exec_rogue_minor
+    cmp #2
+    beq exec_rogue_major
+    rts
+exec_rogue_minor:
+    lda #200
+    sta craft_tmp2      ; threshold
+    jmp exec_rogue_prep
+exec_rogue_major:
+    lda #140
+    sta craft_tmp2
+exec_rogue_prep:
+    ; modifier = skill_stealth * 4
+    lda skill_stealth
+    asl
+    asl
+    sta craft_temp
+    ; threshold -= modifier
+    lda craft_tmp2
+    sec
+    sbc craft_temp
+    sta craft_tmp2
+    ; roll RNG
+    jsr get_random
+    cmp craft_tmp2
+    bcc exec_rogue_detected
+    ; success (undetected)
+    ldx #0
+rogue_success_print:
+    lda rogue_success_msg,X
+    beq rogue_success_after
+    jsr modem_out
+    inx
+    bne rogue_success_print
+rogue_success_after:
+    ; apply rewards based on severity
+    lda temp_amount
+    cmp #1
+    beq rogue_reward_minor
+    cmp #2
+    beq rogue_reward_major
+    rts
+rogue_reward_minor:
+    ; +20 gold
+    lda player_gold
+    clc
+    adc #20
+    sta player_gold
+    ; +5 XP (16-bit)
+    lda player_xp
+    clc
+    adc #5
+    sta player_xp
+    lda player_xp+1
+    adc #0
+    sta player_xp+1
+    ; +1 reputation
+    lda player_reputation
+    clc
+    adc #1
+    sta player_reputation
+    ldx #0
+rogue_reward_minor_print:
+    lda rogue_reward_minor_msg,X
+    beq rogue_reward_minor_done
+    jsr modem_out
+    inx
+    bne rogue_reward_minor_print
+rogue_reward_minor_done:
+    rts
+rogue_reward_major:
+    ; +50 gold
+    lda player_gold
+    clc
+    adc #50
+    sta player_gold
+    ; +15 XP
+    lda player_xp
+    clc
+    adc #15
+    sta player_xp
+    lda player_xp+1
+    adc #0
+    sta player_xp+1
+    ; +3 reputation
+    lda player_reputation
+    clc
+    adc #3
+    sta player_reputation
+    ldx #0
+rogue_reward_major_print:
+    lda rogue_reward_major_msg,X
+    beq rogue_reward_major_done
+    jsr modem_out
+    inx
+    bne rogue_reward_major_print
+rogue_reward_major_done:
+    rts
+exec_rogue_detected:
+    ; determine whether a witness/guard actually saw you
+    ; witness_chance = 128 - (skill_stealth * 3)
+    lda skill_stealth
+    asl
+    sta craft_temp       ; skill*2
+    lda skill_stealth
+    clc
+    adc craft_temp       ; skill*3 in A
+    sta craft_temp
+    lda #128
+    sec
+    sbc craft_temp
+    sta craft_tmp2       ; witness threshold
+    jsr get_random
+    cmp craft_tmp2
+    bcc exec_rogue_witnessed
+    ; spotted but no immediate capture: reputation penalty and small fine
+    ldx #0
+rogue_spotted_print:
+    lda rogue_spotted_msg,X
+    beq rogue_spotted_after
+    jsr modem_out
+    inx
+    bne rogue_spotted_print
+rogue_spotted_after:
+    ; reputation -1 (bounded by 0)
+    lda player_reputation
+    beq rogue_spotted_no_rep
+    sec
+    sbc #1
+    sta player_reputation
+rogue_spotted_no_rep:
+    ; small fine: 10 gold if available
+    lda player_gold
+    cmp #10
+    bcc rogue_spotted_done
+    sec
+    sbc #10
+    sta player_gold
+rogue_spotted_done:
+    ; increase guard alert level so patrols may act later
+    lda guard_alert_level
+    cmp #3
+    bcc incr_guard_alert
+    jmp exec_rogue_finish
+incr_guard_alert:
+    inc guard_alert_level
+    jsr get_random
+    ; small chance of immediate patrol response
+    lda craft_tmp2
+    cmp #48
+    bcc exec_rogue_finish
+    ; otherwise inform player witnesses noted activity
+    ldx #0
+rogue_witnessed_print:
+    lda rogue_witnessed_msg,X
+    beq exec_rogue_finish
+    jsr modem_out
+    inx
+    bne rogue_witnessed_print
+    ; increment witness count
+    inc witness_count
+exec_rogue_finish:
+    rts
+exec_rogue_witnessed:
+    ; immediate capture path (fallback)
+    lda temp_amount
+    jsr handle_crime_capture
+    rts
 
 // End of file

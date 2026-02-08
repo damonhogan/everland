@@ -36,4 +36,48 @@
   { "id": 34, "name": "MagItm" },
   { "id": 35, "name": "HealPot" },
   { "id": 36, "name": "Poison" }
+  ,{ "id": 37, "name": "Flour" }
+  ,{ "id": 38, "name": "Dough" }
+  ,{ "id": 39, "name": "Bread" }
+  ,{ "id": 40, "name": "Cake" }
+  ,{ "id": 41, "name": "Stew" }
+  ,{ "id": 42, "name": "GrilledMeat" }
+  ,{ "id": 43, "name": "Soup" }
+  ,{ "id": 44, "name": "Pie" }
+  ,{ "id": 45, "name": "SpellFlour" }
+  ,{ "id": 46, "name": "EnchantedScroll" }
+  ,{ "id": 47, "name": "PlankBundle" }
+  ,{ "id": 48, "name": "ReinfLeather" }
+  ,{ "id": 49, "name": "HeavyArmor" }
+  ,{ "id": 50, "name": "TowerShield" }
+  ,{ "id": 51, "name": "SmallCart" }
+  ,{ "id": 52, "name": "TannedStraps" }
+  ,{ "id": 53, "name": "HealingSalve" }
+  ,{ "id": 54, "name": "HoneyJam" }
+  ,{ "id": 55, "name": "MeatStewDeluxe" }
+  ,{ "id": 56, "name": "Flatbread" }
+  ,{ "id": 57, "name": "Pancake" }
+  ,{ "id": 58, "name": "SweetBread" }
+  ,{ "id": 59, "name": "RoastVeg" }
+  ,{ "id": 60, "name": "FryMeat" }
+  ,{ "id": 61, "name": "HerbalTea" }
+  ,{ "id": 62, "name": "MysticPie" }
+  ,{ "id": 63, "name": "GrandGrimoire" }
+  ,{ "id": 64, "name": "SilverDagger" }
+  ,{ "id": 65, "name": "ReinfBeam" }
+  ,{ "id": 66, "name": "HeavyHideArmor" }
+  ,{ "id": 67, "name": "FlourMix" }
+  ,{ "id": 68, "name": "FruitTart" }
+  ,{ "id": 69, "name": "MeatSkewer" }
+  ,{ "id": 70, "name": "VillageFeast" }
+  ,{ "id": 71, "name": "EnchantedLoaf" }
+  ,{ "id": 72, "name": "HerbOmelette" }
+  ,{ "id": 73, "name": "LeatherRoast" }
+  ,{ "id": 74, "name": "MagicTonic" }
+  ,{ "id": 75, "name": "FruitPie" }
+  ,{ "id": 76, "name": "PancakeStack" }
+  ,{ "id": 77, "name": "Toolbox" }
+  ,{ "id": 78, "name": "ReinfTannedHide" }
+  ,{ "id": 79, "name": "HoneyCake" }
+  ,{ "id": 80, "name": "FarmersBreakfast" }
 ]
