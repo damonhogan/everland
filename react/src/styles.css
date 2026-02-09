@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root{
+		--bg:#0b1020;--panel:#0f1a2b;--accent:#ffd27f;--muted:#9fb0c8
+	}
+	body{@apply bg-[var(--bg)] text-slate-100 font-sans}
+}
+
+@layer components {
+	.app { @apply max-w-5xl mx-auto my-6 p-4 }
+	header { @apply mb-4 }
+	main { @apply flex gap-4 flex-col md:flex-row }
+	.col { @apply flex-1 bg-slate-900/60 p-4 rounded-md }
+	.recipe { @apply border-b border-slate-700/40 py-2 }
+	.button { @apply bg-amber-300 text-slate-900 px-3 py-1 rounded }
+	.manual { @apply prose prose-invert max-w-none }
+}
+
+@layer utilities {
+  .app-accent { background: linear-gradient(90deg,var(--bg), var(--panel)); }
+}

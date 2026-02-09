@@ -1,0 +1,70 @@
+[
+  {
+    "label": "npc_menu_msg_done",
+    "name": "\\r\\nNPC MENU:\\r\\n1. Speak to Kasimere\\r\\n2. Speak to Pumpkin King\\r\\n3. Speak to Alpha Wulfric\\r\\n4. Speak to Lyra\\r\\n5. Speak to Van Bueler\\r\\n6. Speak to Cedric\\r\\n7. Speak to Gwen\\r\\n8. Speak to Grim\\r\\n9. Back to Main Menu\\r\\n>"
+  },
+  {
+    "label": "npc_menu_msg",
+    "name": "\\r\\nNPC MENU:\\r\\n1. Speak to Kasimere\\r\\n2. Speak to Pumpkin King\\r\\n3. Speak to Alpha Wulfric\\r\\n4. Speak to Lyra\\r\\n5. Speak to Van Bueler\\r\\n6. Speak to Cedric\\r\\n7. Speak to Gwen\\r\\n8. Speak to Grim\\r\\n9. Back to Main Menu\\r\\n>"
+  },
+  {
+    "label": "npc_kasimere_msg",
+    "name": "\\r\\nArch Magus Kasimere, the oldest vampire, lurks in shadows. He followed through the portal as it closed, a snarled laugh on his lips.\\r\\n\\r\\n'Soon we will conquer this land also,' he rasps. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power.\\r\\n\\r\\nVampire Conflict Quest:\\r\\n(H)elp Kasimere - join his dark dominion\\r\\n(B)etray Kasimere - expose his treachery\\r\\n\\r\\nWarning: He corrupts refugees with foggy memories, turning them into servants. Will you resist or succumb?\\r\\n\\r\\nKasimere: Will you (H)elp or (B)etray me?"
+  },
+  {
+    "label": "npc_pumpkin_king_msg",
+    "name": "\\r\\nThe PUMPKIN KING towers before you, eyes glowing unearthly orange. His sinister laughter echoes through the cursed garden.\\r\\n\\r\\n'Bow before me, mortal! My fairies spread chaos in my name. The thorny plants obey my will. Your knights cannot stand against me!'\\r\\n\\r\\nQuest Chain:\\r\\n1. Gather spider allies (speak to Spider Princess)\\r\\n2. Rally the knights of Lore\\r\\n3. Obtain the enchanted spear from Grim\\r\\n4. Launch coordinated attack\\r\\n\\r\\n(F)ight or (N)egotiate?"
+  },
+  {
+    "label": "npc_wulfric_msg",
+    "name": "\\r\\nAlpha Wulfric: (J)oin the pact or (R)efuse?"
+  },
+  {
+    "label": "npc_lyra_done",
+    "name": "\\r\\nBeta Lyra, seasoned second-in-command of the Wolves of Winter, regards you with glistening determination.\\r\\n\\r\\n'We seek sustenance for the winter. In exchange for our protection, Van Bueler provides provisions. The Pact of Winter's Howl binds us.'\\r\\n\\r\\nWolf Quest Chain:\\r\\n1. Prove your mettle through trials\\r\\n2. Endure biting cold without complaint\\r\\n3. Outwit the cunning riddles\\r\\n4. Join the moonlit howl with the pack\\r\\n\\r\\n'Upon success, we convene whenever trains rumble by - our howls delight the passengers.'\\r\\n\\r\\n(Quest: Earn the trust of the Wolves.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_lyra_msg",
+    "name": "\\r\\nBeta Lyra, seasoned second-in-command of the Wolves of Winter, regards you with glistening determination.\\r\\n\\r\\n'We seek sustenance for the winter. In exchange for our protection, Van Bueler provides provisions. The Pact of Winter's Howl binds us.'\\r\\n\\r\\nWolf Quest Chain:\\r\\n1. Prove your mettle through trials\\r\\n2. Endure biting cold without complaint\\r\\n3. Outwit the cunning riddles\\r\\n4. Join the moonlit howl with the pack\\r\\n\\r\\n'Upon success, we convene whenever trains rumble by - our howls delight the passengers.'\\r\\n\\r\\n(Quest: Earn the trust of the Wolves.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_bueler_done",
+    "name": "\\r\\nVan Bueler, a man of stern countenance with piercing eyes, greets you from his trading office. A fireplace crackles within.\\r\\n\\r\\n'Beta Lyra of the Wolves approached me for the Pact of Winter's Howl. Sustenance for the pack in exchange for protection.'\\r\\n\\r\\nTrade Quest Chain:\\r\\n1. Negotiate fair terms for the town's stores\\r\\n2. Funnel provisions to Hunter's Hovel\\r\\n3. Ensure Everland survives the winter\\r\\n4. Witness the wolf-human howl when trains pass\\r\\n\\r\\n'The town requires its own stores - I must assure our people as well.'\\r\\n\\r\\n(Quest: Help balance wolf and human needs.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_bueler_msg",
+    "name": "\\r\\nVan Bueler, a man of stern countenance with piercing eyes, greets you from his trading office. A fireplace crackles within.\\r\\n\\r\\n'Beta Lyra of the Wolves approached me for the Pact of Winter's Howl. Sustenance for the pack in exchange for protection.'\\r\\n\\r\\nTrade Quest Chain:\\r\\n1. Negotiate fair terms for the town's stores\\r\\n2. Funnel provisions to Hunter's Hovel\\r\\n3. Ensure Everland survives the winter\\r\\n4. Witness the wolf-human howl when trains pass\\r\\n\\r\\n'The town requires its own stores - I must assure our people as well.'\\r\\n\\r\\n(Quest: Help balance wolf and human needs.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_cedric_done",
+    "name": "\\r\\nCedric: The forge awaits your request.\\r\\n"
+  },
+  {
+    "label": "npc_cedric_msg",
+    "name": "\\r\\nCedric: The forge awaits your request.\\r\\n"
+  },
+  {
+    "label": "npc_gwen_done",
+    "name": "\\r\\nGwen stands silently, her eyes betraying deep emotion rarely shown. 'Grim... he gave everything to defeat the Pumpkin King. One strike of the enchanted spear, one green thorn through his heart.'\\r\\n\\r\\nShe clutches a withered black rose. 'I wept but once. That was enough.'\\r\\n\\r\\n(Quest: Honor Grim's sacrifice - plant black roses at the cursed garden.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_gwen_msg",
+    "name": "\\r\\nGwen stands silently, her eyes betraying deep emotion rarely shown. 'Grim... he gave everything to defeat the Pumpkin King. One strike of the enchanted spear, one green thorn through his heart.'\\r\\n\\r\\nShe clutches a withered black rose. 'I wept but once. That was enough.'\\r\\n\\r\\n(Quest: Honor Grim's sacrifice - plant black roses at the cursed garden.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_grim_done",
+    "name": "\\r\\nGrim of the Blackhearts looms silent, his massive enchanted spear resting nearby. Few words leave his lips, but his eyes speak volumes.\\r\\n\\r\\n'The Pumpkin King thought himself immortal. He was wrong. One strike from behind while others drew his gaze... that's how legends fall.'\\r\\n\\r\\n(Quest: Join Grim in the final assault on the cursed garden.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_grim_msg",
+    "name": "\\r\\nGrim of the Blackhearts looms silent, his massive enchanted spear resting nearby. Few words leave his lips, but his eyes speak volumes.\\r\\n\\r\\n'The Pumpkin King thought himself immortal. He was wrong. One strike from behind while others drew his gaze... that's how legends fall.'\\r\\n\\r\\n(Quest: Join Grim in the final assault on the cursed garden.)\\r\\n[Press any key]\\r\\n"
+  },
+  {
+    "label": "npc_artifacts_done",
+    "name": "\\r\\nArtifacts of power shimmer before you...\\r\\n"
+  },
+  {
+    "label": "npc_artifacts_msg",
+    "name": "\\r\\nArtifacts of power shimmer before you...\\r\\n"
+  }
+]

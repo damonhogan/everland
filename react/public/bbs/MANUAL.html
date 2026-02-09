@@ -1,0 +1,2384 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Everland Manual</title><link rel="stylesheet" href="/src/styles.css"></head><body class="prose prose-invert"><p>﻿# Everland BBS Door Game â€” Complete Manual</p>
+<h2 id="overview">Overview</h2>
+<p>Everland BBS Door Game is a text-adventure door game for BBS systems, written in Kick Assembler for the Commodore 64. This is a multi-user online game designed to run as a BBS door, featuring rich lore, quests, NPCs, and social features.</p>
+<p><strong>Build:</strong> Memory Map $c000-$200aa (~65KB)</p>
+<hr>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#complete-feature-list">Complete Feature List</a></li>
+<li><a href="#portal-system--realms">Portal System &amp; Realms</a></li>
+<li><a href="#town-of-everland-locations">Town of Everland Locations</a></li>
+<li><a href="#npc-directory">NPC Directory</a></li>
+<li><a href="#social--room-features">Social &amp; Room Features</a></li>
+<li><a href="#events-system">Events System</a></li>
+<li><a href="#economy--trading">Economy &amp; Trading</a></li>
+<li><a href="#mini-games--activities">Mini-Games &amp; Activities</a></li>
+<li><a href="#magic-system">Magic System</a></li>
+<li><a href="#romance--wedding-system">Romance &amp; Wedding System</a></li>
+<li><a href="#dream-system">Dream System</a></li>
+<li><a href="#ship-travel-system">Ship Travel System</a></li>
+<li><a href="#faction-reputation-system">Faction Reputation System</a></li>
+<li><a href="#dueling-arena">Dueling Arena</a></li>
+<li><a href="#build-instructions">Build Instructions</a></li>
+<li><a href="#appendix-a-complete-quest-walkthrough">Appendix A: Complete Quest Walkthrough</a></li>
+<li><a href="#appendix-b-memory-expansion-support">Appendix B: Memory Expansion Support</a></li>
+</ol>
+<hr>
+<h2 id="complete-feature-list">Complete Feature List</h2>
+<h3 id="core-systems-50-features">Core Systems (50+ Features)</h3>
+<h4 id="portal--travel-system">Portal &amp; Travel System</h4>
+<ul>
+<li><strong>5 Portal Destinations</strong>: Aurora, Lore, Mythos, Town of Everland, England</li>
+<li><strong>25 Town Locations</strong>: Full town with shops, taverns, landmarks, and NPCs</li>
+<li><strong>Realm Calendar</strong>: 12 monthly seasonal events including October&#39;s Dragon Lantern Festival</li>
+</ul>
+<h4 id="npc--quest-system">NPC &amp; Quest System</h4>
+<ul>
+<li><strong>40+ Unique NPCs</strong> with dialogue, quests, and lore</li>
+<li><strong>Multi-step Quest Chains</strong>: 4-step quest progressions for most NPCs</li>
+<li><strong>Branching Choices</strong>: Fight/Negotiate, Help/Betray decision points</li>
+<li><strong>Guild Memberships</strong>: Order of Black Rose, Frost Weavers, Order of Emerald Sky, Unseely Court, Order of the Owls, Wolves of Winter</li>
+</ul>
+<h4 id="room--social-features">Room &amp; Social Features</h4>
+<ul>
+<li><strong>Personal Rooms</strong>: Customizable player rooms with descriptions and decorations</li>
+<li><strong>ASCII Art Editor</strong>: Create and display custom room art</li>
+<li><strong>Guestbook System</strong>: Leave and read visitor messages</li>
+<li><strong>Privacy Settings</strong>: Control who can visit your room</li>
+<li><strong>Friends List</strong>: Manage friend connections</li>
+<li><strong>Visitor Log</strong>: Track who visited your room</li>
+<li><strong>Messaging System</strong>: Send messages to other players</li>
+<li><strong>Profile System</strong>: Customizable player profiles</li>
+</ul>
+<h4 id="events-system">Events System</h4>
+<ul>
+<li><strong>Personal Events</strong>: Create, view, and cancel personal events</li>
+<li><strong>Event Types</strong>: Party, Game, Meeting, Contest, Lantern (festival), Feast</li>
+<li><strong>Realm Calendar</strong>: 12 monthly events tied to lore</li>
+<li><strong>Browse Events</strong>: See all events across the realm</li>
+</ul>
+<h4 id="economy--trade">Economy &amp; Trade</h4>
+<ul>
+<li><strong>Coin System</strong>: Gold, Silver, Copper currencies</li>
+<li><strong>Trade System</strong>: Create and browse trade offers</li>
+<li><strong>Inventory Management</strong>: 8-slot inventory with item tracking</li>
+<li><strong>Bank System</strong>: Deposit, withdraw, and exchange currencies</li>
+<li><strong>Auction House</strong>: Buy and sell items</li>
+<li><strong>Shop System</strong>: Purchase room decorations and items</li>
+<li><strong>Dynamic Exchange Rates</strong>: Fluctuating currency values</li>
+</ul>
+<h4 id="mini-games--activities">Mini-Games &amp; Activities</h4>
+<ul>
+<li><strong>Lottery System</strong>: Weekly drawings with prizes</li>
+<li><strong>Dice Games</strong>: Gambling mini-game</li>
+<li><strong>Fishing</strong>: Catch fish for rewards</li>
+<li><strong>Racing</strong>: Compete in races</li>
+<li><strong>Treasure Hunting</strong>: Find hidden treasures</li>
+<li><strong>Cooking</strong>: Craft food items</li>
+<li><strong>Dueling</strong>: PvP combat system</li>
+<li><strong>Arena</strong>: Combat challenges</li>
+<li><strong>Riddles</strong>: Puzzle challenges</li>
+<li><strong>Scavenging</strong>: Find random items</li>
+</ul>
+<h4 id="character-progression">Character Progression</h4>
+<ul>
+<li><strong>Daily Rewards</strong>: Login streak bonuses (7-day cycle)</li>
+<li><strong>Quests System</strong>: Track and complete quests for rewards</li>
+<li><strong>Achievements</strong>: Unlock accomplishments</li>
+<li><strong>Badges</strong>: Collectible badges</li>
+<li><strong>Titles</strong>: Earn titles for accomplishments</li>
+<li><strong>Reputation System</strong>: Build standing with factions</li>
+<li><strong>Hall of Fame</strong>: Leaderboards</li>
+</ul>
+<h4 id="pets--companions">Pets &amp; Companions</h4>
+<ul>
+<li><strong>Pet System</strong>: Adopt and care for pets</li>
+<li><strong>Companion System</strong>: AI companions that assist</li>
+<li><strong>Garden System</strong>: Grow plants and herbs</li>
+</ul>
+<h4 id="crafting--production">Crafting &amp; Production</h4>
+<ul>
+<li><strong>Crafting Menu</strong>: Create items from materials</li>
+<li><strong>Potion Brewing</strong>: Create magical potions</li>
+<li><strong>Weather System</strong>: Dynamic weather affecting gameplay</li>
+</ul>
+<h4 id="magic--spells">Magic &amp; Spells</h4>
+<ul>
+<li><strong>Mana System</strong>: 20 max mana, regenerates over time</li>
+<li><strong>Three Frost Weaver Spells</strong>: GLACIOUS (frost bolt), NIX (ice shield), ILLUMINA (light burst)</li>
+<li><strong>Spell Learning</strong>: Progressive prerequisites (GLACIOUS â†’ NIX â†’ ILLUMINA)</li>
+<li><strong>Frost Weaver Ranks</strong>: Initiate, Adept, Master with increasing power</li>
+<li><strong>Third Eye Practice</strong>: Pendulum mastery training (10 levels)</li>
+<li><strong>Meditation</strong>: Restore mana through focused concentration</li>
+<li><strong>Spell Lore</strong>: Study the ancient traditions of the Frost Weavers</li>
+</ul>
+<h4 id="romance--wedding-system">Romance &amp; Wedding System</h4>
+<ul>
+<li><strong>4 Romance Options</strong>: Kira, Lyra, Kendrick, Bonny Red Boots</li>
+<li><strong>Courtship Stages</strong>: Introduced â†’ Courting â†’ Engaged â†’ Married</li>
+<li><strong>Gift Giving</strong>: Increase affection with romantic gifts</li>
+<li><strong>Dating</strong>: Go on dates to deepen your bond</li>
+<li><strong>Wedding Ceremony</strong>: Marry your beloved in the Rose Gardens</li>
+</ul>
+<h4 id="dream-system">Dream System</h4>
+<ul>
+<li><strong>4 Dream Types</strong>: Peaceful, Nightmare, Prophetic, Memory</li>
+<li><strong>Veylan&#39;s Influence</strong>: Battle the shadow&#39;s corruption</li>
+<li><strong>Dream Protection</strong>: Pendulum mastery provides shields</li>
+<li><strong>Prophecies</strong>: Receive visions of future events</li>
+</ul>
+<h4 id="ship-travel-system">Ship Travel System</h4>
+<ul>
+<li><strong>4 Ports</strong>: Everland Harbor, Aurora Ice Docks, Mythos Jungle Bay, Whitecastle</li>
+<li><strong>Sea Trading</strong>: Buy cargo low, sail far, sell high</li>
+<li><strong>Sea Encounters</strong>: Storms and pirate encounters</li>
+<li><strong>The Black Siren</strong>: Captain Pit Plum&#39;s legendary vessel</li>
+</ul>
+<h4 id="faction-reputation">Faction Reputation</h4>
+<ul>
+<li><strong>7 Factions</strong>: Frost Weavers, Merchant Guild, Order of Black Rose, Wolves of Winter, Order of the Owls, Black Siren Crew</li>
+<li><strong>Standings</strong>: 0-25 Hostile, 26-50 Neutral, 51-75 Friendly, 76-100 Exalted</li>
+<li><strong>Faction Perks</strong>: Unlock rewards as reputation grows</li>
+</ul>
+<h4 id="dueling-arena">Dueling Arena</h4>
+<ul>
+<li><strong>Arena Ratings</strong>: Competitive ranking system</li>
+<li><strong>Win/Loss Tracking</strong>: Track your combat record</li>
+<li><strong>Arena Titles</strong>: Novice â†’ Contender â†’ Gladiator â†’ Champion</li>
+<li><strong>Bet Fights</strong>: Risk gold for greater rewards</li>
+</ul>
+<h4 id="administrative-features">Administrative Features</h4>
+<ul>
+<li><strong>Admin Menu</strong>: User management tools</li>
+<li><strong>Ban/Unban System</strong>: Moderation controls</li>
+<li><strong>User Slot System</strong>: Multi-user profile management</li>
+</ul>
+<hr>
+<h2 id="portal-system--realms">Portal System &amp; Realms</h2>
+<h3 id="main-portal-destinations">Main Portal Destinations</h3>
+<h4 id="1-aurora-land-of-frost-and-light">1. Aurora (Land of Frost and Light)</h4>
+<ul>
+<li><strong>Theme</strong>: Snow-capped peaks, ice magic, winter</li>
+<li><strong>Key NPCs</strong>: Frost Weaver Queen, Winter Wolf</li>
+<li><strong>Quests</strong>: Frost spell mastery, wolf challenge stealth</li>
+<li><strong>Guild</strong>: Frost Weavers Guild</li>
+</ul>
+<h4 id="2lore-kingdom-of-knights-and-memory">2.Lore (Kingdom of Knights and Memory)</h4>
+<ul>
+<li><strong>Theme</strong>: Medieval kingdom, knights, ancient oaths</li>
+<li><strong>Key NPCs</strong>: Lady Cordelia, Grim the Blackheart</li>
+<li><strong>Quests</strong>: Knight&#39;s oath, Battle for the Cursed Garden</li>
+<li><strong>Guild</strong>: Order of the Black Rose</li>
+<li><strong>Special Location</strong>: Cursed Garden (Pumpkin King battle)</li>
+</ul>
+<h4 id="3-mythos-realm-of-jungles-and-secrets">3. Mythos (Realm of Jungles and Secrets)</h4>
+<ul>
+<li><strong>Theme</strong>: Lush jungles, dragons, ancient mysteries</li>
+<li><strong>Key NPCs</strong>: Dragon Queen, Ancient Mystic</li>
+<li><strong>Quests</strong>: Dragon scale retrieval, trainer initiation</li>
+<li><strong>Guild</strong>: Order of the Emerald Sky</li>
+</ul>
+<h4 id="4-town-of-everland-hub-world">4. Town of Everland (Hub World)</h4>
+<ul>
+<li><strong>Theme</strong>: Central town with 25 sub-locations</li>
+<li><strong>See</strong>: <a href="#town-of-everland-locations">Town of Everland Locations</a></li>
+</ul>
+<h4 id="5-england-whitecastle">5. England (Whitecastle)</h4>
+<ul>
+<li><strong>Theme</strong>: Countryside and castle</li>
+<li><strong>Locations</strong>: Whitecastle, Countryside</li>
+</ul>
+<hr>
+<h2 id="town-of-everland-locations">Town of Everland Locations</h2>
+<h3 id="complete-location-directory-25-locations">Complete Location Directory (25 Locations)</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Location</th>
+<th>Description</th>
+<th>Key NPCs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Train Station</td>
+<td>Grand clock tower, steam trains</td>
+<td>Damsel of the Mist</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Tipsy Maiden Tavern</td>
+<td>Laughter, song, ale</td>
+<td>Bartender</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Kettle Cafe</td>
+<td>Tea, pastries, warmth</td>
+<td>-</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Copper Confection</td>
+<td>Candies, frozen treats</td>
+<td>-</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Glass House</td>
+<td>Exotic creatures, phoenix</td>
+<td>-</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Dragon Haven</td>
+<td>Dragon training, obsidian spires</td>
+<td>Dragon Trainers</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Temple Ruins</td>
+<td>Ancient faith, Order of Emerald Sky</td>
+<td>Alister, Torin</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Louden&#39;s Rest</td>
+<td>Graveyard, honored dead</td>
+<td>Tosh</td>
+</tr>
+<tr>
+<td>9</td>
+<td>The Moselem</td>
+<td>Domed towers, ancient wisdom</td>
+<td>Kasimere</td>
+</tr>
+<tr>
+<td>A</td>
+<td>Fairy Gardens</td>
+<td>Pumpkin fairies, magical grove</td>
+<td>Lezule, Marmalade, Marigold, Butterscotch</td>
+</tr>
+<tr>
+<td>B</td>
+<td>Arena</td>
+<td>Combat challenges, glory</td>
+<td>-</td>
+</tr>
+<tr>
+<td>C</td>
+<td>Pirate Ship (Black Siren)</td>
+<td>Captain&#39;s vessel, rogues</td>
+<td>Pit Plum, Bonny Red Boots, Shadow Ford</td>
+</tr>
+<tr>
+<td>D</td>
+<td>Tower</td>
+<td>Order of the Owls headquarters</td>
+<td>Garrett, Fletcher, Poppy</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Church</td>
+<td>Stained glass, serene worship</td>
+<td>Bishop Cordelia, Cedric</td>
+</tr>
+<tr>
+<td>F</td>
+<td>Catacombs</td>
+<td>Underground tunnels, bones</td>
+<td>Samuel</td>
+</tr>
+<tr>
+<td>G</td>
+<td>Statue of Michael</td>
+<td>Bronze memorial</td>
+<td>-</td>
+</tr>
+<tr>
+<td>H</td>
+<td>Marketplace</td>
+<td>Commerce, stalls, trading</td>
+<td>Bridge the Troll</td>
+</tr>
+<tr>
+<td>I</td>
+<td>Witch&#39;s Tent</td>
+<td>Herbs, cauldrons, potions</td>
+<td>Tammis, Saga</td>
+</tr>
+<tr>
+<td>J</td>
+<td>Hunter&#39;s Hovel</td>
+<td>Knights (summer), Wolves (winter)</td>
+<td>Wulfric, Lyra</td>
+</tr>
+<tr>
+<td>K</td>
+<td>The Burrows</td>
+<td>Frost Weaver gathering halls</td>
+<td>Frost Queen</td>
+</tr>
+<tr>
+<td>L</td>
+<td>Mystic&#39;s Tent</td>
+<td>Forbidden knowledge, secrets</td>
+<td>Mela, Kal, Daemos</td>
+</tr>
+<tr>
+<td>M</td>
+<td>Moon Portal</td>
+<td>Silver gateway, moonstone arch</td>
+<td>-</td>
+</tr>
+<tr>
+<td>N</td>
+<td>Central Plaza</td>
+<td>Fountain, heart of Everland</td>
+<td>Spider Princess, Kora, Kendrick</td>
+</tr>
+<tr>
+<td>O</td>
+<td>The Bridge</td>
+<td>Stone arch, troll home</td>
+<td>Bridge, Dante, Candy Witch</td>
+</tr>
+<tr>
+<td>P</td>
+<td>Kira&#39;s Apothecary</td>
+<td>Remedies, healing, romance</td>
+<td>Kira</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="npc-directory">NPC Directory</h2>
+<h3 id="major-npcs-by-location">Major NPCs by Location</h3>
+<h4 id="aurora-npcs">Aurora NPCs</h4>
+<table>
+<thead>
+<tr>
+<th>NPC</th>
+<th>Role</th>
+<th>Quest Chain</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Frost Weaver Queen</td>
+<td>Guild Leader</td>
+<td>Frost spell initiation (GLACIOUS, NIX, ILLUMINA)</td>
+</tr>
+<tr>
+<td>Winter Wolf</td>
+<td>Guardian</td>
+<td>Pact of Winter&#39;s Howl trials</td>
+</tr>
+</tbody></table>
+<h4 id="lore-npcs">Lore NPCs</h4>
+<table>
+<thead>
+<tr>
+<th>NPC</th>
+<th>Role</th>
+<th>Quest Chain</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Lady Cordelia</td>
+<td>Knight Commander</td>
+<td>Memory restoration, Knight&#39;s Oath, Order of Black Rose</td>
+</tr>
+<tr>
+<td>Grim the Blackheart</td>
+<td>Warrior</td>
+<td>Final assault on Cursed Garden, enchanted spear</td>
+</tr>
+<tr>
+<td>Gwen</td>
+<td>Mourner</td>
+<td>Honor Grim&#39;s sacrifice, plant black roses</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="recent-additions--updates">Recent Additions &amp; Updates</h2>
+<ul>
+<li><p><strong>Train Timetable &amp; Announcements</strong>: The Everland Express now includes an in-game timetable accessible at the Train Station (<code>3. View Timetable</code>). The conductor will announce the next stop as the train approaches. This improves navigation and immersion for players using the station and train system.</p>
+</li>
+<li><p><strong>NPC Proactive Greetings</strong>: Town NPCs will occasionally offer short, flavor greetings while you browse the town menu. These are cosmetic lines intended to increase immersion and make the town feel lively.</p>
+</li>
+<li><p><strong>Circus Minigame</strong>: The Circus Tent (Town key <code>Q</code>) now offers the Juggler&#39;s Challenge â€” a simple skill/dex minigame with a small gold reward for success.</p>
+</li>
+<li><p><strong>Arena Ticketing &amp; Prize Pool</strong>: The Arena now requires either a single-session Arena Ticket (5 gold) or an Arena Season Pass (30 gold) to enter the dueling pits. Session tickets are consumed on entry; season passes persist. Lost bets add to an in-game prize pool that winning challengers may draw from in addition to base rewards.</p>
+</li>
+<li><p><strong>Marketplace Expansion</strong>: The Room Shop now includes three additional decorative items (Velvet Cushions, Bronze Sundial, Silken Drapes) â€” see Room Shop Items below for prices.</p>
+</li>
+<li><p><strong>Quick-Save Command</strong>: A quick-save hotkey <code>V</code> has been added to the main menu for fast saving. This invokes the same save routine as the regular Save option and provides a short confirmation message.</p>
+</li>
+</ul>
+<h3 id="detailed-notes-on-recent-additions-2026-02-06">Detailed Notes on Recent Additions (2026-02-06)</h3>
+<ul>
+<li><p><strong>NPC Proactive Greetings</strong>: While browsing the Town menu, NPCs may occasionally display short flavor greetings. These are cosmetic only and do not affect quests or stats.</p>
+</li>
+<li><p><strong>Circus â€” Juggler&#39;s Challenge</strong>: The Circus Tent (Town key <code>Q</code>) hosts a three-round skill/dex challenge. Each round requires a simple timing/choice input; succeeding grants a small gold reward and can update your persistent <code>circus_high_score</code> recorded in-game.</p>
+</li>
+<li><p><strong>Arena Ticketing &amp; Prize Pool</strong>: Entering the Arena requires either a single-session Arena Ticket (5g) or an Arena Season Pass (30g). Session tickets are consumed on entry; season passes persist in your account. Lost bets contribute to an in-game <code>arena_prize_pool</code>; winners may draw from that pool in addition to standard rewards.</p>
+</li>
+<li><p><strong>Train Timetable &amp; Conductor Flavor</strong>: At the Train Station you can <code>View Timetable</code> to see scheduled stops. The conductor now announces the upcoming stop as the train approaches and may play short flavor lines. The system includes a dynamic delay factor that can affect the train&#39;s timing for immersion.</p>
+</li>
+<li><p><strong>Marketplace Restock &amp; Expanded Items</strong>: The Room Shop now contains three additional decorative items (Velvet Cushions â€” 35g, Bronze Sundial â€” 45g, Silken Drapes â€” 55g). Visiting the marketplace may trigger a light restock/price-adjust routine that shifts shop prices slightly over time.</p>
+</li>
+<li><p><strong>Quick-Save &amp; Autosave Behavior</strong>: Press <code>V</code> from the main menu for a quick save. The autosave system uses an alternating backup filename so recent autosaves do not overwrite the primary save; autosave alternates between <code>@0:EVSAVE,S,W</code> and <code>@0:EVSAVE1,S,W</code> (labels <code>save_filename</code> and <code>save_filename_alt</code> in the source). Autosave is triggered periodically by the main loop (configurable in code).</p>
+</li>
+</ul>
+<p>These notes expand on the brief summaries in &quot;Recent Additions &amp; Updates&quot; â€” see the relevant in-game menus (Train Station, Circus Tent, Arena, Marketplace, Main Menu) for interactive access.</p>
+<h3 id="expanded-crafting--new-locations">Expanded Crafting &amp; New Locations</h3>
+<ul>
+<li><strong>Apothecary (Kira&#39;s)</strong>: Craft Healing Potions and Poisons at <code>Kira&#39;s Apothecary</code> using local ingredients. Healing Potion (1 Gem + 1 Berry) restores health effects; Poison (1 Meat + 1 Berry) is a crafted tincture for hostile uses. These flows use the <code>consume_items</code> helper to correctly remove materials even when split across inventory slots.</li>
+<li><strong>Mystic&#39;s Tent</strong>: The Mystic Tent adds Mystic Crafting (craft Spell Tomes and Magic Items) and Spell Research (chance-based research that may yield Spell Tomes). New items include <code>SpellTm</code> and <code>MagItm</code>.</li>
+<li><strong>Tannery</strong>: Convert <code>Hide</code> into <code>Leather</code> and perform simple leatherworking used by Forge recipes for armor and tools.</li>
+<li><strong>Saw Mill</strong>: Convert <code>Wood</code> into <code>Plank</code> and craft saw-related items; planks are used by tool/weapon recipes at the <code>Forge</code>.</li>
+<li><strong>Forge expansions</strong>: New recipes for <code>Knife</code>, <code>Dagger</code>, <code>Hammer</code>, <code>Axe</code>, <code>Sword</code>, <code>Shield</code>, and <code>Armor</code> consume iron, planks, and leather and produce durable items with per-slot durability metadata.</li>
+<li><strong>Inventory &amp; Durability</strong>: Inventory slots support per-slot metadata (durability) stored alongside item count; durable tools/items are non-stackable and their durability is shown in <code>I</code> (Inventory). The <code>mine_add_or_increment</code> and <code>consume_items</code> routines were updated to handle durable items and split-slot removals.</li>
+<li><strong>Trade restrictions</strong>: The trade/posting UI blocks listing of durable/tools to prevent posting items that carry per-slot metadata; a clear message is shown when attempted.</li>
+<li><strong>New items</strong>: Spell Tome (<code>SpellTm</code>), Magic Item (<code>MagItm</code>), Healing Potion (<code>HealPot</code>), Poison (<code>Poison</code>), and other crafting items (Plank, Leather, Knife, Dagger, Hammer, Axe). See the <code>item_names</code> table in the source for exact ordering and IDs.</li>
+</ul>
+<h3 id="new-locations-archery-range--axe-throwing-pit">New Locations: Archery Range &amp; Axe-Throwing Pit</h3>
+<ul>
+<li><p><strong>Archery Range</strong>: Practice your marksmanship and take on Collin&#39;s darker wagers. The Archery Range provides a timed target mini-game and a chance to earn small rewards. Collin (a rogue NPC) offers quests that may involve morally gray or criminal actions â€” these are flagged as crimes when executed.</p>
+</li>
+<li><p><strong>Axe-Throwing Pit</strong>: A rough-and-ready pit where William (a rogue NPC) tests your axe skills. William offers wagers and quests; some options are criminal in nature and can lead to capture.</p>
+</li>
+</ul>
+<p>Mini-games</p>
+<ul>
+<li><strong>Archery mini-game</strong>: A simple chance-based challenge using the RNG. Success grants rewards; failure yields no reward. Access via the Archery Range menu.</li>
+<li><strong>Axe-throwing mini-game</strong>: Similar to Archery â€” throw an axe at a target; success/failure determined by RNG and can be extended by player skills.</li>
+</ul>
+<h3 id="crime-system--justice">Crime System &amp; Justice</h3>
+<p>Some quests (especially offered by rogue NPCs) are flagged as crimes. Crimes have a severity level; if you are caught by knights or town guards, the following consequences apply:</p>
+<ul>
+<li><strong>Stocks (minor crimes)</strong>: The player is placed in the stocks for a short duration. The stocks offer the option to pay a modest fine to be released early, or wait out the remaining time.</li>
+<li><strong>Jail (major crimes)</strong>: The player is escorted to the jail and held for a longer period. The constable (Edwin) manages the jail. Players may pay a larger fine to secure early release, or wait out the sentence.</li>
+</ul>
+<p>Capture flow (summary):</p>
+<ol>
+<li>Player undertakes a criminal quest/task.</li>
+<li>If detection occurs (guards/knights intercept), <code>handle_crime_capture</code> is invoked with severity.</li>
+<li>The player sees a capture message and is either placed in the stocks or jailed.</li>
+<li>Visit the Constable (<code>Edwin</code>) to pay a fine (if you have enough gold) or wait out the timer.</li>
+</ol>
+<h3 id="npcs-collin-william-and-edwin-constable">NPCs: Collin, William, and Edwin (Constable)</h3>
+<ul>
+<li><p><strong>Collin (rogue)</strong> â€” Archery Range</p>
+<ul>
+<li>Role: Rogue quest-giver, offers morally gray/illegal tasks and wagers.</li>
+<li>Quest example (darker side): &#39;Take out the merchant&#39;s guards&#39; â€” this quest is flagged as a crime (severity: major). If executed, detection can result in arrest and jail.</li>
+</ul>
+</li>
+<li><p><strong>William (rogue)</strong> â€” Axe-Throwing Pit</p>
+<ul>
+<li>Role: Axe pit operator and rogue quest-giver.</li>
+<li>Quest example (darker side): &#39;Smash the delivery cart to create a diversion&#39; â€” flagged as a crime (severity: minor to major depending on targets). Risk of capture if seen.</li>
+</ul>
+</li>
+<li><p><strong>Edwin (Constable)</strong> â€” Town Jail</p>
+<ul>
+<li>Role: Oversees the stocks and jail. Players brought to Edwin may pay fines or serve time. Interact with Edwin to resolve penalties.</li>
+</ul>
+</li>
+</ul>
+<h3 id="quest-walkthroughs-examples">Quest Walkthroughs (examples)</h3>
+<ol>
+<li>Collin&#39;s Contract (Archery - Major Crime)</li>
+</ol>
+<ul>
+<li>Accept Collin&#39;s request to remove a rival&#39;s watchman by stealth or force.</li>
+<li>If you succeed undetected, you receive reward and reputation changes.</li>
+<li>If detected during the act, knights may capture you â€” <code>handle_crime_capture</code> invoked with severity=2 (jail). Visit Edwin to pay the fine or wait.</li>
+</ul>
+<ol start="2">
+<li>William&#39;s Wager (Axe Pit - Minor Crime)</li>
+</ol>
+<ul>
+<li>William asks you to intimidate a merchant by breaking a cart wheel.</li>
+<li>If you are witnessed, guards may capture you â€” severity=1 (stocks) for minor disturbances. Pay the fine or wait.</li>
+</ul>
+<p>Developer notes</p>
+<ul>
+<li>The new routines and messages are implemented in <code>bbs/everland_bbs.asm</code> as <code>visit_archery</code>, <code>archery_minigame</code>, <code>visit_axe_throwing</code>, <code>axe_minigame</code>, <code>handle_crime_capture</code>, and <code>visit_constable</code>.</li>
+<li>Crime state bytes are defined (<code>crime_flag</code>, <code>jail_timer</code>) and simple flows use them to track confinement and release.</li>
+</ul>
+<h4 id="mythos-npcs">Mythos NPCs</h4>
+<table>
+<thead>
+<tr>
+<th>NPC</th>
+<th>Role</th>
+<th>Quest Chain</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dragon Queen</td>
+<td>Ruler</td>
+<td>Dragon scale retrieval, dragon lore</td>
+</tr>
+<tr>
+<td>Ancient Mystic</td>
+<td>Sage</td>
+<td>Hidden treasure, wisdom</td>
+</tr>
+</tbody></table>
+<h4 id="town-npcs-alphabetical">Town NPCs (Alphabetical)</h4>
+<table>
+<thead>
+<tr>
+<th>NPC</th>
+<th>Location</th>
+<th>Quest Chain</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Alister</td>
+<td>Temple Ruins</td>
+<td>Dragon Trainer Oaths (Order of Emerald Sky)</td>
+</tr>
+<tr>
+<td>Bishop Cordelia</td>
+<td>Church</td>
+<td>Green thorn oath, blessing</td>
+</tr>
+<tr>
+<td>Bonny Red Boots</td>
+<td>Pirate Ship</td>
+<td>Last Shackle song, freedom ballad</td>
+</tr>
+<tr>
+<td>Bridge the Troll</td>
+<td>Marketplace/Bridge</td>
+<td>Trinket trading, mischief pranks</td>
+</tr>
+<tr>
+<td>Butterscotch</td>
+<td>Fairy Gardens</td>
+<td>Human alliance, crop tending</td>
+</tr>
+<tr>
+<td>Candy Witch</td>
+<td>The Bridge</td>
+<td>Chaos quests, ward destruction</td>
+</tr>
+<tr>
+<td>Captain Pit Plum</td>
+<td>Pirate Ship</td>
+<td>Pirate&#39;s Trials (trade, flags, combat)</td>
+</tr>
+<tr>
+<td>Captain Shadow Ford</td>
+<td>Pirate Ship</td>
+<td>Combat training (footwork, parrying)</td>
+</tr>
+<tr>
+<td>Cedric</td>
+<td>Church</td>
+<td>Redemption arc, renounce Kasimere</td>
+</tr>
+<tr>
+<td>Damsel of the Mist</td>
+<td>Train Station</td>
+<td>Destiny quest, blue light guidance</td>
+</tr>
+<tr>
+<td>Dante</td>
+<td>The Bridge</td>
+<td>Fracture containment, ward strengthening</td>
+</tr>
+<tr>
+<td>Daemos</td>
+<td>Mystic&#39;s Tent</td>
+<td>Dark covenant (Warning: vampire!)</td>
+</tr>
+<tr>
+<td>Fletcher</td>
+<td>Tower</td>
+<td>Archery, Order of Owls</td>
+</tr>
+<tr>
+<td>Frost Queen</td>
+<td>The Burrows</td>
+<td>Frost Weaver initiation ritual</td>
+</tr>
+<tr>
+<td>Garrett</td>
+<td>Tower</td>
+<td>Order of Owls founding, wisdom trials</td>
+</tr>
+<tr>
+<td>Kal</td>
+<td>Mystic&#39;s Tent</td>
+<td>Promises of power (Warning: vampire!)</td>
+</tr>
+<tr>
+<td>Kasimere</td>
+<td>The Moselem</td>
+<td>Vampire lord - Help or Betray choice</td>
+</tr>
+<tr>
+<td>Kendrick</td>
+<td>Central Plaza</td>
+<td>Spider Princess protection</td>
+</tr>
+<tr>
+<td>Kira</td>
+<td>Kira&#39;s Apothecary</td>
+<td>Healing, romance, mutual craft</td>
+</tr>
+<tr>
+<td>Kora</td>
+<td>Central Plaza</td>
+<td>Spider Princess guardian</td>
+</tr>
+<tr>
+<td>Lezule</td>
+<td>Fairy Gardens</td>
+<td>Stolen names protection</td>
+</tr>
+<tr>
+<td>Lyra</td>
+<td>Hunter&#39;s Hovel</td>
+<td>Wolf negotiations, Pact of Winter&#39;s Howl</td>
+</tr>
+<tr>
+<td>Marigold</td>
+<td>Fairy Gardens</td>
+<td>Potion ingredients quest</td>
+</tr>
+<tr>
+<td>Marmalade</td>
+<td>Fairy Gardens</td>
+<td>Prank quest chain</td>
+</tr>
+<tr>
+<td>Mela</td>
+<td>Mystic&#39;s Tent</td>
+<td>Immortality temptation (Warning: vampire!)</td>
+</tr>
+<tr>
+<td>Poppy</td>
+<td>Tower</td>
+<td>Feast sponsorship, Order of Owls</td>
+</tr>
+<tr>
+<td>Pumpkin King</td>
+<td>Cursed Garden</td>
+<td>Boss battle - Fight or Negotiate</td>
+</tr>
+<tr>
+<td>Saga</td>
+<td>Witch&#39;s Tent</td>
+<td>Prophecy, destiny revelation</td>
+</tr>
+<tr>
+<td>Samuel</td>
+<td>Catacombs</td>
+<td>Third eye activation, pendulum mastery</td>
+</tr>
+<tr>
+<td>Spider Princess</td>
+<td>Central Plaza</td>
+<td>Magical artifact gift, spider blessing</td>
+</tr>
+<tr>
+<td>Tammis</td>
+<td>Witch&#39;s Tent</td>
+<td>Enchantment, rune learning</td>
+</tr>
+<tr>
+<td>Torin</td>
+<td>Temple Ruins</td>
+<td>Unseely Fae binding ritual</td>
+</tr>
+<tr>
+<td>Tosh</td>
+<td>Louden&#39;s Rest</td>
+<td>Graveyard secrets, lost mementos</td>
+</tr>
+<tr>
+<td>Van Bueler</td>
+<td>Hunter&#39;s Hovel</td>
+<td>Wolf-human trade negotiations</td>
+</tr>
+<tr>
+<td>Wulfric (Alpha)</td>
+<td>Hunter&#39;s Hovel</td>
+<td>Wolf trials, Pact of Winter&#39;s Howl</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="social--room-features">Social &amp; Room Features</h2>
+<h3 id="personal-room-system">Personal Room System</h3>
+<ul>
+<li><strong>Edit Description</strong>: Write custom room description</li>
+<li><strong>Choose Decor</strong>: Select room decorations</li>
+<li><strong>Choose Color</strong>: Set room color theme</li>
+<li><strong>ASCII Art Editor</strong>: Create 80x24 ASCII art</li>
+<li><strong>View ASCII Art</strong>: Display your creation</li>
+<li><strong>Preview Room</strong>: See how visitors see your room</li>
+</ul>
+<h3 id="social-features">Social Features</h3>
+<ul>
+<li><strong>Guestbook</strong>: Leave/read visitor messages</li>
+<li><strong>Privacy Settings</strong>: Public/Private/Friends-only</li>
+<li><strong>Friends List</strong>: Manage connections</li>
+<li><strong>Visitor Log</strong>: Track visitors</li>
+<li><strong>Messages</strong>: Private messaging system</li>
+<li><strong>Gifts</strong>: Send gifts to friends</li>
+</ul>
+<h3 id="room-shop-items">Room Shop Items</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Price</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Fancy Rug</td>
+<td>25g</td>
+</tr>
+<tr>
+<td>Crystal Lamp</td>
+<td>40g</td>
+</tr>
+<tr>
+<td>Gold Frame</td>
+<td>60g</td>
+</tr>
+<tr>
+<td>Magic Mirror</td>
+<td>80g</td>
+</tr>
+<tr>
+<td>Royal Banner</td>
+<td>100g</td>
+</tr>
+<tr>
+<td>Ancient Statue</td>
+<td>150g</td>
+</tr>
+<tr>
+<td>Velvet Cushions</td>
+<td>35g</td>
+</tr>
+<tr>
+<td>Bronze Sundial</td>
+<td>45g</td>
+</tr>
+<tr>
+<td>Silken Drapes</td>
+<td>55g</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="events-system-1">Events System</h2>
+<h3 id="personal-events">Personal Events</h3>
+<ul>
+<li><strong>Create Event</strong>: Schedule gatherings with title, time, and type</li>
+<li><strong>View My Events</strong>: See your scheduled events</li>
+<li><strong>Cancel Event</strong>: Remove scheduled events</li>
+<li><strong>Browse All Events</strong>: See realm-wide events</li>
+</ul>
+<h3 id="event-types">Event Types</h3>
+<ol>
+<li>Party</li>
+<li>Game</li>
+<li>Meeting</li>
+<li>Contest</li>
+<li>Lantern (Festival)</li>
+<li>Feast</li>
+</ol>
+<h3 id="realm-calendar-seasonal-events">Realm Calendar (Seasonal Events)</h3>
+<table>
+<thead>
+<tr>
+<th>Month</th>
+<th>Event</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>January</td>
+<td>New Year&#39;s Frost Feast</td>
+<td>The Burrows</td>
+</tr>
+<tr>
+<td>February</td>
+<td>Lovers&#39; Lantern Walk</td>
+<td>Moon Portal</td>
+</tr>
+<tr>
+<td>March</td>
+<td>Spring Awakening Festival</td>
+<td>Fairy Gardens</td>
+</tr>
+<tr>
+<td>April</td>
+<td>Fool&#39;s Day Mischief</td>
+<td>Bridge the Troll hosts</td>
+</tr>
+<tr>
+<td>May</td>
+<td>Order of the Black Rose Memorial</td>
+<td>Louden&#39;s Rest</td>
+</tr>
+<tr>
+<td>June</td>
+<td>Midsummer Dragon Flight</td>
+<td>Dragon Haven</td>
+</tr>
+<tr>
+<td>July</td>
+<td>Pirate&#39;s Plunder Games</td>
+<td>Pirate Ship</td>
+</tr>
+<tr>
+<td>August</td>
+<td>Order of the Owls Wisdom Trials</td>
+<td>Tower</td>
+</tr>
+<tr>
+<td>September</td>
+<td>Harvest Moon Ball</td>
+<td>Pumpkin Fairies</td>
+</tr>
+<tr>
+<td><strong>October</strong></td>
+<td><strong>DRAGON LANTERN FESTIVAL</strong></td>
+<td><strong>Dragon Haven</strong></td>
+</tr>
+<tr>
+<td>November</td>
+<td>Pact of Winter&#39;s Howl</td>
+<td>Hunter&#39;s Hovel</td>
+</tr>
+<tr>
+<td>December</td>
+<td>Everland Yuletide Feast</td>
+<td>Dining Hall</td>
+</tr>
+</tbody></table>
+<h3 id="october-dragon-lantern-festival-special">October: Dragon Lantern Festival (Special)</h3>
+<p><strong>Tradition: Everyone carries a lantern!</strong></p>
+<p>The Dragon Lantern Festival commemorates the Battle for Everland:</p>
+<ul>
+<li>Three realms once coexisted: Aurora, Lore, Mythos</li>
+<li>The Darkness was banished from Mythos and spread to Lore</li>
+<li>King Lowden fell defending his realm</li>
+<li>The Dragon Queen of Mythos arrived with her flames and turned the tide</li>
+<li>Heroes buried their weapons beneath the fallen temple</li>
+<li>All return yearly to honor the sacrifice</li>
+</ul>
+<hr>
+<h2 id="economy--trading">Economy &amp; Trading</h2>
+<h3 id="currency-system">Currency System</h3>
+<ul>
+<li><strong>Gold</strong>: Primary currency</li>
+<li><strong>Silver</strong>: Secondary currency</li>
+<li><strong>Copper</strong>: Tertiary currency</li>
+</ul>
+<h3 id="bank-services">Bank Services</h3>
+<ul>
+<li><strong>Deposit</strong>: Store currency safely</li>
+<li><strong>Withdraw</strong>: Retrieve stored currency</li>
+<li><strong>Exchange</strong>: Convert between currencies (dynamic rates)</li>
+<li><strong>Vault</strong>: Secure item storage (10 slots, rent: 10 silver)</li>
+</ul>
+<h3 id="trading">Trading</h3>
+<ul>
+<li><strong>Create Trade Offer</strong>: Post items for trade</li>
+<li><strong>Browse Trades</strong>: See available trades</li>
+<li><strong>Accept Trades</strong>: Complete transactions</li>
+</ul>
+<hr>
+<h2 id="mini-games--activities-1">Mini-Games &amp; Activities</h2>
+<h3 id="available-activities">Available Activities</h3>
+<table>
+<thead>
+<tr>
+<th>Activity</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Lottery</td>
+<td>Weekly drawings, buy tickets</td>
+</tr>
+<tr>
+<td>Dice Games</td>
+<td>Gambling with dice</td>
+</tr>
+<tr>
+<td>Fishing</td>
+<td>Catch fish for rewards</td>
+</tr>
+<tr>
+<td>Racing</td>
+<td>Competitive races</td>
+</tr>
+<tr>
+<td>Treasure Hunting</td>
+<td>Find hidden treasures</td>
+</tr>
+<tr>
+<td>Cooking</td>
+<td>Craft food items</td>
+</tr>
+<tr>
+<td>Dueling</td>
+<td>PvP combat</td>
+</tr>
+<tr>
+<td>Arena</td>
+<td>Combat challenges</td>
+</tr>
+<tr>
+<td>Circus</td>
+<td>Juggler&#39;s Challenge â€” small skill/dex minigame</td>
+</tr>
+<tr>
+<td>Riddles</td>
+<td>Puzzle solving</td>
+</tr>
+<tr>
+<td>Scavenging</td>
+<td>Random item discovery</td>
+</tr>
+<tr>
+<td>Crafting</td>
+<td>Create items</td>
+</tr>
+<tr>
+<td>Garden</td>
+<td>Grow plants</td>
+</tr>
+<tr>
+<td>Fortune</td>
+<td>Have your fortune told</td>
+</tr>
+<tr>
+<td>Meditation</td>
+<td>Restore stats</td>
+</tr>
+<tr>
+<td>Spy</td>
+<td>Gather information</td>
+</tr>
+<tr>
+<td>Bounty</td>
+<td>Hunt targets</td>
+</tr>
+<tr>
+<td>Museum</td>
+<td>View collections</td>
+</tr>
+<tr>
+<td>Tavern</td>
+<td>Social gathering</td>
+</tr>
+<tr>
+<td>Companion</td>
+<td>AI assistant</td>
+</tr>
+<tr>
+<td>Mailbox</td>
+<td>Correspondence</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="magic-system">Magic System</h2>
+<p>The Magic System allows players to learn and cast spells through the Frost Weaver tradition. Access the magic menu by pressing <strong>M</strong> from the main menu.</p>
+<h3 id="mana-system">Mana System</h3>
+<ul>
+<li><strong>Maximum Mana</strong>: 20 points</li>
+<li><strong>Mana Regeneration</strong>: Base rate + bonuses from Pendulum Mastery</li>
+<li><strong>Restore Mana</strong>: Through meditation or resting</li>
+</ul>
+<h3 id="frost-weaver-spells">Frost Weaver Spells</h3>
+<table>
+<thead>
+<tr>
+<th>Spell</th>
+<th>Cost</th>
+<th>Effect</th>
+<th>Prerequisite</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GLACIOUS</td>
+<td>5 mana</td>
+<td>Frost bolt - deals ice damage</td>
+<td>Frost Weaver Initiate</td>
+</tr>
+<tr>
+<td>NIX</td>
+<td>8 mana</td>
+<td>Ice shield - defensive barrier</td>
+<td>Know GLACIOUS</td>
+</tr>
+<tr>
+<td>ILLUMINA</td>
+<td>10 mana</td>
+<td>Light burst - reveals hidden paths</td>
+<td>Know NIX</td>
+</tr>
+</tbody></table>
+<h3 id="learning-spells">Learning Spells</h3>
+<p>Spells must be learned in order:</p>
+<ol>
+<li><strong>GLACIOUS</strong> - Entry spell for Frost Weaver initiates</li>
+<li><strong>NIX</strong> - Requires mastery of GLACIOUS</li>
+<li><strong>ILLUMINA</strong> - Requires mastery of NIX</li>
+</ol>
+<h3 id="frost-weaver-ranks">Frost Weaver Ranks</h3>
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Initiate</td>
+<td>Learn GLACIOUS</td>
+</tr>
+<tr>
+<td>Adept</td>
+<td>Learn all three spells</td>
+</tr>
+<tr>
+<td>Master</td>
+<td>Pendulum mastery level 10</td>
+</tr>
+</tbody></table>
+<h3 id="third-eye-practice">Third Eye Practice</h3>
+<p>Train your magical perception through Pendulum Practice:</p>
+<ul>
+<li><strong>10 Mastery Levels</strong>: Each level improves Third Eye sensitivity</li>
+<li><strong>Level 5</strong>: +1 mana regeneration rate</li>
+<li><strong>Level 10</strong>: +1 additional mana regeneration, Master rank unlock</li>
+</ul>
+<h3 id="meditation">Meditation</h3>
+<ul>
+<li>Restore mana through focused concentration</li>
+<li>Available from the Magic menu</li>
+<li>No cost, restores mana over time</li>
+</ul>
+<h3 id="spell-lore">Spell Lore</h3>
+<p>Study the ancient traditions and history of the Frost Weavers, including:</p>
+<ul>
+<li>The Frost Weaver Queen&#39;s teachings</li>
+<li>Origins of ice magic in Aurora</li>
+<li>The bond between caster and elements</li>
+</ul>
+<hr>
+<h2 id="romance--wedding-system-1">Romance &amp; Wedding System</h2>
+<p>Find love in Everland! Access the Romance menu by pressing <strong>&lt;</strong> from the main menu.</p>
+<h3 id="romance-options">Romance Options</h3>
+<table>
+<thead>
+<tr>
+<th>Partner</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kira</td>
+<td>The gentle apothecary with healing hands</td>
+</tr>
+<tr>
+<td>Lyra</td>
+<td>The fierce wolf of winter, loyal beyond measure</td>
+</tr>
+<tr>
+<td>Kendrick</td>
+<td>The noble knight of Everland, guided by honor</td>
+</tr>
+<tr>
+<td>Bonny Red Boots</td>
+<td>The free-spirited pirate, full of adventure</td>
+</tr>
+</tbody></table>
+<h3 id="courtship-stages">Courtship Stages</h3>
+<ol>
+<li><strong>Introduced</strong> - Express your interest</li>
+<li><strong>Courting</strong> - Reach affection level 5</li>
+<li><strong>Engaged</strong> - Propose at affection level 8</li>
+<li><strong>Married</strong> - Hold a wedding ceremony (100g)</li>
+</ol>
+<h3 id="activities">Activities</h3>
+<ul>
+<li><strong>Give Gifts</strong> (-10g): Increase affection</li>
+<li><strong>Go on Dates</strong>: Deepen your bond (requires Courting stage)</li>
+<li><strong>Propose</strong>: Ask for their hand (requires level 8)</li>
+<li><strong>Wedding</strong>: Marry in the Rose Gardens, officiated by Bishop Cordelia</li>
+</ul>
+<hr>
+<h2 id="dream-system-1">Dream System</h2>
+<p>Enter the Dreamscape where Veylan&#39;s shadow reaches even the sleeping. Access by pressing <strong>&gt;</strong> from the main menu.</p>
+<h3 id="dream-types">Dream Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Peaceful</td>
+<td>Restore 5 mana, find tranquility</td>
+</tr>
+<tr>
+<td>Nightmare</td>
+<td>Battle Veylan for 15g reward (risky!)</td>
+</tr>
+<tr>
+<td>Prophetic</td>
+<td>Receive visions of future events</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>Glimpse your forgotten past</td>
+</tr>
+</tbody></table>
+<h3 id="veylans-influence">Veylan&#39;s Influence</h3>
+<ul>
+<li>Increases with nightmares (0-10 scale)</li>
+<li>At level 10, Veylan wins: -20g, influence resets</li>
+<li>Pendulum mastery provides dream protection</li>
+</ul>
+<h3 id="prophecies">Prophecies</h3>
+<p>Collect prophetic visions that hint at:</p>
+<ul>
+<li>The Dragon Lantern Festival</li>
+<li>Memory stones and choices</li>
+<li>The Spider Princess&#39;s weaving</li>
+<li>Veylan&#39;s growing shadow</li>
+</ul>
+<hr>
+<h2 id="ship-travel-system-1">Ship Travel System</h2>
+<p>Sail aboard The Black Siren with Captain Pit Plum! Access by pressing <strong>[</strong> from the main menu.</p>
+<h3 id="ports">Ports</h3>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Location</th>
+<th>Specialty</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Everland Harbor</td>
+<td>Main hub</td>
+<td>Best for selling</td>
+</tr>
+<tr>
+<td>Aurora Ice Docks</td>
+<td>Aurora</td>
+<td>Rare frost goods</td>
+</tr>
+<tr>
+<td>Mythos Jungle Bay</td>
+<td>Mythos</td>
+<td>Exotic spices and silk</td>
+</tr>
+<tr>
+<td>Whitecastle Port</td>
+<td>England</td>
+<td>English luxuries</td>
+</tr>
+</tbody></table>
+<h3 id="trading-1">Trading</h3>
+<ul>
+<li><strong>Spices</strong> (20g): Sell for 40g profit at different port</li>
+<li><strong>Silk</strong> (30g): Sell for 48g profit at different port</li>
+<li>Buy low, sail far, sell high!</li>
+</ul>
+<h3 id="sea-encounters">Sea Encounters</h3>
+<ul>
+<li><strong>Storms</strong>: Weather the waves, arrive shaken but safe</li>
+<li><strong>Pirates</strong>: Bonny Red Boots may gift you 30g!</li>
+</ul>
+<h3 id="voyage-cost">Voyage Cost</h3>
+<p>25 gold per voyage between ports</p>
+<hr>
+<h2 id="faction-reputation-system">Faction Reputation System</h2>
+<p>Build standing with Everland&#39;s guilds and factions. View from the Reputation menu (R in Room menu).</p>
+<h3 id="factions">Factions</h3>
+<table>
+<thead>
+<tr>
+<th>Faction</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Frost Weavers</td>
+<td>Ice magic practitioners of Aurora</td>
+</tr>
+<tr>
+<td>Merchant Guild</td>
+<td>Trade and commerce masters</td>
+</tr>
+<tr>
+<td>Order of Black Rose</td>
+<td>Knights of the cursed garden</td>
+</tr>
+<tr>
+<td>Wolves of Winter</td>
+<td>The pack of Alpha Wulfric</td>
+</tr>
+<tr>
+<td>Order of the Owls</td>
+<td>Secret keepers and spies</td>
+</tr>
+<tr>
+<td>Black Siren Crew</td>
+<td>Pirates of the high seas</td>
+</tr>
+</tbody></table>
+<h3 id="standing-levels">Standing Levels</h3>
+<table>
+<thead>
+<tr>
+<th>Range</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0-25</td>
+<td>Hostile</td>
+</tr>
+<tr>
+<td>26-50</td>
+<td>Neutral</td>
+</tr>
+<tr>
+<td>51-75</td>
+<td>Friendly</td>
+</tr>
+<tr>
+<td>76-100</td>
+<td>Exalted</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="dueling-arena-1">Dueling Arena</h2>
+<p>Test your combat prowess! Access from the Arena in the Room menu.</p>
+<h3 id="fight-types">Fight Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Cost</th>
+<th>Reward</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Quick Fight</td>
+<td>Free</td>
+<td>+10g on win</td>
+</tr>
+<tr>
+<td>Ranked Fight</td>
+<td>Free</td>
+<td>+25g, rank increase</td>
+</tr>
+<tr>
+<td>Bet Fight</td>
+<td>20g</td>
+<td>+50g on win</td>
+</tr>
+</tbody></table>
+<h3 id="arena-titles">Arena Titles</h3>
+<table>
+<thead>
+<tr>
+<th>Title</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Novice</td>
+<td>0-4 wins</td>
+</tr>
+<tr>
+<td>Contender</td>
+<td>5-14 wins</td>
+</tr>
+<tr>
+<td>Gladiator</td>
+<td>15-29 wins</td>
+</tr>
+<tr>
+<td>Champion</td>
+<td>30+ wins</td>
+</tr>
+</tbody></table>
+<h3 id="arena-ratings">Arena Ratings</h3>
+<p>Track your competitive rating, wins, and losses. Rise through the ranks to become the Champion of Everland!</p>
+<hr>
+<h2 id="build-instructions">Build Instructions</h2>
+<h3 id="requirements">Requirements</h3>
+<ul>
+<li><strong>KickAssembler</strong> v5.25 or later</li>
+<li><strong>Java</strong> (for KickAssembler)</li>
+<li><strong>VICE</strong> C64 Emulator (for testing)</li>
+</ul>
+<h3 id="build-command">Build Command</h3>
+<pre><code class="language-powershell">cd &quot;c:\commodore\everland\bbs\custom&quot;
+java -jar &quot;C:/commodore/KickAssembler/KickAss.jar&quot; everland_bbs.asm -o &quot;c:\commodore\everland\bin\everland_bbs.prg&quot;
+</code></pre>
+<h3 id="output">Output</h3>
+<ul>
+<li><strong>PRG File</strong>: <code>bin/everland_bbs.prg</code></li>
+<li><strong>Symbol File</strong>: <code>everland_bbs.sym</code></li>
+</ul>
+<hr>
+<h2 id="appendix-a-complete-quest-walkthrough">Appendix A: Complete Quest Walkthrough</h2>
+<p>This appendix provides detailed step-by-step walkthroughs for every quest chain in Everland.</p>
+<hr>
+<h3 id="chapter-1-quests-the-fall-of-lore">Chapter 1 Quests: The Fall of Lore</h3>
+<h4 id="quest-memory-restoration-lady-cordelia">Quest: Memory Restoration (Lady Cordelia)</h4>
+<p><strong>Location</strong>: Lore Portal â†’ Lady Cordelia<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: When the refugees fled through the portal from Lore, a dense fog swept over their minds, erasing all memories temporarily. Mage Damon, Damian, Barnabis, and Princess Delphi all lost their memories.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Speak to refugees</strong> - Travel through Everland and speak to NPCs who came through the portal</li>
+<li><strong>Retrieve the dark crystals</strong> - The dark sun and moon crystals are needed to restore memories. Kasimere possesses one.</li>
+<li><strong>Swear the green thorn oath</strong> - &quot;May the green thorn pierce me if I fail in my quest&quot;</li>
+<li><strong>Restore the Order of the Black Rose</strong> - Complete the restoration and join the Order</li>
+</ol>
+<p><strong>Reward</strong>: Black Rose Emblem, Order membership</p>
+<hr>
+<h3 id="chapter-2-quests-mischief-and-merriment">Chapter 2 Quests: Mischief and Merriment</h3>
+<h4 id="quest-marmalades-prank-quest-chain">Quest: Marmalade&#39;s Prank Quest Chain</h4>
+<p><strong>Location</strong>: Town â†’ Fairy Gardens â†’ Marmalade<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Marmalade is a fiery-haired Pumpkin Fairy who loves mischief. The Pumpkin King demands tribute through pranks!</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Swap hats with the scarecrow</strong> - Find the scarecrow in the field and swap your hat</li>
+<li><strong>Dance a merry jig with a woodland fox</strong> - Locate a fox in the forest and dance together</li>
+<li><strong>Bow before the grand Pumpkin carving</strong> - Find the Pumpkin King&#39;s carving and pay respects</li>
+</ol>
+<p><strong>Reward</strong>: Marmalade&#39;s blessing</p>
+<hr>
+<h4 id="quest-marigolds-potion-quest-chain">Quest: Marigold&#39;s Potion Quest Chain</h4>
+<p><strong>Location</strong>: Town â†’ Fairy Gardens â†’ Marigold<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Marigold, adorned in shimmering gold, needs ingredients for her potion of mischief - one sip makes you dance!</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Gather moonlit dewdrops</strong> - Collect dewdrops from the garden at night</li>
+<li><strong>Find caramel apple essence</strong> - Obtain essence from the festival vendors</li>
+<li><strong>Collect a whispered secret from the wind</strong> - Listen to the wind in a quiet place</li>
+</ol>
+<p><strong>Reward</strong>: Potion of Mischief</p>
+<hr>
+<h4 id="quest-butterscotchs-alliance-quest-chain">Quest: Butterscotch&#39;s Alliance Quest Chain</h4>
+<p><strong>Location</strong>: Town â†’ Fairy Gardens â†’ Butterscotch<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Butterscotch&#39;s name doesn&#39;t start with &#39;M&#39;, so she can&#39;t join her sisters. She found another path - befriending humans.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Help tend crops</strong> - Work at the nearby farmstead</li>
+<li><strong>Whisper encouragement to the harvest</strong> - Speak blessings to the growing plants</li>
+<li><strong>Earn the Pumpkin King&#39;s recognition</strong> - Gain recognition for your work</li>
+</ol>
+<p><strong>Reward</strong>: Alliance between fairy and human</p>
+<hr>
+<h4 id="quest-defeat-the-pumpkin-king">Quest: Defeat the Pumpkin King</h4>
+<p><strong>Location</strong>: Lore Portal â†’ Cursed Garden<br><strong>Prerequisite</strong>: Complete Fairy quests (recommended)</p>
+<p><strong>Background</strong>: The Pumpkin King towers in the cursed garden, eyes glowing unearthly orange. His sinister laughter echoes as thorny plants obey his will.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Gather spider allies</strong> - Speak to Spider Princess in Central Plaza</li>
+<li><strong>Rally the knights of Lore</strong> - Gather support from Lady Cordelia</li>
+<li><strong>Obtain the enchanted spear</strong> - Get the spear from Grim the Blackheart</li>
+<li><strong>Launch coordinated attack</strong> - Execute the plan</li>
+</ol>
+<p><strong>Choice</strong>: (F)ight or (N)egotiate</p>
+<p><strong>Warning</strong>: Grim will sacrifice himself in the final battle!</p>
+<p><strong>Reward</strong>: Victory over the Pumpkin King, but at great cost</p>
+<hr>
+<h4 id="quest-honor-grims-sacrifice-gwen">Quest: Honor Grim&#39;s Sacrifice (Gwen)</h4>
+<p><strong>Location</strong>: Lore Portal â†’ Gwen (after Pumpkin King defeat)<br><strong>Prerequisite</strong>: Complete Pumpkin King battle</p>
+<p><strong>Background</strong>: Gwen stands silently, clutching a withered black rose. &quot;Grim gave everything. One strike of the enchanted spear, one green thorn through his heart. I wept but once.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Obtain black rose seeds</strong> - Find seeds from the Order of Black Rose</li>
+<li><strong>Travel to the Cursed Garden</strong> - Return to where Grim fell</li>
+<li><strong>Plant black roses at the memorial</strong> - Create a lasting tribute</li>
+<li><strong>Report to Gwen</strong> - Share that the tribute is complete</li>
+</ol>
+<p><strong>Reward</strong>: Gwen&#39;s gratitude, closure</p>
+<hr>
+<h3 id="chapter-3-6-quests-the-vampires-descent">Chapter 3-6 Quests: The Vampires&#39; Descent</h3>
+<h4 id="quest-help-or-betray-kasimere">Quest: Help or Betray Kasimere</h4>
+<p><strong>Location</strong>: Town â†’ The Moselem â†’ Kasimere<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Arch Magus Kasimere, the oldest vampire, followed through the portal as it closed. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power. He corrupts refugees with foggy memories, turning them into servants.</p>
+<p><strong>Choice</strong>:</p>
+<ul>
+<li><strong>(H)elp Kasimere</strong>: Join his dark dominion</li>
+<li><strong>(B)etray Kasimere</strong>: Expose his treachery to the defenders</li>
+</ul>
+<p><strong>Steps (Betray path)</strong>:</p>
+<ol>
+<li><strong>Pretend to serve</strong> - Gain Kasimere&#39;s trust</li>
+<li><strong>Gather evidence</strong> - Document his corrupted servants</li>
+<li><strong>Alert Lady Cordelia</strong> - Report to the Order of Black Rose</li>
+<li><strong>Confront Kasimere</strong> - Join the defenders in his lair</li>
+</ol>
+<p><strong>Reward</strong>: Depends on choice - dark power or heroic standing</p>
+<hr>
+<h4 id="quest-cedrics-redemption">Quest: Cedric&#39;s Redemption</h4>
+<p><strong>Location</strong>: Town â†’ Church â†’ Cedric<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;At the witching hour, Kasimere invaded my dreams. His crystal globe resonated with the dark sun crystal, whispering promises of power and glory. But Mage Damon wove a protective barrier around my mind.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Confess your moment of weakness</strong> - Cedric admits his temptation</li>
+<li><strong>Face Kasimere&#39;s lair with the defenders</strong> - Join the assault</li>
+<li><strong>Sever the dark crystal&#39;s hold</strong> - Break the connection</li>
+<li><strong>Swear renewed oath to the Order</strong> - Recommit to the light</li>
+</ol>
+<p><strong>Reward</strong>: Cedric&#39;s redemption, renewed faith</p>
+<hr>
+<h3 id="chapter-7-quests-the-pact-of-winters-howl">Chapter 7 Quests: The Pact of Winter&#39;s Howl</h3>
+<h4 id="quest-winter-wolf-trials-wulfric">Quest: Winter Wolf Trials (Wulfric)</h4>
+<p><strong>Location</strong>: Town â†’ Hunter&#39;s Hovel â†’ Alpha Wulfric<br><strong>Prerequisite</strong>: None (Available in winter months)</p>
+<p><strong>Background</strong>: &quot;The Pact of Winter&#39;s Howl binds wolf and human. Each frost-laden evening, we gather to renew our vows.&quot; Beta Lyra negotiated with Van Bueler - provisions for protection.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Endure the biting cold without shelter</strong> - Survive a night in the wilderness</li>
+<li><strong>Outwit the cunning riddles of the pack</strong> - Solve wolf riddles</li>
+<li><strong>Brave the harshest wilderness paths</strong> - Navigate dangerous terrain</li>
+<li><strong>Join the moonlit howl when the train rumbles by</strong> - Participate in the tradition</li>
+</ol>
+<p><strong>Reward</strong>: Pack membership, Wolves of Winter standing</p>
+<hr>
+<h4 id="quest-pact-negotiations-van-buelerlyra">Quest: Pact Negotiations (Van Bueler/Lyra)</h4>
+<p><strong>Location</strong>: Town â†’ Hunter&#39;s Hovel<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Negotiate fair terms</strong> - Balance town and wolf needs</li>
+<li><strong>Funnel provisions to Hunter&#39;s Hovel</strong> - Arrange the supply chain</li>
+<li><strong>Ensure Everland survives the winter</strong> - Verify preparations</li>
+<li><strong>Witness the wolf-human howl</strong> - Join the celebration when trains pass</li>
+</ol>
+<p><strong>Reward</strong>: Improved wolf-human relations</p>
+<hr>
+<h3 id="chapter-8-quests-bridge-and-kevin">Chapter 8 Quests: Bridge and Kevin</h3>
+<h4 id="quest-bridges-mischief">Quest: Bridge&#39;s Mischief</h4>
+<p><strong>Location</strong>: Town â†’ The Bridge or Marketplace â†’ Bridge the Troll<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Bridge makes his home under the old stone bridge, twirling Kevin - his skull-tipped club and closest confidant. &quot;Ah, you look absolutely revolting!&quot; (He means it kindly.)</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Swap trinkets at the marketplace</strong> - Trade unusual items with Bridge</li>
+<li><strong>Spread playful chaos in town</strong> - Help with harmless pranks</li>
+<li><strong>Learn Bridge&#39;s hauntingly off-key tune</strong> - Memorize the song</li>
+<li><strong>Join Kevin&#39;s midnight tribunal of oddities</strong> - Attend the strange gathering</li>
+</ol>
+<p><strong>Reward</strong>: Unique trinkets, Bridge&#39;s friendship</p>
+<hr>
+<h3 id="chapter-9-quests-the-fractures-grip">Chapter 9 Quests: The Fracture&#39;s Grip</h3>
+<h4 id="quest-contain-the-fractures-dante">Quest: Contain the Fractures (Dante)</h4>
+<p><strong>Location</strong>: Town â†’ The Bridge â†’ Dante<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Dante maintains shimmering wards against the fractures that blur reality. The ghost pirates in his bottle delight in targeting the Spider Princess.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Gather ward components from the realms</strong> - Collect magical ingredients</li>
+<li><strong>Confront the Candy Witch&#39;s sabotage</strong> - Stop her destruction</li>
+<li><strong>Seal the ghost pirates&#39; bottle permanently</strong> - Contain the threat</li>
+<li><strong>Restore balance between worlds</strong> - Complete the ward network</li>
+</ol>
+<p><strong>Reward</strong>: Stabilized fractures, Dante&#39;s gratitude</p>
+<hr>
+<h4 id="quest-stop-the-candy-witch">Quest: Stop the Candy Witch</h4>
+<p><strong>Location</strong>: Town â†’ The Bridge â†’ Candy Witch<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: The Candy Witch tears at Dante&#39;s wards with candy-coated claws. &quot;Why mend what can be broken? Chaos is so much sweeter!&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Track her through the fractures</strong> - Follow her trail</li>
+<li><strong>Resist her sweet temptations</strong> - Avoid corruption</li>
+<li><strong>Sever her bond with the ghost pirates</strong> - Break the alliance</li>
+<li><strong>Seal her in crystallized sugar</strong> - Imprison the witch</li>
+</ol>
+<p><strong>Reward</strong>: Wards restored, chaos contained</p>
+<hr>
+<h4 id="quest-protect-the-spider-princess-korakendrick">Quest: Protect the Spider Princess (Kora/Kendrick)</h4>
+<p><strong>Location</strong>: Town â†’ Central Plaza â†’ Kora and Kendrick<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Strengthen the protective perimeter</strong> - Reinforce defenses</li>
+<li><strong>Track ghost pirate movements</strong> - Monitor threats</li>
+<li><strong>Counter the Candy Witch&#39;s sabotage</strong> - Prevent attacks</li>
+<li><strong>Escort the Spider Princess to safety</strong> - Complete protection</li>
+</ol>
+<p><strong>Reward</strong>: Guardian standing, Spider Princess&#39;s favor</p>
+<hr>
+<h3 id="chapter-10-12-quests-the-mystics-tent">Chapter 10-12 Quests: The Mystic&#39;s Tent</h3>
+<h4 id="quest-uncover-the-mystics-secret">Quest: Uncover the Mystics&#39; Secret</h4>
+<p><strong>Location</strong>: Town â†’ Mystic&#39;s Tent â†’ Mela<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Warning</strong>: The mystics (Mela, Kal, Daemos) are secretly vampires! They experimented with Kasimere&#39;s ashes and necromancy!</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Resist their promises of immortality</strong> - Maintain your resolve</li>
+<li><strong>Uncover their vampiric nature</strong> - Investigate their secrets</li>
+<li><strong>Expose Daemos&#39;s schemes for the Spider Princess</strong> - Reveal the plot</li>
+<li><strong>Choose: Join them or destroy them</strong> - Make your decision</li>
+</ol>
+<p><strong>Reward</strong>: Depends on choice - vampiric power or heroic standing</p>
+<hr>
+<h3 id="chapter-11--16-quests-the-pirates-path">Chapter 11 &amp; 16 Quests: The Pirate&#39;s Path</h3>
+<h4 id="quest-pirates-trials-captain-pit-plum">Quest: Pirate&#39;s Trials (Captain Pit Plum)</h4>
+<p><strong>Location</strong>: Town â†’ Pirate Ship â†’ Captain Pit Plum<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;So ye want to be a part-time pirate, eh? Mage Damon himself trained under me!&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Make a trade for gold</strong> - Complete a merchant transaction at port</li>
+<li><strong>Find hidden flags</strong> - Locate flags across distant islands</li>
+<li><strong>Collect mysterious objects</strong> - Gather items for the ship</li>
+<li><strong>Learn combat from Captain Shadow Ford</strong> - Complete training</li>
+</ol>
+<p><strong>Reward</strong>: Crew membership on the Black Siren</p>
+<hr>
+<h4 id="quest-combat-training-shadow-ford">Quest: Combat Training (Shadow Ford)</h4>
+<p><strong>Location</strong>: Town â†’ Pirate Ship â†’ Captain Shadow Ford<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;First, shed your gear and outer clothing - to move freely, shed unnecessary weight.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Master footwork</strong> - Learn the dance of combat (precise, agile)</li>
+<li><strong>Learn parrying</strong> - Your sword is an extension of will</li>
+<li><strong>Practice until moonrise</strong> - Train in the secluded cove</li>
+<li><strong>Earn Shadow Ford&#39;s nod of approval</strong> - Demonstrate mastery</li>
+</ol>
+<p><strong>Reward</strong>: Combat proficiency, Shadow Ford&#39;s respect</p>
+<hr>
+<h4 id="quest-the-last-shackle-song-bonny-red-boots">Quest: The Last Shackle Song (Bonny Red Boots)</h4>
+<p><strong>Location</strong>: Town â†’ Pirate Ship â†’ Bonny Red Boots<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;The Last Shackle - a slaver ship turned to freedom! A prisoner poisoned the guards with fancy wine, and the captives left not a slaver alive!&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Learn the full ballad</strong> - Memorize all verses</li>
+<li><strong>Spread the song across taverns</strong> - Perform in Everland&#39;s taverns</li>
+<li><strong>Find the legendary freed prisoners</strong> - Locate survivors</li>
+<li><strong>Join Bonny&#39;s fiddle performance</strong> - Perform together</li>
+</ol>
+<p><strong>Reward</strong>: The song of freedom, Bonny&#39;s friendship</p>
+<hr>
+<h3 id="chapter-13-quests-the-tale-of-anderons-rescue">Chapter 13 Quests: The Tale of Anderon&#39;s Rescue</h3>
+<h4 id="quest-dragon-trainer-oaths-alister">Quest: Dragon Trainer Oaths (Alister)</h4>
+<p><strong>Location</strong>: Town â†’ Temple Ruins â†’ Alister<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;Long ago, Anderon the great dragon snagged a pine tree between his claws. The villagers banded together to free him, forging a bond between humans and dragons!&quot;</p>
+<p><strong>Oaths</strong>:</p>
+<ol>
+<li>&quot;I swear to protect dragons as long as my arms have strength.&quot;</li>
+<li>&quot;I swear to aid dragons as long as my legs may carry me.&quot;</li>
+<li>&quot;I swear to deepen my knowledge and share it with others.&quot;</li>
+</ol>
+<p><strong>Symbol</strong>: Two fingers intertwined - the bond between dragon and trainer.<br><strong>Farewell</strong>: &quot;Fly on the dragon&#39;s wings!&quot;</p>
+<p><strong>Reward</strong>: Order of the Emerald Sky membership</p>
+<hr>
+<h3 id="chapter-14-quests-the-frost-weavers-rite">Chapter 14 Quests: The Frost Weaver&#39;s Rite</h3>
+<h4 id="quest-frost-weaver-initiation">Quest: Frost Weaver Initiation</h4>
+<p><strong>Location</strong>: Town â†’ The Burrows â†’ Frost Queen<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;In the tradition of witches, wizards, and sages who protected Aurora for centuries, our duty falls onto you.&quot;</p>
+<p><strong>Ritual Spells</strong>:</p>
+<ol>
+<li><strong>GLACIOUS</strong> - Ice at your fingertips to fight enemies</li>
+<li><strong>NIX</strong> - Flowy drifts of snow to ensnare foes</li>
+<li><strong>ILLUMINA</strong> - Be a light in darkness, a beacon in storm</li>
+</ol>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Bring your fingers together</strong> - Begin the ritual</li>
+<li><strong>Learn GLACIOUS</strong> - Master ice magic</li>
+<li><strong>Learn NIX</strong> - Master snow control</li>
+<li><strong>Learn ILLUMINA</strong> - Master light magic</li>
+</ol>
+<p><strong>Completion</strong>: &quot;May all magic join with yours and yours with ours. Welcome to the Frost Weavers!&quot;</p>
+<p><strong>Reward</strong>: Frost Weaver Guild membership, frost spells</p>
+<hr>
+<h3 id="chapter-15-quests-the-unseely-faes-necromancy-ritual">Chapter 15 Quests: The Unseely Fae&#39;s Necromancy Ritual</h3>
+<h4 id="quest-unseely-court-binding-torin">Quest: Unseely Court Binding (Torin)</h4>
+<p><strong>Location</strong>: Town â†’ Temple Ruins â†’ Torin<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Warning</strong>: This binds your soul forever!</p>
+<p><strong>Background</strong>: &quot;You have proven your loyalty. Now take part in the binding ritual that will bind your soul to us.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Retrieve the heart of Loudon</strong> - Find it at Louden&#39;s Rest graveyard</li>
+<li><strong>Complete the necromancy incantation challenge</strong> - Pass the test</li>
+<li><strong>Kneel and hold out your hand</strong> - Begin the binding</li>
+<li><strong>Repeat the incantation</strong>: &quot;Goofice Goafice Alakda, orgawal, Goragawal&quot;</li>
+</ol>
+<p><strong>Reward</strong>: Unseely Court membership, dark powers (at great cost)</p>
+<hr>
+<h3 id="chapter-17-18-quests-the-fractured-rift--order-of-the-owls">Chapter 17-18 Quests: The Fractured Rift &amp; Order of the Owls</h3>
+<h4 id="quest-investigate-the-memory-rift">Quest: Investigate the Memory Rift</h4>
+<p><strong>Location</strong>: Town â†’ Mystic&#39;s Tent â†’ Mela and Kal<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: Mage Damon discovered no one remembered him - not even the Mayor. &quot;Perhaps you should consult the Mystics,&quot; the Mayor offered. The temporal strands are in disarray.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Speak to townsfolk</strong> - Confirm the memory loss</li>
+<li><strong>Consult Mela and Kal</strong> - Learn about the temporal dissonance</li>
+<li><strong>Investigate the ley lines</strong> - Find the source</li>
+<li><strong>Repair the fractured rift</strong> - Restore temporal stability</li>
+</ol>
+<p><strong>Reward</strong>: Memories restored, temporal balance</p>
+<hr>
+<h4 id="quest-order-of-the-owls-initiation">Quest: Order of the Owls Initiation</h4>
+<p><strong>Location</strong>: Town â†’ Tower â†’ Garrett<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;The Order of the Owls - wise and intrepid souls united! I proposed the owl as our emblem for collective wisdom.&quot; Fletcher practices archery. Poppy sponsors the feast.</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Walk the circular path around town</strong> - Complete the ritual walk</li>
+<li><strong>Prove your wisdom to Garrett</strong> - Answer questions</li>
+<li><strong>Earn Fletcher&#39;s respect at archery</strong> - Demonstrate skill</li>
+<li><strong>Attend Poppy&#39;s inaugural feast</strong> - Join the Dining Hall celebration</li>
+</ol>
+<p><strong>Reward</strong>: Order of the Owls membership</p>
+<hr>
+<h3 id="chapter-19-quests-the-enchantment-of-everland">Chapter 19 Quests: The Enchantment of Everland</h3>
+<h4 id="quest-unlock-magical-abilities-tammissaga">Quest: Unlock Magical Abilities (Tammis/Saga)</h4>
+<p><strong>Location</strong>: Town â†’ Witch&#39;s Tent â†’ Tammis and Saga<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;We see within you the flickering embers of magic. Your staff, your crystal, the energy around you - it speaks of destiny waiting to unfurl.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Learn ancient runes</strong> - Study with the sisters</li>
+<li><strong>Understand your staff&#39;s lineage</strong> - Discover its history</li>
+<li><strong>Weave magic into everyday artifacts</strong> - Practice enchanting</li>
+<li><strong>Awaken the power slumbering within</strong> - Complete transformation</li>
+</ol>
+<p><strong>Reward</strong>: Magical awakening, enchanting abilities</p>
+<hr>
+<h4 id="quest-reveal-your-destiny-saga">Quest: Reveal Your Destiny (Saga)</h4>
+<p><strong>Location</strong>: Town â†’ Witch&#39;s Tent â†’ Saga<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Gather three prophecy fragments</strong> - Collect from different realms</li>
+<li><strong>Spend endless nights crafting spells with Tammis</strong> - Practice</li>
+<li><strong>Turn creations into vessels for arcane energy</strong> - Enchant items</li>
+<li><strong>Complete your extraordinary journey</strong> - Fulfill the prophecy</li>
+</ol>
+<p><strong>Reward</strong>: Destiny revealed, magical mastery</p>
+<hr>
+<h3 id="chapter-20-quests-the-enigmatic-disappearance">Chapter 20 Quests: The Enigmatic Disappearance</h3>
+<h4 id="quest-third-eye-activation-samuel">Quest: Third Eye Activation (Samuel)</h4>
+<p><strong>Location</strong>: Town â†’ Catacombs â†’ Samuel<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: When the town vanished, only Samuel and Mage Damon remained. &quot;Mage Damon made me his apprentice. Want to learn to activate your THIRD EYE?&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Find your focal point</strong> - Between hairline and brow, back 2 inches</li>
+<li><strong>Hold the pendulum still, observe your breathing</strong> - Meditation</li>
+<li><strong>Command it to spin with your mind</strong> - Not your hand!</li>
+<li><strong>Master spinning it both directions</strong> - Prove control</li>
+</ol>
+<p><strong>Practice</strong>: With experience, the pendulum can spin nearly horizontal!</p>
+<p><strong>Reward</strong>: Third eye activation, pendulum mastery</p>
+<hr>
+<h3 id="chapter-21-quests-the-dragon-lantern-festival">Chapter 21 Quests: The Dragon Lantern Festival</h3>
+<h4 id="quest-participate-in-the-festival">Quest: Participate in the Festival</h4>
+<p><strong>Location</strong>: Town â†’ Dragon Haven (October)<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Tradition</strong>: Everyone carries a lantern!</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Obtain a lantern</strong> - Purchase or craft one</li>
+<li><strong>Gather at Dragon Haven</strong> - Join the crowd</li>
+<li><strong>Listen to the story of the Battle for Everland</strong> - Hear the tale</li>
+<li><strong>Honor King Lowden&#39;s sacrifice</strong> - Pay respects at the temple</li>
+</ol>
+<p><strong>Reward</strong>: Festival participation, community standing</p>
+<hr>
+<h3 id="chapter-22-quests-hope-of-light">Chapter 22 Quests: Hope of Light</h3>
+<h4 id="quest-the-damsels-destiny">Quest: The Damsel&#39;s Destiny</h4>
+<p><strong>Location</strong>: Town â†’ Train Station â†’ Damsel of the Mist<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;On muddy roads to Everland, the blue glow held true - a beacon through the tangled veil. The lion of the muddy road tore at my gown, but I lifted my sword with fearless grace.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Follow the blue light through the mist</strong> - Navigate the path</li>
+<li><strong>Face the lion of the muddy road</strong> - Overcome the challenge</li>
+<li><strong>Weave your courage into a radiant garment</strong> - Transform the omen</li>
+<li><strong>Find the Damon of your Dreams</strong> - Complete the journey</li>
+</ol>
+<p><strong>Reward</strong>: Destiny fulfilled, hope restored</p>
+<hr>
+<h3 id="chapter-23-quests-first-love-first-light">Chapter 23 Quests: First Love, First Light</h3>
+<h4 id="quest-mutual-craft-kira">Quest: Mutual Craft (Kira)</h4>
+<p><strong>Location</strong>: Town â†’ Kira&#39;s Apothecary â†’ Kira<br><strong>Prerequisite</strong>: None</p>
+<p><strong>Background</strong>: &quot;Balm of Quick Mend for wounds, Oil of Orchid for massages... or perhaps just a moment of care? I too am an aspiring magic-user - small charms, healing threads.&quot;</p>
+<p><strong>Steps</strong>:</p>
+<ol>
+<li><strong>Accept healing for your wounds</strong> - Receive treatment</li>
+<li><strong>Experience the massage table with scented oils</strong> - Relaxation</li>
+<li><strong>Share stories of magic and craft</strong> - Build connection</li>
+<li><strong>Return at dusk when the lamp is lit</strong> - Deepen relationship</li>
+</ol>
+<p><strong>Reward</strong>: Healing, romance, mutual understanding</p>
+<p><strong>Kira&#39;s Wisdom</strong>: &quot;We&#39;ll call it mutual craft - you mend quarrels, I mend weariness.&quot;</p>
+<hr>
+<h3 id="boss-encounters">Boss Encounters</h3>
+<h4 id="pumpkin-king-fight-path">Pumpkin King (Fight Path)</h4>
+<p><strong>Location</strong>: Lore â†’ Cursed Garden<br><strong>Recommended Level</strong>: High<br><strong>Required Allies</strong>: Spider Princess allies, Knights of Lore, Grim with enchanted spear</p>
+<p><strong>Tactics</strong>:</p>
+<ol>
+<li>Use parrying skills from knight training</li>
+<li>Summon spider allies to distract</li>
+<li>Position Grim for the flank attack</li>
+<li>Coordinate the final strike</li>
+</ol>
+<p><strong>Warning</strong>: Grim sacrifices himself</p>
+<hr>
+<h4 id="kasimere-betray-path">Kasimere (Betray Path)</h4>
+<p><strong>Location</strong>: The Moselem â†’ Kasimere&#39;s Lair<br><strong>Recommended Level</strong>: High<br><strong>Required Allies</strong>: Lady Cordelia, Cedric, Mage Damon</p>
+<p><strong>Tactics</strong>:</p>
+<ol>
+<li>Break the crystal globe connection</li>
+<li>Shield against dream invasion</li>
+<li>Unite the defenders</li>
+<li>Vanquish the vampire lord</li>
+</ol>
+<hr>
+<h2 id="appendix-b-guild-reference">Appendix B: Guild Reference</h2>
+<h3 id="available-guilds">Available Guilds</h3>
+<table>
+<thead>
+<tr>
+<th>Guild</th>
+<th>Location</th>
+<th>Leader</th>
+<th>Initiation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Order of the Black Rose</td>
+<td>Lore</td>
+<td>Lady Cordelia</td>
+<td>Green thorn oath</td>
+</tr>
+<tr>
+<td>Frost Weavers</td>
+<td>The Burrows</td>
+<td>Frost Queen</td>
+<td>Learn GLACIOUS, NIX, ILLUMINA</td>
+</tr>
+<tr>
+<td>Order of the Emerald Sky</td>
+<td>Temple Ruins</td>
+<td>Alister</td>
+<td>Dragon Trainer Oaths</td>
+</tr>
+<tr>
+<td>Unseely Court</td>
+<td>Temple Ruins</td>
+<td>Torin</td>
+<td>Necromancy binding ritual</td>
+</tr>
+<tr>
+<td>Order of the Owls</td>
+<td>Tower</td>
+<td>Garrett</td>
+<td>Wisdom trials, archery, feast</td>
+</tr>
+<tr>
+<td>Wolves of Winter</td>
+<td>Hunter&#39;s Hovel</td>
+<td>Alpha Wulfric</td>
+<td>Stealth trials, riddles</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="appendix-c-quick-reference">Appendix C: Quick Reference</h2>
+<h3 id="portal-keys">Portal Keys</h3>
+<ul>
+<li><strong>A</strong> - Aurora</li>
+<li><strong>L</strong> - Lore</li>
+<li><strong>M</strong> - Mythos</li>
+<li><strong>T</strong> - Town of Everland</li>
+<li><strong>E</strong> - England</li>
+</ul>
+<h3 id="town-location-keys">Town Location Keys</h3>
+<ul>
+<li><strong>1-9</strong> - First 9 locations</li>
+<li><strong>A-P</strong> - Additional locations</li>
+<li><strong>M</strong> - Moon Portal</li>
+<li><strong>0</strong> - Return to main</li>
+</ul>
+<h3 id="common-commands">Common Commands</h3>
+<ul>
+<li><strong>I</strong> - Inventory</li>
+<li><strong>S</strong> - Status</li>
+<li><strong>H</strong> - Help</li>
+<li><strong>Q</strong> - Quit/Back</li>
+</ul>
+<hr>
+<h2 id="appendix-d-character-directory">Appendix D: Character Directory</h2>
+<p>This appendix introduces the major characters of Everland, drawn from the lore that shapes this world.</p>
+<hr>
+<h3 id="heroes-of-everland">Heroes of Everland</h3>
+<h4 id="mage-damon">Mage Damon</h4>
+<p><img src="../images/MageDamon3Up.png" alt="Mage Damon"></p>
+<p><em>&quot;I&#39;m dying, just taking it one day at a time.&quot;</em></p>
+<p>Mage Damon is an aspiring mage with a heart full of wonder and a mind brimming with spells. He once entertained the valiant knights of Lore with his mesmerizing magic just outside the towering gates of the kingdom. When the vampire plague struck, he discovered the location of the mystical portal to Everlandâ€”a gateway hidden in the darkest recesses of Lore, retold in stories for generations but lost to time.</p>
+<p>Practiced in the art of Divination, Damon can cast illusions to distract creatures. After passing through the portal, he lost his memories temporarily but slowly regained them, retaking the oath to restore the Order of the Black Rose. He later discovered he could draw ambient magic into his third eye, eventually channeling immense power through the headpiece given to him by the Spider Princess.</p>
+<p>In Everland, Mage Damon founded the <strong>Order of the Owls</strong> alongside Garrett, Fletcher, Shadow Ford, and Poppy. He studied under the Nordic witches Tammis and Saga, unlocking his latent magical abilities. He also participated in the Unseely Fae&#39;s binding ritual under Torin, gaining forbidden necromantic knowledge.</p>
+<p><strong>Affiliations</strong>: Order of the Black Rose, Order of the Owls, Unseely Court
+<strong>Skills</strong>: Divination, illusion magic, third eye activation, pendulum mastery
+<strong>Location</strong>: Throughout Everland</p>
+<hr>
+<h4 id="knight-damian">Knight Damian</h4>
+<p><img src="../images/Damian1Up.png" alt="Knight Damian"></p>
+<p>Knight Damian is a wise guide and defender in times of turmoil. Known for his unwavering loyalty, he sought guidance from fellow knights when the vampire invasion struck Lore. Together with Mage Damon and Barnabis, he devised a plan to save their beloved kingdom.</p>
+<p>Damian had long sought the company of Princess Delphinia (Delphi), and besides his vow to protect her and the kingdom, he had his own special interest. He valiantly took turns carrying the princess through the treacherous paths as they fled to the portal. More resilient somehow, Damian started to remember first after passing through the portal, giving quests to help others slowly regain their memories.</p>
+<p>His shared love for spiders with Princess Delphi became a source of powerâ€”from their hands, spiders of all sizes materialized to aid in battle against the Pumpkin King. After victory, Damian and Delphi were married in a secret grove hidden deep within the enchanted forests of Lore, blessed by Bishop Cordelia, and embarked on their honeymoon to Whitecastle.</p>
+<p><strong>Affiliations</strong>: Order of the Black Rose, Knights of Lore
+<strong>Skills</strong>: Combat, leadership, spider summoning (with Delphi)
+<strong>Romance</strong>: Princess Delphinia</p>
+<hr>
+<h4 id="the-spider-princess-princess-delphiniadelphi">The Spider Princess (Princess Delphinia/Delphi)</h4>
+<p><img src="../images/SpiderPrincess1Up.png" alt="The Spider Princess"></p>
+<p>Princess Delphinia, known as Delphi and later as the Spider Princess, traveled through the portal in a faint, weakened state as if something was happening to her. She seemed to struggle as if between two personalities, with some spirit beginning to take over her mind.</p>
+<p>Her shared love for spiders with Damian became legendaryâ€”together they could summon arachnid allies in battle. She gave Mage Damon a magical headpiece that became the vessel for immense concentrated magical power. After defeating the Pumpkin King, she married Damian in a ceremony in the enchanted grove.</p>
+<p>In Everland, the Spider Princess requires protection from Kora and Kendrick, as ghost pirates imprisoned by Dante particularly delight in targeting her as part of their twisted games.</p>
+<p><strong>Affiliations</strong>: Royal House of Lore
+<strong>Skills</strong>: Spider communion, magical artifacts
+<strong>Romance</strong>: Knight Damian
+<strong>Location</strong>: Central Plaza (protected by Kora and Kendrick)</p>
+<hr>
+<h4 id="bridge-the-troll-and-kevin">Bridge the Troll (and Kevin)</h4>
+<p><img src="../images/BridgeAndKevin1.png" alt="Bridge and Kevin"></p>
+<p><em>&quot;Ah, you look absolutely revolting!&quot; (He means it kindly.)</em></p>
+<p>Bridge is a peculiar troll who makes his home under the old stone bridge that connects the two halves of Everland. His cozy spot is adorned with trinkets and oddities he has collected over the years. Kevin, his trusty club adorned with a menacing skull at its tip, is more than a mere weaponâ€”it&#39;s his closest companion, his confidant, and often the recipient of his wayward thoughts.</p>
+<p>The townsfolk are accustomed to Bridge&#39;s strange mannerisms. They know better than to take his words at face valueâ€”if he says he&#39;s &quot;just terrible,&quot; he means he&#39;s fine; if he calls you &quot;revolting,&quot; he&#39;s showing affection. He often swaps odd trinkets at the marketplace in exchange for fresh produce and bread.</p>
+<p>Bridge sings a hauntingly off-key tune that the townsfolk find themselves humming long after he&#39;s returned to his abode. Under the bridge at twilight, he regales Kevin with tales of the day&#39;s events, sharing moments of contented silence.</p>
+<p><strong>Personality</strong>: Mischievous, loyal, speaks in opposites
+<strong>Companion</strong>: Kevin (skull-tipped club)
+<strong>Location</strong>: The Bridge, Marketplace</p>
+<hr>
+<h3 id="the-pumpkin-fairies">The Pumpkin Fairies</h3>
+<h4 id="lezule">Lezule</h4>
+<p><img src="../images/fairy_named_lezule_lezule_colored_in_the_fairy_gardens_sweet_and_tender_shy_mouth_open_waiting_to_m_mthcye2lh1va3w5b8vtv_2.png" alt="Lezule the Fairy"></p>
+<p>Lezule is a sweet and tender fairy of the Fairy Gardens, known for her shy demeanor and protective nature. She guards the stolen names of those who wander too close to fairy enchantments.</p>
+<p><strong>Location</strong>: Fairy Gardens</p>
+<hr>
+<h4 id="marmalade">Marmalade</h4>
+<p><em>&quot;The Pumpkin King demands tribute through pranks!&quot;</em></p>
+<p>Marmalade is a fiery-haired Pumpkin Fairy with a mischievous grin. She flits about in a frenzy, plotting escapades to spread quests of practical jokes and cajole the gentle folk of Everland into bending the knee to the mighty Pumpkin King.</p>
+<p>Her quest chain involves swapping hats with scarecrows, dancing merry jigs with woodland creatures, and bowing before the grand Pumpkin carving.</p>
+<p><strong>Location</strong>: Fairy Gardens</p>
+<hr>
+<h4 id="marigold">Marigold</h4>
+<p><em>&quot;One sip of my potion and you&#39;ll dance whether you want to or not!&quot;</em></p>
+<p>Marigold, adorned in a gown of shimmering gold, hums merry tunes as she concocts potions of mischief. As the potent elixir bubbles and froths in her tiny cauldron, she shares mischievous giggles with her sister Marmalade before casting the meddlesome brew into the wind.</p>
+<p>Her quest chain involves gathering moonlit dewdrops, caramel apple essence, and whispered secrets from the wind.</p>
+<p><strong>Location</strong>: Fairy Gardens</p>
+<hr>
+<h4 id="butterscotch">Butterscotch</h4>
+<p><em>&quot;My name doesn&#39;t start with &#39;M&#39;, so I found another pathâ€”befriending humans.&quot;</em></p>
+<p>Butterscotch&#39;s heart is more kind and tender than her peers. She seeks not to perpetrate pranks or revel in mischief, but rather to ensure the well-being and joy of the gentle folk of Everland. Her name does not begin with the cherished letter &quot;M,&quot; which bars her from joining the esteemed company of her fairy peers.</p>
+<p>Instead, she visits nearby farmsteads, quietly tending to crops and whispering gentle encouragement to the harvest. She has formed bonds with those who work the land, eschewing the playful trickery of her kin. The sentient Pumpkin King has acknowledged her noble deeds with a nod of acceptance.</p>
+<p><strong>Location</strong>: Fairy Gardens</p>
+<hr>
+<h3 id="villains-and-antagonists">Villains and Antagonists</h3>
+<h4 id="arch-magus-kasimere">Arch Magus Kasimere</h4>
+<p><em>&quot;Soon we will conquer this land also.&quot;</em></p>
+<p>Kasimere is the Arch Magus, the oldest of the vampires, and the one with all the power. When the portal from Lore closed, he dashed through just in time, lurking in the shadows on the other side with a snarled laugh emanating from his lips.</p>
+<p>Fueled by his insatiable hunger for power and dominion, Kasimere sought to expand his reach beyond the borders of Lore. He patiently watched and bided his time, hidden in the shadows of Everland. He whispered promises into the ears of confused refugees, enticing them with the allure of power and satisfaction of primal desires, seeking bribes from fearful inhabitants.</p>
+<p>His black crystal globe resonates with the dark sun crystal, allowing him to reach into dreams with whispered promises at the witching hour. He invaded Cedric&#39;s dreams, attempting to corrupt him to his cause. Eventually, the defenders of Everland confronted him in his lair beneath the gnarled boughs of an ancient oak, vanquishing him with radiant magic.</p>
+<p>Yet whispers suggest his defeat only ignited his insatiable hunger for power, and he awaits his next opportunity to strike...</p>
+<p><strong>Powers</strong>: Dream invasion, corruption, crystal globe resonance
+<strong>Weakness</strong>: Radiant magic, unity of defenders
+<strong>Location</strong>: The Moselem (his lair)</p>
+<hr>
+<h4 id="the-pumpkin-king">The Pumpkin King</h4>
+<p><em>&quot;His eyes glowed an unearthly orange, and sinister laughter echoed throughout the garden.&quot;</em></p>
+<p>The Pumpkin King towers in the cursed garden, perched atop a magnificent and eerie pumpkin throne. He possesses the ability to warp minds and bend reality, harboring an insatiable desire for chaos and despair. The thorny plants with gnarled green thorns obey his will.</p>
+<p>Defeating him requires more than physical strength and magicâ€”it requires the unity of knights remembering their oaths, spider allies from the Spider Princess, and a coordinated attack. When Grim of the Blackhearts delivered the final blow with an enchanted spear, he was pierced by a green thorn and sacrificed himself.</p>
+<p><strong>Powers</strong>: Mind warping, plant control, otherworldly resilience
+<strong>Weakness</strong>: Unity, enchanted weapons, spider allies
+<strong>Location</strong>: Cursed Garden (Lore)</p>
+<hr>
+<h4 id="the-candy-witch">The Candy Witch</h4>
+<p><em>&quot;Why mend what can be broken? Chaos is so much sweeter!&quot;</em></p>
+<p>The Candy Witch tears at Dante&#39;s wards with candy-coated claws, seeking to destroy the barriers that contain the fractures between worlds. She delights in sabotage and has allied with the ghost pirates to target the Spider Princess.</p>
+<p><strong>Powers</strong>: Ward destruction, chaos magic
+<strong>Location</strong>: The Bridge area</p>
+<hr>
+<h3 id="the-mystics-secret-vampires">The Mystics (Secret Vampires)</h3>
+<h4 id="mela-kal-and-daemos">Mela, Kal, and Daemos</h4>
+<p><em>&quot;We see within you the flickering embers of magic...&quot;</em></p>
+<p>In the heart of Everland, within a humble mystic&#39;s tent, Mela, Daemos, and Kal embarked on their journey into the realms of the esoteric and arcane. But beneath their roles as mystics lies a dark secretâ€”they are vampires.</p>
+<p><strong>Mela</strong> consumed herself with the allure of ancient secrets and the pursuit of immortality. She spent countless nights poring over dusty tomes, delving into forbidden lore of vampire ashes and remains.</p>
+<p><strong>Kal</strong>, with his silver tongue and beguiling charm, weaves intricate tales to lure the curious and ambitious into their fold. His words whisper promises of untold power.</p>
+<p><strong>Daemos</strong> plots to entice the Spider Princess herself, knowing her enigmatic nature could elevate their brotherhood to unimaginable heights.</p>
+<p>Their vampiric nature was born from rituals and experimentation with Kasimere&#39;s ashes and ancient necromancy incantations. They seek to expand their numbers, luring townsfolk with promises of arcane knowledge and immortality.</p>
+<p><strong>Warning</strong>: Approaching the Mystic&#39;s Tent may result in vampiric corruption!
+<strong>Location</strong>: Mystic&#39;s Tent</p>
+<hr>
+<h3 id="knights-and-warriors">Knights and Warriors</h3>
+<h4 id="lady-cordelia-bishop-cordelia">Lady Cordelia (Bishop Cordelia)</h4>
+<p>Lady Cordelia is a legendary figure in Everland, taking charge of restoring the castle and training a new generation of knights. She instills in them the virtues of honor, duty, and loyalty. Now known as Bishop Cordelia, she blessed the wedding of Damian and Princess Delphi.</p>
+<p>She leads the <strong>Order of the Black Rose</strong> and confronted Kasimere in his lair alongside Mage Damon and Cedric.</p>
+<p><strong>Affiliations</strong>: Order of the Black Rose
+<strong>Location</strong>: Church, Lore</p>
+<hr>
+<h4 id="grim-the-blackheart">Grim the Blackheart</h4>
+<p><em>&quot;One strike of the enchanted spear, one green thorn through his heart.&quot;</em></p>
+<p>Grim of the Blackhearts was a warrior who fought in the final battle against the Pumpkin King. While the main assault distracted the enemy, Grim snuck around back with a huge enchanted spear. With his final blow to the Pumpkin King, he was pierced by a green thorn and sacrificed himself for the good of all.</p>
+<p>Gwen ran to him as his life faded away. &quot;I wept but once,&quot; she later said.</p>
+<p><strong>Status</strong>: Deceased (heroic sacrifice)
+<strong>Memorial</strong>: Black roses planted at the Cursed Garden</p>
+<hr>
+<h4 id="gwen">Gwen</h4>
+<p>Gwen stands silently, clutching a withered black rose. She watched Grim sacrifice himself and wept a single tearâ€”unusual for one who rarely shows emotion. She seeks heroes to honor Grim&#39;s sacrifice by planting black roses at his memorial in the Cursed Garden.</p>
+<p><strong>Location</strong>: Lore (after Pumpkin King defeat)</p>
+<hr>
+<h4 id="cedric">Cedric</h4>
+<p><em>&quot;At the witching hour, Kasimere invaded my dreams...&quot;</em></p>
+<p>Cedric is an aspiring knight whose thoughts wavered at the touch of the vampire lord. Kasimere&#39;s crystal globe resonated with the dark sun crystal, whispering promises of power and glory in his dreams. He was torn between his noble self and the temptations of darkness.</p>
+<p>However, Mage Damon had woven a protective barrier around Cedric&#39;s mind. When confronted with the truth of Kasimere&#39;s depravity, Cedric pledged himself to the defense of Everland, swearing an oath to vanquish the darkness.</p>
+<p><strong>Affiliations</strong>: Order of the Black Rose (renewed)
+<strong>Location</strong>: Church</p>
+<hr>
+<h4 id="barnabis">Barnabis</h4>
+<p>A courageous knight known for his unwavering loyalty, Barnabis sought guidance when the vampire invasion struck. He helped carry Princess Delphi through the treacherous paths to the portal and remained loyal to the cause of restoring Lore.</p>
+<p><strong>Affiliations</strong>: Knights of Lore</p>
+<hr>
+<h3 id="the-wolves-of-winter">The Wolves of Winter</h3>
+<h4 id="alpha-wulfric-vassa">Alpha Wulfric Vassa</h4>
+<p><em>&quot;The time has come for the Pact of Winter&#39;s Howl.&quot;</em></p>
+<p>Alpha Wulfric leads the Wolves of Winter from Hunter&#39;s Hovel at the edge of town. The pack&#39;s territory resonates with howls of anticipation, signaling the trials to come and the unity that follows.</p>
+<p>The Pact of Winter&#39;s Howl binds wolf and humanâ€”provisions for protection. Those who wish to join must endure the biting cold, outwit cunning riddles, and brave the harshest wilderness. Upon success, wolves and humans join together under the moonlit sky, their united howls reverberating through town whenever the train rumbles by.</p>
+<p><strong>Location</strong>: Hunter&#39;s Hovel (winter)</p>
+<hr>
+<h4 id="beta-lyra">Beta Lyra</h4>
+<p>Beta Lyra is the seasoned negotiator of the Wolves of Winter. She approached Van Bueler&#39;s office to negotiate the Pact, seeking sustenance for winter in exchange for protection.</p>
+<p><em>&quot;In exchange for our protection, we ask that you provide us with provisions to see us through the harshest months.&quot;</em></p>
+<p><strong>Location</strong>: Hunter&#39;s Hovel</p>
+<hr>
+<h3 id="the-pirates">The Pirates</h3>
+<h4 id="captain-pit-plum">Captain Pit Plum</h4>
+<p><em>&quot;So ye want to be a part-time pirate, eh?&quot;</em></p>
+<p>Captain Pit Plum commands the Black Siren. He trained Mage Damon (under the alias &quot;Dashing Daren&quot;) in the ways of piracy, giving him tasks: make a trade for gold, find hidden flags, collect mysterious objects, and learn combat from Captain Shadow Ford.</p>
+<p><strong>Location</strong>: Pirate Ship (Black Siren)</p>
+<hr>
+<h4 id="captain-shadow-ford">Captain Shadow Ford</h4>
+<p><em>&quot;First, shed your gear and outer clothingâ€”to move freely, shed unnecessary weight.&quot;</em></p>
+<p>Captain Shadow Ford is an enigmatic figure renowned for expertise in footwork and parrying. He resides in a secluded cove and trains aspiring pirates in the art of combat.</p>
+<p>His teachings emphasize: footwork must be precise, agile, and poised; your sword is an extension of your will; timing, perception, and finesse are paramount.</p>
+<p><strong>Location</strong>: Pirate Ship, secluded cove</p>
+<hr>
+<h4 id="bonny-red-boots">Bonny Red Boots</h4>
+<p><em>&quot;Come board the last shackle, she&#39;s waiting for you!&quot;</em></p>
+<p>Bonny Red Boots is a spirited skallywag known for her relentless boldness. Her vibrant red boots clack against wooden planks as she plays her fiddle and sings the ballad of the Last Shackleâ€”the tale of a slaver ship turned to freedom.</p>
+<p>The song tells of a dastardly trap, prisoners breaking free from chains, and a cunning insurrection. &quot;They caught some sailors and shackled their hands, but a prisoner waited, just biding his time. He poisoned the guards with some fancy wine!&quot;</p>
+<p><strong>Location</strong>: Pirate Ship</p>
+<hr>
+<h3 id="the-order-of-the-owls">The Order of the Owls</h3>
+<h4 id="garrett">Garrett</h4>
+<p><em>&quot;The owl symbolizes our collective wisdom and keen insight.&quot;</em></p>
+<p>Garrett, garbed in symbolic knightly attire, proposed the formation of an official group of wise and intrepid souls. When Mage Damon suggested &quot;Order of the Owls,&quot; Garrett enthusiastically approved, marking the inception of the order.</p>
+<p><strong>Location</strong>: Tower</p>
+<hr>
+<h4 id="fletcher">Fletcher</h4>
+<p>Fletcher has an affinity for archery and often spends prolonged hours at the range with Shadow Ford. He prefers circumambulating the town in a counterclockwise manner. Mage Damon sometimes mistakenly calls him &quot;Archer&quot; due to his skill.</p>
+<p>An enigmatic aura surrounds Fletcherâ€”he converses with a mysterious lady, and both bear an air of having emerged from an alternate realm.</p>
+<p><strong>Location</strong>: Tower</p>
+<hr>
+<h4 id="poppy">Poppy</h4>
+<p><em>&quot;A woman of remarkable poise, elegance, and unfathomable wealth.&quot;</em></p>
+<p>Poppy plays a pivotal role in the Order of the Owls. Her lavish Victorian attire and ornate parasol speak volumes of a mysterious past. As confidant of Garrett, she extended a generous invitation to unite the Order for a sumptuous feast at the illustrious Dining Hall, graciously underwriting the gathering.</p>
+<p><strong>Location</strong>: Tower</p>
+<hr>
+<h3 id="the-nordic-witches">The Nordic Witches</h3>
+<h4 id="tammis-and-saga">Tammis and Saga</h4>
+<p><em>&quot;We see within you the flickering embers of magic, a power waiting to be unleashed.&quot;</em></p>
+<p>Sisters Tammis and Saga operate from a small leather tent, infusing even the simplest items with otherworldly allure. They are more than skilled artisansâ€”they are keepers of ancient magic.</p>
+<p>They guided Mage Damon, teaching ancient runes, enchantments, and the intricate weaving of magic into everyday artifacts. They unearthed the secrets of his staff, helping him understand its lineage and how it had chosen him.</p>
+<p>Tammis grounds Mage Damon with her wisdom and grace, amplifying his abilities. They spend endless nights working on crafting spells and enchanting items. Saga speaks of destiny and prophecy, guiding seekers toward their extraordinary journeys.</p>
+<p><strong>Location</strong>: Witch&#39;s Tent</p>
+<hr>
+<h3 id="other-notable-characters">Other Notable Characters</h3>
+<h4 id="the-mermaid">The Mermaid</h4>
+<p><img src="../images/mermaid_sitting_in_a_wicker_chair_at_a_medieval_theme_park_she_will_tend_to_quests_with_patrons_blo_arttzoc89ruq0s6vmraj_2.png" alt="The Mermaid"></p>
+<p>The Mermaid sits in a wicker chair, tending to quests with patrons. She offers trade quests and rewards for those who bring her the items she seeks.</p>
+<hr>
+<h4 id="samuel">Samuel</h4>
+<p><em>&quot;I am Samuel. They are all gone.&quot;</em></p>
+<p>Samuel was the only other figure left when the entire town of Everland vanished during the Dragon Lantern Festival. Using a makeshift wooden cart for mobility despite his disability, he pushed forward with admirable determination.</p>
+<p>Mage Damon made Samuel his apprentice, teaching him the mysteries of the arcane arts. Samuel learned to activate his third eyeâ€”concentrating on the focal point within the mind, using a pendulum not for divination but to channel personal energy. With unwavering resolve, Samuel mastered spinning the pendulum with his mind alone.</p>
+<p><strong>Skills</strong>: Third eye activation, pendulum mastery (in training)
+<strong>Location</strong>: Catacombs</p>
+<hr>
+<h4 id="van-bueler">Van Bueler</h4>
+<p>Van Bueler is a man of stern countenance with piercing eyes who runs a trading company. He negotiated the Pact of Winter&#39;s Howl with the Wolves, agreeing to funnel provisions in exchange for protection during the harshest months.</p>
+<p><strong>Location</strong>: Trading Company Office</p>
+<hr>
+<h4 id="dante">Dante</h4>
+<p>Dante maintains shimmering wards against the fractures that blur reality between worlds. He has imprisoned a crew of cursed ghost pirates within a bottleâ€”they resent him and delight in targeting the Spider Princess. The Candy Witch constantly sabotages his wards.</p>
+<p><strong>Location</strong>: The Bridge</p>
+<hr>
+<h4 id="kora-and-kendrick">Kora and Kendrick</h4>
+<p>Steadfast knights from Lore, Kora and Kendrick swore to protect the Spider Princess. They remain vigilant against the ghost pirates and the Candy Witch&#39;s schemes.</p>
+<p><strong>Location</strong>: Central Plaza</p>
+<hr>
+<h4 id="alister">Alister</h4>
+<p><em>&quot;Fly on the dragon&#39;s wings!&quot;</em></p>
+<p>Alister is the renowned Dragon Trainer who tells the tale of Anderon&#39;s rescue and administers the oaths of the Order of the Emerald Sky. He teaches the sacred oaths: protect dragons, aid dragons, deepen knowledge and share it. The symbol of two intertwined fingers represents the bond between dragon and trainer.</p>
+<p><strong>Location</strong>: Temple Ruins</p>
+<hr>
+<h4 id="torin">Torin</h4>
+<p><em>&quot;You must take part in a binding ritual that will bind your soul to us.&quot;</em></p>
+<p>Torin leads the Unseely Fae court, administering the necromancy binding ritual. The ritual requires retrieving the heart of Loudon, completing incantation challenges, and repeating the words: &quot;Goofice Goafice Alakda, orgawal, Goragawal.&quot;</p>
+<p><strong>Warning</strong>: This binds your soul forever!
+<strong>Location</strong>: Temple Ruins</p>
+<hr>
+<h4 id="the-frost-weaver-queen">The Frost Weaver Queen</h4>
+<p><em>&quot;May all magic join with yours and yours with ours. Welcome to the Frost Weavers!&quot;</em></p>
+<p>The Frost Weaver Queen, radiant and powerful, initiates new recruits into the Frost Weavers Guild from the ancient halls of the Burrows. She teaches the three ritual spells: GLACIOUS (ice), NIX (snow), and ILLUMINA (light).</p>
+<p><strong>Location</strong>: The Burrows</p>
+<hr>
+<h4 id="tosh">Tosh</h4>
+<p>Tosh is an enigmatic figure who serves as both undertaker at Louden&#39;s Rest and diligent explorer of the underground world. He retrieves misplaced trinkets discarded into the sewers, venturing where few others dare to tread.</p>
+<p><strong>Location</strong>: Louden&#39;s Rest</p>
+<hr>
+<h4 id="kira">Kira</h4>
+<p><em>&quot;We&#39;ll call it mutual craftâ€”you mend quarrels, I mend weariness.&quot;</em></p>
+<p>Kira runs the apothecary at first light when Everland yawns awake. Her hair is the color of newly spun gold, her hands dusted with dried petals, her eyes bright with quick, hopeful intelligence. Shelves line her walls like the ribs of a safe ship, filled with jars of powders and waters labeled in neat, looping script.</p>
+<p>She offers Balm of Quick Mend for wounds and Oil of Orchid for massages. An aspiring magic-user herself, she practices small charms and healing threads. When Mage Damon arrived wounded, she tended to himâ€”and something in both their chests rearranged.</p>
+<p><strong>Services</strong>: Healing, massage, remedies
+<strong>Location</strong>: Kira&#39;s Apothecary</p>
+<hr>
+<h4 id="the-damsel-of-the-mist">The Damsel of the Mist</h4>
+<p><em>&quot;The blue light surges ahead, a steadfast lantern in the murk.&quot;</em></p>
+<p>On the muddy roads to Everland, the Damsel wanders lost within the magic forest of mist. She seeks the enigmatic Damon of her Dreams, guided by a blue light through the tangled veil. When the lion of the muddy road tore at her gown, she lifted her sword with fearless grace and cloaked herself in the lion&#39;s fur, weaving a radiant new gown from moonlit tapestry and forest charm.</p>
+<p><strong>Location</strong>: Train Station</p>
+<hr>
+<h2 id="appendix-b-memory-expansion-support">Appendix B: Memory Expansion Support</h2>
+<h3 id="overview-1">Overview</h3>
+<p>Everland BBS Door Game supports multiple memory expansion options for storing user data such as custom lore books. The game automatically detects available expansion RAM at startup and uses the best available option.</p>
+<h3 id="detection-priority">Detection Priority</h3>
+<ol>
+<li><strong>REU (Ram Expansion Unit)</strong> â€” Checked first</li>
+<li><strong>GeoRAM</strong> â€” Checked as fallback if REU not present</li>
+<li><strong>Disk Storage</strong> â€” Used if no expansion RAM is detected</li>
+</ol>
+<h3 id="supported-hardware">Supported Hardware</h3>
+<table>
+<thead>
+<tr>
+<th>Hardware</th>
+<th>Detection</th>
+<th>Capacity Used</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>REU (1700/1764/1750)</td>
+<td>$DF00-$DF01 registers</td>
+<td>2KB (expandable)</td>
+<td>Commodore&#39;s official expansion</td>
+</tr>
+<tr>
+<td>GeoRAM/BBGRam</td>
+<td>$DE00 window, $DFFE/$DFFF page</td>
+<td>2KB (8 pages)</td>
+<td>Berkeley Softworks compatible</td>
+</tr>
+<tr>
+<td>Disk (Device 8)</td>
+<td>Always available</td>
+<td>Limited by disk space</td>
+<td>Fallback for unexpanded C64</td>
+</tr>
+</tbody></table>
+<h3 id="technical-details">Technical Details</h3>
+<p><strong>REU Detection:</strong></p>
+<ul>
+<li>Writes test patterns $AA and $55 to $DF00/$DF01</li>
+<li>Reads back to verify REU responds</li>
+<li>If verified, sets <code>expansion_ram = 1</code></li>
+</ul>
+<p><strong>GeoRAM Detection:</strong></p>
+<ul>
+<li>Selects block 0, page 0 via $DFFE/$DFFF</li>
+<li>Writes pattern $A5 to $DE00 window</li>
+<li>Switches to page 1, writes $5A</li>
+<li>Switches back to page 0, verifies $A5 preserved</li>
+<li>If verified, sets <code>expansion_ram = 2</code></li>
+</ul>
+<p><strong>Runtime Variables:</strong></p>
+<pre><code>reu_present:    .byte 0  ; 0=no, 1=yes
+georam_present: .byte 0  ; 0=no, 1=yes
+expansion_ram:  .byte 0  ; 0=none, 1=REU, 2=GeoRAM
+</code></pre>
+<h3 id="user-lore-storage">User Lore Storage</h3>
+<p>When pasting custom lore books via the Library menu:</p>
+<ul>
+<li><strong>REU</strong>: Stored in <code>reu_lore_pages</code> buffer (2KB, 16 x 128-byte pages)</li>
+<li><strong>GeoRAM</strong>: Stored in block 0, pages 0-7 (2KB)</li>
+<li><strong>Disk</strong>: Stored as sequential file &quot;USERLORE,S&quot; on device 8</li>
+</ul>
+<h3 id="performance-considerations">Performance Considerations</h3>
+<ul>
+<li><strong>REU/GeoRAM</strong>: Instant access, no disk I/O latency</li>
+<li><strong>Disk</strong>: Slower but works on any C64 with drive</li>
+<li>Built-in library stories remain in program memory for fast access</li>
+</ul>
+<hr>
+<h2 id="credits">Credits</h2>
+<hr>
+<h2 id="appendix-a-crafting-item-ids">Appendix A: Crafting Item IDs</h2>
+<p>The following table lists every entry in the <code>item_names</code> table and its 0-based ID (index) used throughout the BBS source.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Item</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>Sword</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Shield</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Potion</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Ring</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Amulet</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Scroll</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Gem</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Key</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Copper</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Iron</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Silver</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Ruby</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Sapphire</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Emerald</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Pickaxe</td>
+</tr>
+<tr>
+<td>15</td>
+<td>RingR</td>
+</tr>
+<tr>
+<td>16</td>
+<td>RingS</td>
+</tr>
+<tr>
+<td>17</td>
+<td>RingE</td>
+</tr>
+<tr>
+<td>18</td>
+<td>AmuR</td>
+</tr>
+<tr>
+<td>19</td>
+<td>AmuS</td>
+</tr>
+<tr>
+<td>20</td>
+<td>AmuE</td>
+</tr>
+<tr>
+<td>21</td>
+<td>Wood</td>
+</tr>
+<tr>
+<td>22</td>
+<td>Plank</td>
+</tr>
+<tr>
+<td>23</td>
+<td>Saw</td>
+</tr>
+<tr>
+<td>24</td>
+<td>Berry</td>
+</tr>
+<tr>
+<td>25</td>
+<td>Meat</td>
+</tr>
+<tr>
+<td>26</td>
+<td>Hide</td>
+</tr>
+<tr>
+<td>27</td>
+<td>Leather</td>
+</tr>
+<tr>
+<td>28</td>
+<td>Knife</td>
+</tr>
+<tr>
+<td>29</td>
+<td>Dagger</td>
+</tr>
+<tr>
+<td>30</td>
+<td>Armor</td>
+</tr>
+<tr>
+<td>31</td>
+<td>Hammer</td>
+</tr>
+<tr>
+<td>32</td>
+<td>Axe</td>
+</tr>
+<tr>
+<td>33</td>
+<td>SpellTm</td>
+</tr>
+<tr>
+<td>34</td>
+<td>MagItm</td>
+</tr>
+<tr>
+<td>35</td>
+<td>HealPot</td>
+</tr>
+<tr>
+<td>36</td>
+<td>Poison</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Note: For a canonical, machine-readable list of all item IDs and names, see <code>bbs/item_names.json</code> and the assembler source <code>bbs/everland_bbs.asm</code>.</p>
+</blockquote>
+<h2 id="appendix-b-crafting--cooking-recipes">Appendix B: Crafting &amp; Cooking Recipes</h2>
+<ul>
+<li>[100] Forge -&gt; Knife (x1, dur=80): 1 Ã— Iron (id 9) + 1 Ã— Wood (id 21); time=20 ticks; success=95%; skill_req=1; discover_flag=0</li>
+<li>[101] Forge -&gt; Dagger (x1, dur=90): 2 Ã— Iron (id 9) + 1 Ã— Plank (id 22); time=30 ticks; success=90%; skill_req=1; discover_flag=0</li>
+<li>[102] Forge -&gt; Sword (x1, dur=120): 4 Ã— Iron (id 9) + 2 Ã— Plank (id 22) + 1 Ã— Leather (id 27); time=60 ticks; success=85%; skill_req=2; discover_flag=0</li>
+<li>[103] Forge -&gt; Shield (x1, dur=110): 4 Ã— Wood (id 21) + 2 Ã— Leather (id 27) + 2 Ã— Iron (id 9); time=50 ticks; success=88%; skill_req=2; discover_flag=0</li>
+<li>[104] Forge -&gt; Armor (x1, dur=200): 8 Ã— Iron (id 9) + 4 Ã— Leather (id 27); time=120 ticks; success=70%; skill_req=3; discover_flag=1</li>
+<li>[105] Forge -&gt; Hammer (x1, dur=150): 3 Ã— Iron (id 9) + 1 Ã— Wood (id 21); time=40 ticks; success=92%; skill_req=1; discover_flag=0</li>
+<li>[106] Forge -&gt; Axe (x1, dur=130): 2 Ã— Iron (id 9) + 2 Ã— Wood (id 21); time=40 ticks; success=91%; skill_req=1; discover_flag=0</li>
+<li>[107] Forge -&gt; Pickaxe (x1, dur=100): 3 Ã— Iron (id 9) + 2 Ã— Plank (id 22) + 1 Ã— Leather (id 27); time=60 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[108] Forge -&gt; Saw (x1, dur=80): 2 Ã— Iron (id 9) + 1 Ã— Wood (id 21); time=30 ticks; success=95%; skill_req=1; discover_flag=0</li>
+<li>[109] Saw -&gt; Plank (x1, dur=0): 2 Ã— Wood (id 21); time=10 ticks; success=99%; skill_req=0; discover_flag=0</li>
+<li>[110] Saw -&gt; Saw (x1, dur=80): 2 Ã— Iron (id 9) + 1 Ã— Wood (id 21); time=30 ticks; success=92%; skill_req=1; discover_flag=0</li>
+<li>[111] Tannery -&gt; Leather (x1, dur=0): 2 Ã— Hide (id 26); time=15 ticks; success=98%; skill_req=0; discover_flag=0</li>
+<li>[112] Apothecary -&gt; HealPot (x1, dur=0): 1 Ã— Gem (id 6) + 1 Ã— Berry (id 24); time=25 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[113] Apothecary -&gt; Poison (x1, dur=0): 1 Ã— Meat (id 25) + 1 Ã— Berry (id 24); time=25 ticks; success=90%; skill_req=0; discover_flag=0</li>
+<li>[114] Mystic Tent -&gt; Scroll (x1, dur=0): 1 Ã— SpellTm (id 33) + 1 Ã— Gem (id 6); time=100 ticks; success=80%; skill_req=2; discover_flag=1</li>
+<li>[115] Mystic Tent -&gt; MagItm (x1, dur=0): 1 Ã— SpellTm (id 33) + 1 Ã— Gem (id 6) + 1 Ã— Ruby (id 11); time=120 ticks; success=65%; skill_req=3; discover_flag=1</li>
+<li>[116] Forge -&gt; RingR (x1, dur=90): 1 Ã— Gem (id 6) + 2 Ã— Copper (id 8); time=50 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[117] Forge -&gt; Potion (x1, dur=0): 2 Ã— Berry (id 24); time=20 ticks; success=99%; skill_req=0; discover_flag=0</li>
+<li>[118] Forge -&gt; Ring (x1, dur=0): 1 Ã— Gem (id 6); time=30 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[119] Forge -&gt; Amulet (x1, dur=0): 1 Ã— Ruby (id 11); time=40 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[120] Forge -&gt; RingS (x1, dur=0): 1 Ã— Ring (id 3) + 1 Ã— Ruby (id 11); time=60 ticks; success=70%; skill_req=2; discover_flag=1</li>
+<li>[121] Forge -&gt; RingE (x1, dur=0): 1 Ã— Ring (id 3) + 1 Ã— Sapphire (id 12); time=60 ticks; success=70%; skill_req=2; discover_flag=1</li>
+<li>[122] Forge -&gt; AmuR (x1, dur=0): 1 Ã— Amulet (id 4) + 1 Ã— Ruby (id 11); time=60 ticks; success=70%; skill_req=2; discover_flag=1</li>
+<li>[123] Forge -&gt; AmuS (x1, dur=0): 1 Ã— Amulet (id 4) + 1 Ã— Sapphire (id 12); time=60 ticks; success=70%; skill_req=2; discover_flag=1</li>
+<li>[124] Forge -&gt; AmuE (x1, dur=0): 1 Ã— Amulet (id 4) + 1 Ã— Emerald (id 13); time=60 ticks; success=70%; skill_req=2; discover_flag=1</li>
+<li>[125] Forge -&gt; Wood (x2, dur=0): 1 Ã— Copper (id 8); time=10 ticks; success=99%; skill_req=0; discover_flag=0</li>
+<li>[126] Forge -&gt; Plank (x2, dur=0): 4 Ã— Wood (id 21); time=20 ticks; success=98%; skill_req=0; discover_flag=0</li>
+<li>[127] Forge -&gt; Sword (x1, dur=140): 3 Ã— Silver (id 10) + 2 Ã— Plank (id 22) + 2 Ã— Leather (id 27); time=80 ticks; success=75%; skill_req=2; discover_flag=0</li>
+<li>[128] Forge -&gt; Shield (x1, dur=130): 2 Ã— Silver (id 10) + 4 Ã— Wood (id 21) + 1 Ã— Leather (id 27); time=70 ticks; success=78%; skill_req=2; discover_flag=0</li>
+<li>[129] Tannery -&gt; Leather (x2, dur=0): 5 Ã— Hide (id 26); time=40 ticks; success=97%; skill_req=1; discover_flag=0</li>
+<li>[130] Apothecary -&gt; HealPot (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Gem (id 6); time=30 ticks; success=93%; skill_req=0; discover_flag=0</li>
+<li>[131] Apothecary -&gt; Poison (x1, dur=0): 1 Ã— Gem (id 6) + 1 Ã— Meat (id 25); time=30 ticks; success=85%; skill_req=0; discover_flag=0</li>
+<li>[132] Mystic Tent -&gt; SpellTm (x1, dur=0): 1 Ã— Scroll (id 5) + 1 Ã— Gem (id 6); time=150 ticks; success=60%; skill_req=3; discover_flag=1</li>
+<li>[133] Forge -&gt; Knife (x1, dur=100): 2 Ã— Silver (id 10) + 1 Ã— Plank (id 22); time=50 ticks; success=90%; skill_req=1; discover_flag=0</li>
+<li>[134] Forge -&gt; Dagger (x1, dur=110): 3 Ã— Silver (id 10) + 1 Ã— Plank (id 22); time=55 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[135] Forge -&gt; Hammer (x1, dur=160): 4 Ã— Iron (id 9) + 1 Ã— Wood (id 21) + 1 Ã— Leather (id 27); time=80 ticks; success=80%; skill_req=2; discover_flag=0</li>
+<li>[136] Forge -&gt; Axe (x1, dur=140): 3 Ã— Iron (id 9) + 2 Ã— Wood (id 21) + 1 Ã— Leather (id 27); time=70 ticks; success=82%; skill_req=2; discover_flag=0</li>
+<li>[137] Forge -&gt; Pickaxe (x1, dur=120): 4 Ã— Iron (id 9) + 2 Ã— Plank (id 22); time=90 ticks; success=80%; skill_req=2; discover_flag=0</li>
+<li>[138] Saw -&gt; Plank (x3, dur=0): 6 Ã— Wood (id 21); time=40 ticks; success=97%; skill_req=1; discover_flag=0</li>
+<li>[139] Forge -&gt; Armor (x1, dur=220): 10 Ã— Silver (id 10) + 6 Ã— Leather (id 27); time=200 ticks; success=60%; skill_req=4; discover_flag=1</li>
+<li>[140] Apothecary -&gt; Flour (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Copper (id 8); time=30 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[141] Apothecary -&gt; Dough (x1, dur=0): 2 Ã— Flour (id 37); time=40 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[142] Apothecary -&gt; Bread (x1, dur=0): 1 Ã— Dough (id 38) + 1 Ã— Silver (id 10); time=60 ticks; success=90%; skill_req=1; discover_flag=0</li>
+<li>[143] Apothecary -&gt; Cake (x1, dur=0): 3 Ã— Berry (id 24) + 1 Ã— Ruby (id 11); time=80 ticks; success=85%; skill_req=2; discover_flag=0</li>
+<li>[144] Apothecary -&gt; Stew (x1, dur=0): 2 Ã— Meat (id 25) + 1 Ã— Berry (id 24); time=50 ticks; success=92%; skill_req=0; discover_flag=0</li>
+<li>[145] Apothecary -&gt; GrilledMeat (x1, dur=0): 1 Ã— Meat (id 25) + 1 Ã— Hammer (id 31); time=60 ticks; success=90%; skill_req=1; discover_flag=0</li>
+<li>[146] Apothecary -&gt; Soup (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Gem (id 6); time=40 ticks; success=88%; skill_req=0; discover_flag=0</li>
+<li>[147] Apothecary -&gt; Pie (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Hide (id 26); time=70 ticks; success=80%; skill_req=2; discover_flag=0</li>
+<li>[148] Apothecary -&gt; SpellFlour (x1, dur=0): 1 Ã— Flour (id 37) + 1 Ã— SpellTm (id 33); time=100 ticks; success=75%; skill_req=2; discover_flag=1</li>
+<li>[149] Mystic Tent -&gt; EnchantedScroll (x1, dur=0): 2 Ã— Gem (id 6) + 1 Ã— SpellTm (id 33); time=120 ticks; success=60%; skill_req=3; discover_flag=1</li>
+<li>[150] Saw -&gt; PlankBundle (x2, dur=0): 3 Ã— Wood (id 21) + 1 Ã— Plank (id 22); time=40 ticks; success=96%; skill_req=0; discover_flag=0</li>
+<li>[151] Tannery -&gt; ReinfLeather (x1, dur=0): 2 Ã— Hide (id 26) + 1 Ã— Leather (id 27); time=30 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[152] Forge -&gt; HeavyArmor (x1, dur=100): 6 Ã— Iron (id 9) + 2 Ã— Leather (id 27); time=120 ticks; success=70%; skill_req=3; discover_flag=1</li>
+<li>[153] Forge -&gt; TowerShield (x1, dur=80): 4 Ã— Iron (id 9) + 2 Ã— Wood (id 21) + 1 Ã— Leather (id 27); time=90 ticks; success=78%; skill_req=2; discover_flag=0</li>
+<li>[154] Saw -&gt; SmallCart (x1, dur=0): 1 Ã— Wood (id 21) + 2 Ã— Plank (id 22); time=30 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[155] Tannery -&gt; TannedStraps (x1, dur=0): 3 Ã— Hide (id 26) + 1 Ã— Iron (id 9); time=60 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[156] Apothecary -&gt; HealingSalve (x1, dur=0): 1 Ã— Gem (id 6) + 1 Ã— Berry (id 24); time=40 ticks; success=92%; skill_req=0; discover_flag=0</li>
+<li>[157] Apothecary -&gt; HoneyJam (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Ruby (id 11); time=80 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[158] Apothecary -&gt; MeatStewDeluxe (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Meat (id 25); time=70 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[159] Apothecary -&gt; Flatbread (x1, dur=0): 1 Ã— Flour (id 37) + 2 Ã— Berry (id 24); time=50 ticks; success=90%; skill_req=0; discover_flag=0</li>
+<li>[160] Apothecary -&gt; Pancake (x1, dur=0): 1 Ã— Flour (id 37) + 1 Ã— Silver (id 10); time=60 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[161] Apothecary -&gt; SweetBread (x1, dur=0): 2 Ã— Flour (id 37) + 1 Ã— HealPot (id 35); time=100 ticks; success=70%; skill_req=2; discover_flag=1</li>
+<li>[162] Apothecary -&gt; RoastVeg (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Hide (id 26); time=60 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[163] Apothecary -&gt; FryMeat (x1, dur=0): 1 Ã— Meat (id 25) + 1 Ã— Hammer (id 31); time=60 ticks; success=80%; skill_req=1; discover_flag=0</li>
+<li>[164] Apothecary -&gt; HerbalTea (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Gem (id 6); time=90 ticks; success=75%; skill_req=2; discover_flag=1</li>
+<li>[165] Apothecary -&gt; MysticPie (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— SpellTm (id 33); time=120 ticks; success=65%; skill_req=3; discover_flag=1</li>
+<li>[166] Mystic Tent -&gt; GrandGrimoire (x1, dur=0): 1 Ã— SpellTm (id 33) + 1 Ã— MagItm (id 34); time=200 ticks; success=60%; skill_req=4; discover_flag=1</li>
+<li>[167] Forge -&gt; SilverDagger (x1, dur=0): 2 Ã— Iron (id 9) + 1 Ã— Silver (id 10); time=80 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[168] Saw -&gt; ReinfBeam (x1, dur=0): 4 Ã— Wood (id 21) + 2 Ã— Plank (id 22); time=100 ticks; success=80%; skill_req=2; discover_flag=1</li>
+<li>[169] Tannery -&gt; HeavyHideArmor (x1, dur=0): 4 Ã— Hide (id 26) + 2 Ã— Leather (id 27); time=90 ticks; success=78%; skill_req=2; discover_flag=0</li>
+<li>[170] Apothecary -&gt; FlourMix (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Flour (id 37); time=40 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[171] Apothecary -&gt; FruitTart (x1, dur=0): 1 Ã— Flour (id 37) + 1 Ã— Berry (id 24) + 1 Ã— Ruby (id 11); time=80 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[172] Apothecary -&gt; MeatSkewer (x1, dur=0): 2 Ã— Meat (id 25) + 1 Ã— Hammer (id 31); time=80 ticks; success=86%; skill_req=1; discover_flag=0</li>
+<li>[173] Apothecary -&gt; VillageFeast (x1, dur=0): 3 Ã— Berry (id 24) + 1 Ã— Meat (id 25); time=120 ticks; success=75%; skill_req=2; discover_flag=1</li>
+<li>[174] Apothecary -&gt; EnchantedLoaf (x1, dur=0): 2 Ã— Flour (id 37) + 2 Ã— Berry (id 24) + 1 Ã— HealPot (id 35); time=140 ticks; success=70%; skill_req=3; discover_flag=1</li>
+<li>[175] Apothecary -&gt; HerbOmelette (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Ruby (id 11) + 1 Ã— Gem (id 6); time=60 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[176] Apothecary -&gt; LeatherRoast (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Hide (id 26) + 1 Ã— Leather (id 27); time=60 ticks; success=88%; skill_req=1; discover_flag=0</li>
+<li>[177] Mystic Tent -&gt; MagicTonic (x1, dur=0): 1 Ã— MagItm (id 34) + 2 Ã— Gem (id 6); time=180 ticks; success=65%; skill_req=3; discover_flag=1</li>
+<li>[178] Apothecary -&gt; FruitPie (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Flour (id 37) + 1 Ã— Ruby (id 11); time=120 ticks; success=72%; skill_req=2; discover_flag=1</li>
+<li>[179] Apothecary -&gt; PancakeStack (x1, dur=0): 1 Ã— Berry (id 24) + 1 Ã— Flour (id 37) + 1 Ã— HealPot (id 35); time=100 ticks; success=74%; skill_req=2; discover_flag=1</li>
+<li>[180] Saw -&gt; Toolbox (x1, dur=0): 1 Ã— Wood (id 21) + 1 Ã— Plank (id 22) + 1 Ã— Saw (id 23); time=40 ticks; success=95%; skill_req=0; discover_flag=0</li>
+<li>[181] Tannery -&gt; ReinfTannedHide (x1, dur=0): 2 Ã— Hide (id 26) + 1 Ã— Iron (id 9); time=80 ticks; success=85%; skill_req=1; discover_flag=0</li>
+<li>[182] Apothecary -&gt; HoneyCake (x1, dur=0): 2 Ã— Berry (id 24) + 1 Ã— Ruby (id 11) + 1 Ã— SpellTm (id 33); time=100 ticks; success=80%; skill_req=2; discover_flag=1</li>
+<li>[183] Apothecary -&gt; FarmersBreakfast (x1, dur=0): 1 Ã— Flour (id 37) + 1 Ã— Berry (id 24) + 1 Ã— Meat (id 25); time=120 ticks; success=78%; skill_req=2; discover_flag=1</li>
+</ul>
+</body></html>

@@ -1,0 +1,32 @@
+[
+  {
+    "id": 0,
+    "name": "Fancy Rug",
+    "price": 25
+  },
+  {
+    "id": 1,
+    "name": "Crystal Lamp",
+    "price": 40
+  },
+  {
+    "id": 2,
+    "name": "Gold Frame",
+    "price": 60
+  },
+  {
+    "id": 3,
+    "name": "Magic Mirror",
+    "price": 80
+  },
+  {
+    "id": 4,
+    "name": "Royal Banner",
+    "price": 100
+  },
+  {
+    "id": 5,
+    "name": "Ancient Statue",
+    "price": 150
+  }
+]

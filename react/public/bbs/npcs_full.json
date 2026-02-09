@@ -1,0 +1,502 @@
+[
+  {
+    "label": "npc_menu",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_menu:\n    ldx #0"
+  },
+  {
+    "label": "npc_menu_msg_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_menu_msg_loop:\n        lda npc_menu_msg,X\n        beq npc_menu_msg_done\n        jsr modem_out\n        inx\n        bne npc_menu_msg_loop"
+  },
+  {
+    "label": "npc_menu_msg_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_menu_msg_done:\n    jsr get_npc_input\n    jmp main_loop"
+  },
+  {
+    "label": "npc_menu_msg",
+    "name": "\\r\\nNPC MENU:\\r\\n1. Speak to Kasimere\\r\\n2. Speak to Pumpkin King\\r\\n3. Speak to Alpha Wulfric\\r\\n4. Speak to Lyra\\r\\n5. Speak to Van Bueler\\r\\n6. Speak to Cedric\\r\\n7. Speak to Gwen\\r\\n8. Speak to Grim\\r\\n9. Back to Main Menu\\r\\n> ",
+    "description": "\\r\\nNPC MENU:\\r\\n1. Speak to Kasimere\\r\\n2. Speak to Pumpkin King\\r\\n3. Speak to Alpha Wulfric\\r\\n4. Speak to Lyra\\r\\n5. Speak to Van Bueler\\r\\n6. Speak to Cedric\\r\\n7. Speak to Gwen\\r\\n8. Speak to Grim\\r\\n9. Back to Main Menu\\r\\n> ",
+    "texts": [
+      "\\r\\nNPC MENU:\\r\\n1. Speak to Kasimere\\r\\n2. Speak to Pumpkin King\\r\\n3. Speak to Alpha Wulfric\\r\\n4. Speak to Lyra\\r\\n5. Speak to Van Bueler\\r\\n6. Speak to Cedric\\r\\n7. Speak to Gwen\\r\\n8. Speak to Grim\\r\\n9. Back to Main Menu\\r\\n> "
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_menu_msg:\n    .text \"\\r\\nNPC MENU:\\r\\n1. Speak to Kasimere\\r\\n2. Speak to Pumpkin King\\r\\n3. Speak to Alpha Wulfric\\r\\n4. Speak to Lyra\\r\\n5. Speak to Van Bueler\\r\\n6. Speak to Cedric\\r\\n7. Speak to Gwen\\r\\n8. Speak to Grim\\r\\n9. Back to Main Menu\\r\\n> \"\n"
+  },
+  {
+    "label": "npc_kasimere",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_kasimere:\n    // Multi-path quest: choose to help or betray Kasimere\n    ldx #0"
+  },
+  {
+    "label": "npc_kasimere_msg_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_kasimere_msg_loop:\n        lda npc_kasimere_msg,X\n        beq npc_kasimere_msg_done\n        jsr modem_out\n        inx\n        bne npc_kasimere_msg_loop"
+  },
+  {
+    "label": "npc_kasimere_msg_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_kasimere_msg_done:\n    jsr modem_in\n    cmp #'H'\n    beq kasimere_help\n    cmp #'B'\n    beq kasimere_betray\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_kasimere_msg",
+    "name": "\\r\\nArch Magus Kasimere, the oldest vampire, lurks in shadows. He followed through the portal as it closed, a snarled laugh on his lips.\\r\\n\\r\\n'Soon we will conquer this land also,' he rasps. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power.\\r\\n\\r\\nVampire Conflict Quest:\\r\\n(H)elp Kasimere - join his dark dominion\\r\\n(B)etray Kasimere - expose his treachery\\r\\n\\r\\nWarning: He corrupts refugees with foggy memories, turning them into servants. Will you resist or succumb?\\r\\n\\r\\nKasimere: Will you (H)elp or (B)etray me? ",
+    "description": "\\r\\nArch Magus Kasimere, the oldest vampire, lurks in shadows. He followed through the portal as it closed, a snarled laugh on his lips.\\r\\n\\r\\n'Soon we will conquer this land also,' he rasps. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power.\\r\\n\\r\\nVampire Conflict Quest:\\r\\n(H)elp Kasimere - join his dark dominion\\r\\n(B)etray Kasimere - expose his treachery\\r\\n\\r\\nWarning: He corrupts refugees with foggy memories, turning them into servants. Will you resist or succumb?\\r\\n\\r\\nKasimere: Will you (H)elp or (B)etray me? ",
+    "texts": [
+      "\\r\\nArch Magus Kasimere, the oldest vampire, lurks in shadows. He followed through the portal as it closed, a snarled laugh on his lips.\\r\\n\\r\\n'Soon we will conquer this land also,' he rasps. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power.\\r\\n\\r\\nVampire Conflict Quest:\\r\\n(H)elp Kasimere - join his dark dominion\\r\\n(B)etray Kasimere - expose his treachery\\r\\n\\r\\nWarning: He corrupts refugees with foggy memories, turning them into servants. Will you resist or succumb?\\r\\n\\r\\nKasimere: Will you (H)elp or (B)etray me? "
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_kasimere_msg:\n    .text \"\\r\\nArch Magus Kasimere, the oldest vampire, lurks in shadows. He followed through the portal as it closed, a snarled laugh on his lips.\\r\\n\\r\\n'Soon we will conquer this land also,' he rasps. His crystal globe resonates with the dark sun crystal, reaching into dreams with whispered promises of power.\\r\\n\\r\\nVampire Conflict Quest:\\r\\n(H)elp Kasimere - join his dark dominion\\r\\n(B)etray Kasimere - expose his treachery\\r\\n\\r\\nWarning: He corrupts refugees with foggy memories, turning them into servants. Will you resist or succumb?\\r\\n\\r\\nKasimere: Will you (H)elp or (B)etray me? \"\n"
+  },
+  {
+    "label": "npc_pumpkin_king",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_pumpkin_king:\n    // Branching event: battle or negotiate\n    ldx #0"
+  },
+  {
+    "label": "npc_pumpkin_king_msg_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_pumpkin_king_msg_loop:\n        lda npc_pumpkin_king_msg,X\n        beq npc_pumpkin_king_msg_done\n        jsr modem_out\n        inx\n        bne npc_pumpkin_king_msg_loop"
+  },
+  {
+    "label": "npc_pumpkin_king_msg_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_pumpkin_king_msg_done:\n    jsr modem_in\n    cmp #'F'\n    beq pumpkin_fight\n    cmp #'N'\n    beq pumpkin_negotiate\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_pumpkin_king_msg",
+    "name": "\\r\\nThe PUMPKIN KING towers before you, eyes glowing unearthly orange. His sinister laughter echoes through the cursed garden.\\r\\n\\r\\n'Bow before me, mortal! My fairies spread chaos in my name. The thorny plants obey my will. Your knights cannot stand against me!'\\r\\n\\r\\nQuest Chain:\\r\\n1. Gather spider allies (speak to Spider Princess)\\r\\n2. Rally the knights of Lore\\r\\n3. Obtain the enchanted spear from Grim\\r\\n4. Launch coordinated attack\\r\\n\\r\\n(F)ight or (N)egotiate? ",
+    "description": "\\r\\nThe PUMPKIN KING towers before you, eyes glowing unearthly orange. His sinister laughter echoes through the cursed garden.\\r\\n\\r\\n'Bow before me, mortal! My fairies spread chaos in my name. The thorny plants obey my will. Your knights cannot stand against me!'\\r\\n\\r\\nQuest Chain:\\r\\n1. Gather spider allies (speak to Spider Princess)\\r\\n2. Rally the knights of Lore\\r\\n3. Obtain the enchanted spear from Grim\\r\\n4. Launch coordinated attack\\r\\n\\r\\n(F)ight or (N)egotiate? ",
+    "texts": [
+      "\\r\\nThe PUMPKIN KING towers before you, eyes glowing unearthly orange. His sinister laughter echoes through the cursed garden.\\r\\n\\r\\n'Bow before me, mortal! My fairies spread chaos in my name. The thorny plants obey my will. Your knights cannot stand against me!'\\r\\n\\r\\nQuest Chain:\\r\\n1. Gather spider allies (speak to Spider Princess)\\r\\n2. Rally the knights of Lore\\r\\n3. Obtain the enchanted spear from Grim\\r\\n4. Launch coordinated attack\\r\\n\\r\\n(F)ight or (N)egotiate? "
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_pumpkin_king_msg:\n    .text \"\\r\\nThe PUMPKIN KING towers before you, eyes glowing unearthly orange. His sinister laughter echoes through the cursed garden.\\r\\n\\r\\n'Bow before me, mortal! My fairies spread chaos in my name. The thorny plants obey my will. Your knights cannot stand against me!'\\r\\n\\r\\nQuest Chain:\\r\\n1. Gather spider allies (speak to Spider Princess)\\r\\n2. Rally the knights of Lore\\r\\n3. Obtain the enchanted spear from Grim\\r\\n4. Launch coordinated attack\\r\\n\\r\\n(F)ight or (N)egotiate? \"\n"
+  },
+  {
+    "label": "npc_wulfric",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_wulfric:\n    // Wolf pact: join or refuse\n    ldx #0"
+  },
+  {
+    "label": "npc_wulfric_msg_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_wulfric_msg_loop:\n        lda npc_wulfric_msg,X\n        beq npc_wulfric_msg_done\n        jsr modem_out\n        inx\n        bne npc_wulfric_msg_loop"
+  },
+  {
+    "label": "npc_wulfric_msg_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_wulfric_msg_done:\n    jsr modem_in\n    cmp #'J'\n    beq wulfric_join\n    cmp #'R'\n    beq wulfric_refuse\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_wulfric_msg",
+    "name": "\\r\\nAlpha Wulfric: (J)oin the pact or (R)efuse? ",
+    "description": "\\r\\nAlpha Wulfric: (J)oin the pact or (R)efuse? ",
+    "texts": [
+      "\\r\\nAlpha Wulfric: (J)oin the pact or (R)efuse? "
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_wulfric_msg:\n    .text \"\\r\\nAlpha Wulfric: (J)oin the pact or (R)efuse? \"\n\n// === MESSAGE BOARD SYSTEM ==="
+  },
+  {
+    "label": "npc_lyra",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_lyra:\n    ldx #0"
+  },
+  {
+    "label": "npc_lyra_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_lyra_loop:\n        lda npc_lyra_msg,X\n        beq npc_lyra_done\n        jsr modem_out\n        inx\n        bne npc_lyra_loop"
+  },
+  {
+    "label": "npc_lyra_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_lyra_done:\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_lyra_msg",
+    "name": "\\r\\nBeta Lyra, seasoned second-in-command of the Wolves of Winter, regards you with glistening determination.\\r\\n\\r\\n'We seek sustenance for the winter. In exchange for our protection, Van Bueler provides provisions. The Pact of Winter's Howl binds us.'\\r\\n\\r\\nWolf Quest Chain:\\r\\n1. Prove your mettle through trials\\r\\n2. Endure biting cold without complaint\\r\\n3. Outwit the cunning riddles\\r\\n4. Join the moonlit howl with the pack\\r\\n\\r\\n'Upon success, we convene whenever trains rumble by - our howls delight the passengers.'\\r\\n\\r\\n(Quest: Earn the trust of the Wolves.)\\r\\n[Press any key]\\r\\n",
+    "description": "\\r\\nBeta Lyra, seasoned second-in-command of the Wolves of Winter, regards you with glistening determination.\\r\\n\\r\\n'We seek sustenance for the winter. In exchange for our protection, Van Bueler provides provisions. The Pact of Winter's Howl binds us.'\\r\\n\\r\\nWolf Quest Chain:\\r\\n1. Prove your mettle through trials\\r\\n2. Endure biting cold without complaint\\r\\n3. Outwit the cunning riddles\\r\\n4. Join the moonlit howl with the pack\\r\\n\\r\\n'Upon success, we convene whenever trains rumble by - our howls delight the passengers.'\\r\\n\\r\\n(Quest: Earn the trust of the Wolves.)\\r\\n[Press any key]\\r\\n",
+    "texts": [
+      "\\r\\nBeta Lyra, seasoned second-in-command of the Wolves of Winter, regards you with glistening determination.\\r\\n\\r\\n'We seek sustenance for the winter. In exchange for our protection, Van Bueler provides provisions. The Pact of Winter's Howl binds us.'\\r\\n\\r\\nWolf Quest Chain:\\r\\n1. Prove your mettle through trials\\r\\n2. Endure biting cold without complaint\\r\\n3. Outwit the cunning riddles\\r\\n4. Join the moonlit howl with the pack\\r\\n\\r\\n'Upon success, we convene whenever trains rumble by - our howls delight the passengers.'\\r\\n\\r\\n(Quest: Earn the trust of the Wolves.)\\r\\n[Press any key]\\r\\n"
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_lyra_msg:\n    .text \"\\r\\nBeta Lyra, seasoned second-in-command of the Wolves of Winter, regards you with glistening determination.\\r\\n\\r\\n'We seek sustenance for the winter. In exchange for our protection, Van Bueler provides provisions. The Pact of Winter's Howl binds us.'\\r\\n\\r\\nWolf Quest Chain:\\r\\n1. Prove your mettle through trials\\r\\n2. Endure biting cold without complaint\\r\\n3. Outwit the cunning riddles\\r\\n4. Join the moonlit howl with the pack\\r\\n\\r\\n'Upon success, we convene whenever trains rumble by - our howls delight the passengers.'\\r\\n\\r\\n(Quest: Earn the trust of the Wolves.)\\r\\n[Press any key]\\r\\n\"\n"
+  },
+  {
+    "label": "npc_bueler",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_bueler:\n    ldx #0"
+  },
+  {
+    "label": "npc_bueler_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_bueler_loop:\n        lda npc_bueler_msg,X\n        beq npc_bueler_done\n        jsr modem_out\n        inx\n        bne npc_bueler_loop"
+  },
+  {
+    "label": "npc_bueler_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_bueler_done:\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_bueler_msg",
+    "name": "\\r\\nVan Bueler, a man of stern countenance with piercing eyes, greets you from his trading office. A fireplace crackles within.\\r\\n\\r\\n'Beta Lyra of the Wolves approached me for the Pact of Winter's Howl. Sustenance for the pack in exchange for protection.'\\r\\n\\r\\nTrade Quest Chain:\\r\\n1. Negotiate fair terms for the town's stores\\r\\n2. Funnel provisions to Hunter's Hovel\\r\\n3. Ensure Everland survives the winter\\r\\n4. Witness the wolf-human howl when trains pass\\r\\n\\r\\n'The town requires its own stores - I must assure our people as well.'\\r\\n\\r\\n(Quest: Help balance wolf and human needs.)\\r\\n[Press any key]\\r\\n",
+    "description": "\\r\\nVan Bueler, a man of stern countenance with piercing eyes, greets you from his trading office. A fireplace crackles within.\\r\\n\\r\\n'Beta Lyra of the Wolves approached me for the Pact of Winter's Howl. Sustenance for the pack in exchange for protection.'\\r\\n\\r\\nTrade Quest Chain:\\r\\n1. Negotiate fair terms for the town's stores\\r\\n2. Funnel provisions to Hunter's Hovel\\r\\n3. Ensure Everland survives the winter\\r\\n4. Witness the wolf-human howl when trains pass\\r\\n\\r\\n'The town requires its own stores - I must assure our people as well.'\\r\\n\\r\\n(Quest: Help balance wolf and human needs.)\\r\\n[Press any key]\\r\\n",
+    "texts": [
+      "\\r\\nVan Bueler, a man of stern countenance with piercing eyes, greets you from his trading office. A fireplace crackles within.\\r\\n\\r\\n'Beta Lyra of the Wolves approached me for the Pact of Winter's Howl. Sustenance for the pack in exchange for protection.'\\r\\n\\r\\nTrade Quest Chain:\\r\\n1. Negotiate fair terms for the town's stores\\r\\n2. Funnel provisions to Hunter's Hovel\\r\\n3. Ensure Everland survives the winter\\r\\n4. Witness the wolf-human howl when trains pass\\r\\n\\r\\n'The town requires its own stores - I must assure our people as well.'\\r\\n\\r\\n(Quest: Help balance wolf and human needs.)\\r\\n[Press any key]\\r\\n"
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_bueler_msg:\n    .text \"\\r\\nVan Bueler, a man of stern countenance with piercing eyes, greets you from his trading office. A fireplace crackles within.\\r\\n\\r\\n'Beta Lyra of the Wolves approached me for the Pact of Winter's Howl. Sustenance for the pack in exchange for protection.'\\r\\n\\r\\nTrade Quest Chain:\\r\\n1. Negotiate fair terms for the town's stores\\r\\n2. Funnel provisions to Hunter's Hovel\\r\\n3. Ensure Everland survives the winter\\r\\n4. Witness the wolf-human howl when trains pass\\r\\n\\r\\n'The town requires its own stores - I must assure our people as well.'\\r\\n\\r\\n(Quest: Help balance wolf and human needs.)\\r\\n[Press any key]\\r\\n\"\n"
+  },
+  {
+    "label": "npc_cedric",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_cedric:\n    ldx #0"
+  },
+  {
+    "label": "npc_cedric_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_cedric_loop:\n        lda npc_cedric_msg,X\n        beq npc_cedric_done\n        jsr modem_out\n        inx\n        bne npc_cedric_loop"
+  },
+  {
+    "label": "npc_cedric_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_cedric_done:\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_cedric_msg",
+    "name": "\\r\\nCedric: The forge awaits your request.\\r\\n",
+    "description": "\\r\\nCedric: The forge awaits your request.\\r\\n",
+    "texts": [
+      "\\r\\nCedric: The forge awaits your request.\\r\\n"
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_cedric_msg:\n    .text \"\\r\\nCedric: The forge awaits your request.\\r\\n\"\n"
+  },
+  {
+    "label": "npc_gwen",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_gwen:\n    ldx #0"
+  },
+  {
+    "label": "npc_gwen_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_gwen_loop:\n        lda npc_gwen_msg,X\n        beq npc_gwen_done\n        jsr modem_out\n        inx\n        bne npc_gwen_loop"
+  },
+  {
+    "label": "npc_gwen_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_gwen_done:\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_gwen_msg",
+    "name": "\\r\\nGwen stands silently, her eyes betraying deep emotion rarely shown. 'Grim... he gave everything to defeat the Pumpkin King. One strike of the enchanted spear, one green thorn through his heart.'\\r\\n\\r\\nShe clutches a withered black rose. 'I wept but once. That was enough.'\\r\\n\\r\\n(Quest: Honor Grim's sacrifice - plant black roses at the cursed garden.)\\r\\n[Press any key]\\r\\n",
+    "description": "\\r\\nGwen stands silently, her eyes betraying deep emotion rarely shown. 'Grim... he gave everything to defeat the Pumpkin King. One strike of the enchanted spear, one green thorn through his heart.'\\r\\n\\r\\nShe clutches a withered black rose. 'I wept but once. That was enough.'\\r\\n\\r\\n(Quest: Honor Grim's sacrifice - plant black roses at the cursed garden.)\\r\\n[Press any key]\\r\\n",
+    "texts": [
+      "\\r\\nGwen stands silently, her eyes betraying deep emotion rarely shown. 'Grim... he gave everything to defeat the Pumpkin King. One strike of the enchanted spear, one green thorn through his heart.'\\r\\n\\r\\nShe clutches a withered black rose. 'I wept but once. That was enough.'\\r\\n\\r\\n(Quest: Honor Grim's sacrifice - plant black roses at the cursed garden.)\\r\\n[Press any key]\\r\\n"
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_gwen_msg:\n    .text \"\\r\\nGwen stands silently, her eyes betraying deep emotion rarely shown. 'Grim... he gave everything to defeat the Pumpkin King. One strike of the enchanted spear, one green thorn through his heart.'\\r\\n\\r\\nShe clutches a withered black rose. 'I wept but once. That was enough.'\\r\\n\\r\\n(Quest: Honor Grim's sacrifice - plant black roses at the cursed garden.)\\r\\n[Press any key]\\r\\n\"\n"
+  },
+  {
+    "label": "npc_grim",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_grim:\n    ldx #0"
+  },
+  {
+    "label": "npc_grim_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_grim_loop:\n        lda npc_grim_msg,X\n        beq npc_grim_done\n        jsr modem_out\n        inx\n        bne npc_grim_loop"
+  },
+  {
+    "label": "npc_grim_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_grim_done:\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_grim_msg",
+    "name": "\\r\\nGrim of the Blackhearts looms silent, his massive enchanted spear resting nearby. Few words leave his lips, but his eyes speak volumes.\\r\\n\\r\\n'The Pumpkin King thought himself immortal. He was wrong. One strike from behind while others drew his gaze... that's how legends fall.'\\r\\n\\r\\n(Quest: Join Grim in the final assault on the cursed garden.)\\r\\n[Press any key]\\r\\n",
+    "description": "\\r\\nGrim of the Blackhearts looms silent, his massive enchanted spear resting nearby. Few words leave his lips, but his eyes speak volumes.\\r\\n\\r\\n'The Pumpkin King thought himself immortal. He was wrong. One strike from behind while others drew his gaze... that's how legends fall.'\\r\\n\\r\\n(Quest: Join Grim in the final assault on the cursed garden.)\\r\\n[Press any key]\\r\\n",
+    "texts": [
+      "\\r\\nGrim of the Blackhearts looms silent, his massive enchanted spear resting nearby. Few words leave his lips, but his eyes speak volumes.\\r\\n\\r\\n'The Pumpkin King thought himself immortal. He was wrong. One strike from behind while others drew his gaze... that's how legends fall.'\\r\\n\\r\\n(Quest: Join Grim in the final assault on the cursed garden.)\\r\\n[Press any key]\\r\\n"
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_grim_msg:\n    .text \"\\r\\nGrim of the Blackhearts looms silent, his massive enchanted spear resting nearby. Few words leave his lips, but his eyes speak volumes.\\r\\n\\r\\n'The Pumpkin King thought himself immortal. He was wrong. One strike from behind while others drew his gaze... that's how legends fall.'\\r\\n\\r\\n(Quest: Join Grim in the final assault on the cursed garden.)\\r\\n[Press any key]\\r\\n\"\n"
+  },
+  {
+    "label": "npc_artifacts",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_artifacts:\n    ldx #0"
+  },
+  {
+    "label": "npc_artifacts_loop",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_artifacts_loop:\n        lda npc_artifacts_msg,X\n        beq npc_artifacts_done\n        jsr modem_out\n        inx\n        bne npc_artifacts_loop"
+  },
+  {
+    "label": "npc_artifacts_done",
+    "name": "",
+    "description": "",
+    "texts": [],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_artifacts_done:\n    jmp npc_menu"
+  },
+  {
+    "label": "npc_artifacts_msg",
+    "name": "\\r\\nArtifacts of power shimmer before you...\\r\\n",
+    "description": "\\r\\nArtifacts of power shimmer before you...\\r\\n",
+    "texts": [
+      "\\r\\nArtifacts of power shimmer before you...\\r\\n"
+    ],
+    "bytes": {},
+    "unnamedBytes": [],
+    "words": {},
+    "unnamedWords": [],
+    "comments": [],
+    "raw": "npc_artifacts_msg:\n    .text \"\\r\\nArtifacts of power shimmer before you...\\r\\n\"\n\n// --- Room Customization Menu ---"
+  }
+]

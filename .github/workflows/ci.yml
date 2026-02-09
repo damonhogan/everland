@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Generate assets
+        run: node react/tools/convert_assets.js
+      - name: Install and test (React)
+        working-directory: react
+        run: |
+          npm ci
+          npm test --if-present
+          npm run build --if-present
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-build
+          path: react/dist || react/build || react/.output

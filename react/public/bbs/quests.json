@@ -1,0 +1,34 @@
+[
+  {
+    "id": 0,
+    "title": "Play 3 Games",
+    "description": "Play 3 Games\nVisit 2 Rooms\nSend a Message\nWin at Slots",
+    "target": 3,
+    "reward_gold": 15,
+    "complete": false
+  },
+  {
+    "id": 1,
+    "title": "Visit 2 Rooms",
+    "description": "Visit 2 Rooms\nSend a Message\nWin at Slots",
+    "target": 2,
+    "reward_gold": 10,
+    "complete": false
+  },
+  {
+    "id": 2,
+    "title": "Send a Message",
+    "description": "Send a Message\nWin at Slots",
+    "target": 1,
+    "reward_gold": 5,
+    "complete": false
+  },
+  {
+    "id": 3,
+    "title": "Win at Slots",
+    "description": "Win at Slots",
+    "target": 0,
+    "reward_gold": 0,
+    "complete": false
+  }
+]
