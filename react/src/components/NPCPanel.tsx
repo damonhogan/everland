@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import loadNpcs, { NPC } from '../lib/npcs'
-import { talkToNpc, getPriceForItem, buyItem, sellItem, enqueueDialog, popDialog, ensureRestock } from '../lib/npcService'
+import { talkToNpc, getPriceForItem, buyItem, sellItem, enqueueDialog, popDialog, ensureRestock, scheduleDialog } from '../lib/npcService'
 
 type Props = {
   npcState: Record<string, any>
@@ -19,6 +19,14 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
   const [lastDialog, setLastDialog] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [enqueueText, setEnqueueText] = useState<string>('')
+  const [patrolPoint, setPatrolPoint] = useState<string>('')
+  const [patrolPoints, setPatrolPoints] = useState<string[]>([])
+  const [patrolInterval, setPatrolInterval] = useState<number>(30)
+  const [autoExportEnabled, setAutoExportEnabled] = useState<boolean>(false)
+  const lastExportRef = useRef<string | null>(null)
+  const exportTimerRef = useRef<number | null>(null)
+  const [schedDelay, setSchedDelay] = useState<number>(10)
+  const [schedText, setSchedText] = useState<string>('')
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
   const [shopPrices, setShopPrices] = useState<Record<string, number>>({})
@@ -34,6 +42,65 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
   }, [])
 
   useEffect(() => { loadNpcs().then(setNpcs) }, [])
+
+  // when selecting an NPC, load any existing patrol points/interval from npcState[selected].edited.patrol
+  useEffect(() => {
+    if (!selected) return
+    const cur = npcState[selected] || {}
+    const edited = cur.edited || {}
+    const p = edited.patrol || cur.patrol || []
+    setPatrolPoints(Array.isArray(p) ? p : [])
+    const intervalMs = edited.patrolInterval || cur.patrolInterval || (patrolInterval * 1000)
+    setPatrolInterval(Math.round((intervalMs || 30000) / 1000))
+  }, [selected, npcState])
+
+  // derive auto-export setting from global npcState entry `_app.autoExport`
+  useEffect(() => {
+    try {
+      const v = (npcState && (npcState._app && npcState._app.autoExport)) ? true : false
+      setAutoExportEnabled(Boolean(v))
+    } catch (e) {
+      // ignore
+    }
+  }, [npcState])
+
+  // Auto-export edited NPCs when npcState changes (debounced). Downloads `npcs-edited.json` only when enabled.
+  useEffect(() => {
+    if (!autoExportEnabled) return
+    // build edited output same as Export button
+    try {
+      const out: any[] = []
+      for (const lbl of Object.keys(npcState)) {
+        const s = npcState[lbl] || {}
+        if (s.edited) {
+          out.push({ label: lbl, ...s.edited })
+        }
+      }
+      if (out.length === 0) return
+      const json = JSON.stringify(out, null, 2)
+      if (lastExportRef.current === json) return
+      // debounce rapid changes
+      if (exportTimerRef.current) window.clearTimeout(exportTimerRef.current)
+      exportTimerRef.current = window.setTimeout(() => {
+        try {
+          const blob = new Blob([json], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `npcs-edited.json`
+          a.click()
+          URL.revokeObjectURL(url)
+          lastExportRef.current = json
+          if (addToast) addToast('Auto-exported npcs-edited.json')
+        } catch (e) {
+          console.warn('Auto-export failed', e)
+        }
+      }, 800)
+    } catch (e) {
+      // ignore
+    }
+    return () => { if (exportTimerRef.current) { window.clearTimeout(exportTimerRef.current); exportTimerRef.current = null } }
+  }, [npcState, autoExportEnabled])
 
   function detectShopItems(npc: NPC): number[] {
     const ids: number[] = []
@@ -67,7 +134,7 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
   return (
     <div className="npc-panel">
       <h3>NPCs</h3>
-      <div style={{display:'flex'}}>
+      <div style={{display:'flex', flexWrap: 'wrap'}}>
         <ul style={{width:220, maxHeight:300, overflow:'auto', marginRight:12}}>
           {npcs.map(n => (
             <li key={n.label} style={{padding:6, borderBottom:'1px solid #ddd', cursor:'pointer'}} onClick={() => setSelected(n.label)}>
@@ -76,7 +143,7 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
             </li>
           ))}
         </ul>
-        <div style={{flex:1}}>
+        <div style={{flex:1, minWidth:320}}>
           {selected ? (
             (() => {
               const npc = npcs.find(x => x.label === selected)!
@@ -86,14 +153,14 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                     <h4>{(state.edited && state.edited.name) ? state.edited.name : (npc.name || npc.label)}</h4>
                     <div>
-                      <button className="button" onClick={() => {
+                      <button type="button" className="button" onClick={() => {
                         // enter edit mode, prefill
                         setEditMode(true)
                         setEditName((state.edited && state.edited.name) || npc.name || '')
                         setEditDesc((state.edited && state.edited.description) || (npc.description || ''))
                       }}>{editMode ? 'Editing' : 'Edit'}</button>
-                      <button className="button" style={{marginLeft:8}} onClick={() => { const next = { ...npcState }; delete next[selected!]; setNpcState(next) }}>Clear State</button>
-                      <button className="button" style={{marginLeft:8}} onClick={async () => {
+                       <button type="button" className="button" style={{marginLeft:8}} onClick={() => { const next = { ...npcState }; delete next[selected!]; setNpcState(next) }}>Clear State</button>
+                       <button type="button" className="button" style={{marginLeft:8}} onClick={async () => {
                         // Export merged NPCs (base + edits)
                         try {
                           const res = await fetch('/bbs/npcs_full.json')
@@ -113,6 +180,45 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                           URL.revokeObjectURL(url)
                           } catch (e) { if (addToast) addToast('Export failed'); }
                       }}>Export NPCs</button>
+                      <label style={{marginLeft:8, display:'inline-flex', alignItems:'center'}}>
+                        <input aria-label="Auto export edited NPCs" type="checkbox" checked={autoExportEnabled} onChange={(e) => {
+                          const checked = e.target.checked
+                          try {
+                            const next = { ...npcState, _app: { ...(npcState._app || {}), autoExport: checked } }
+                            setNpcState(next)
+                          } catch (err) { console.warn(err) }
+                          setAutoExportEnabled(checked)
+                        }} />
+                        <span style={{marginLeft:6}}>Auto-export</span>
+                      </label>
+                      <button type="button" className="button" style={{marginLeft:8}} onClick={async () => {
+                        // Export only NPCs that have edits (merged with base) to a fixed filename so tooling can pick it up
+                        try {
+                          const res = await fetch('/bbs/npcs_full.json')
+                          if (!res.ok) throw new Error('no base npcs')
+                          const base = await res.json()
+                          const baseMap: Record<string, any> = {}
+                          if (Array.isArray(base)) base.forEach((b: any) => { baseMap[b.label] = b })
+                          const out: any[] = []
+                          // include edited merges for any base entries
+                          for (const lbl of Object.keys(npcState)) {
+                            const s = npcState[lbl] || {}
+                            if (s.edited) {
+                              const baseObj = baseMap[lbl] || { label: lbl }
+                              out.push({ ...baseObj, ...s.edited })
+                            }
+                          }
+                          if (out.length === 0) { if (addToast) addToast('No NPC edits to export'); return }
+                          const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `npcs-edited.json`
+                          a.click()
+                          URL.revokeObjectURL(url)
+                          if (addToast) addToast('Exported npcs-edited.json')
+                        } catch (e) { if (addToast) addToast('Export failed'); }
+                      }}>Export npcs-edited.json</button>
                     </div>
                   </div>
 
@@ -168,13 +274,15 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                         if (addToast) addToast('Not time to restock')
                       }
                     }}>Force Restock</button>
-                    <button className="button" style={{marginLeft:8}} onClick={() => {
-                      // initialize stock for this NPC if missing
+                      <button className="button" style={{marginLeft:8}} onClick={() => {
+                      // initialize stock for this NPC if missing, using runtime edited override or generator default
                       const cur = npcState[selected!] || {}
                       const defaultItems = detectShopItems(npc)
                       if (!defaultItems || defaultItems.length === 0) { if (addToast) addToast('No shop items found'); return }
+                      const editedQty = cur && cur.edited && typeof cur.edited.restockDefaultQty === 'number' ? Number(cur.edited.restockDefaultQty) : undefined
+                      const defaultQty = typeof editedQty === 'number' ? editedQty : ((npc && typeof (npc as any).restockDefaultQty === 'number') ? Number((npc as any).restockDefaultQty) : 5)
                       const stock: Record<string, number> = {}
-                      defaultItems.forEach(id => stock[String(id)] = (cur.stock && cur.stock[String(id)]) || 5)
+                      defaultItems.forEach(id => stock[String(id)] = (cur.stock && cur.stock[String(id)]) || defaultQty)
                       const next = { ...npcState, [selected!]: { ...cur, stock } }
                       setNpcState(next)
                       if (addToast) addToast('Initialized stock for NPC')
@@ -199,9 +307,7 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                         </li>
                       ))}</ul>
                     </div>
-                  ) : null}
-
-                  {/* Simple NPC Shop UI — detects numeric arrays and offers Buy button at default price */}
+                  {/* Simple NPC Shop UI — detects numeric arrays and offers Buy/Sell controls */}
                   {(() => {
                     const shopIds = detectShopItems(npc)
                     if (!shopIds || shopIds.length === 0) return null
@@ -217,7 +323,6 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                               <li key={id} style={{marginBottom:6}}>
                                 <span>{name} — {price}g{typeof stock === 'number' ? ` — stock: ${stock}` : ''}</span>
                                 <button className="button" style={{marginLeft:8}} disabled={typeof stock === 'number' && stock <= 0} onClick={() => {
-                                  // buy one via helper
                                   const res = buyItem(selected!, id, price, gold, inventory as any, setNpcState, npcState)
                                   if (!res.ok) { if (addToast) addToast(res.message); return }
                                   if (setGold) setGold(res.gold)
@@ -279,6 +384,66 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                             else if (addToast) addToast('Saved arrays into npcState (edited.arrays)')
                           } catch (e) { if (addToast) addToast('Invalid JSON'); }
                         }}>Save Arrays</button>
+                      </div>
+                    </div>
+                  </details>
+
+                  <details style={{marginTop:8}}>
+                    <summary>Patrols & Scheduled Dialogs</summary>
+                    <div style={{marginTop:8}}>
+                      <div style={{marginBottom:8}}>
+                        <label>Patrol Points</label>
+                        <div style={{display:'flex', marginTop:6}}>
+                          <input value={patrolPoint} onChange={(e) => setPatrolPoint(e.target.value)} placeholder="Location label" style={{flex:1}} />
+                          <button className="button" style={{marginLeft:8}} onClick={() => {
+                            if (!patrolPoint) { if (addToast) addToast('Enter patrol point'); return }
+                            setPatrolPoints(p => [...p, patrolPoint])
+                            setPatrolPoint('')
+                          }}>Add</button>
+                        </div>
+                        <ul style={{marginTop:6}}>{patrolPoints.map((p,i) => (<li key={i} style={{marginBottom:6, display:'flex', alignItems:'center'}}><span style={{flex:1}}>{p}</span><button className="button" style={{marginLeft:8}} onClick={() => setPatrolPoints(ps => ps.filter((_,idx)=>idx!==i))}>Remove</button></li>))}</ul>
+                        <div style={{marginTop:6}}>
+                          <label>Patrol Interval (s)</label>
+                          <input type="number" value={patrolInterval} onChange={e=>setPatrolInterval(Number(e.target.value)||30)} style={{width:120, marginLeft:8}} />
+                          <button className="button" style={{marginLeft:8}} onClick={() => {
+                            const cur = npcState[selected!] || {}
+                            const next = { ...npcState, [selected!]: { ...cur, patrol: patrolPoints, nextPatrolAt: Date.now()+ (patrolInterval*1000), edited: { ...(cur.edited||{}), patrol: patrolPoints, patrolInterval: patrolInterval*1000 } } }
+                            setNpcState(next)
+                            if (addToast) addToast('Saved patrol')
+                          }}>Save Patrol</button>
+                        </div>
+                      </div>
+
+                      <div style={{marginTop:8}}>
+                        <label>Schedule Dialog</label>
+                        <div style={{display:'flex', marginTop:6}}>
+                          <input value={schedText} onChange={(e) => setSchedText(e.target.value)} placeholder="Dialog text" style={{flex:1}} />
+                          <input type="number" value={schedDelay} onChange={e => setSchedDelay(Number(e.target.value)||10)} style={{width:120, marginLeft:8}} />
+                          <button className="button" style={{marginLeft:8}} onClick={() => {
+                            if (!schedText) { if (addToast) addToast('Enter text'); return }
+                            const next = scheduleDialog(selected!, npcState, schedDelay*1000, schedText)
+                            setNpcState(next)
+                            setSchedText('')
+                            if (addToast) addToast('Scheduled dialog')
+                          }}>Schedule</button>
+                        </div>
+                        {state.scheduledDialogs && Array.isArray(state.scheduledDialogs) && state.scheduledDialogs.length > 0 ? (
+                          <ul style={{marginTop:8}}>
+                            {state.scheduledDialogs.map((d:any,i:number)=> (
+                              <li key={i} style={{display:'flex', alignItems:'center', marginBottom:6}}>
+                                <div style={{flex:1}}>{d.text} <small style={{color:'#666', marginLeft:8}}>in {(Math.max(0, d.at - Date.now())/1000).toFixed(1)}s</small></div>
+                                <button className="button" style={{marginLeft:8}} onClick={() => {
+                                  const cur = npcState[selected!] || {}
+                                  const list = Array.isArray(cur.scheduledDialogs) ? [...cur.scheduledDialogs] : []
+                                  list.splice(i,1)
+                                  const nxt = { ...npcState, [selected!]: { ...cur, scheduledDialogs: list } }
+                                  setNpcState(nxt)
+                                  if (addToast) addToast('Removed scheduled dialog')
+                                }}>Remove</button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </div>
                     </div>
                   </details>

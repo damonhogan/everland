@@ -164,7 +164,11 @@ try {
             words,
             unnamedWords,
             comments,
-            raw
+            raw,
+            // generator defaults for runtime: restock quantity and a patrol template
+            restockDefaultQty: 5,
+            patrolTemplate: [],
+            defaultPatrolIntervalMs: 30000
           })
         }
 

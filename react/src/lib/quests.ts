@@ -6,10 +6,14 @@ export type Quest = {
   description: string
   requirements: Array<{ itemId: number; qty: number }>
   reward: InventoryItem[]
-  accepted: boolean
+  // state: 'available' | 'accepted' | 'in_progress' | 'completed'
+  state: 'available' | 'accepted' | 'in_progress' | 'completed'
   completed: boolean
   prerequisites?: number[]
-  triggers?: Array<{ type: string; key?: string; value?: any }>
+  // triggers: rules that respond to events
+  triggers?: Array<{ type: string; key?: string; op?: string; value?: any; action?: 'accept'|'increment'|'complete'; incr?: number }>
+  // optional numeric progress counter
+  progress?: number
 }
 
 export function sampleQuests(): Quest[] {
@@ -20,7 +24,7 @@ export function sampleQuests(): Quest[] {
       description: 'Bring 5 berries to Kira.',
       requirements: [{ itemId: 24, qty: 5 }],
       reward: [{ itemId: 6, qty: 1 }],
-      accepted: false,
+      state: 'available',
       completed: false
     },
     {
@@ -29,7 +33,7 @@ export function sampleQuests(): Quest[] {
       description: 'Deliver 8 wood logs to the carpenter.',
       requirements: [{ itemId: 21, qty: 8 }],
       reward: [{ itemId: 37, qty: 2 }],
-      accepted: false,
+      state: 'available',
       completed: false
     }
   ]
@@ -45,11 +49,63 @@ export function unlockQuests(quests: Quest[]) {
     if (Array.isArray(q.prerequisites) && q.prerequisites.length > 0) {
       const allDone = q.prerequisites.every(pid => byId.get(pid)?.completed)
       if (allDone && !q.completed) {
-        // leave accepted as-is; it's available to accept
+        // ensure state is available
+        if (q.state !== 'completed') q.state = 'available'
       }
     }
   }
   return updated
+}
+
+function evalCondition(event: any, trig: any) {
+  if (!trig || !trig.type) return false
+  if (trig.type !== event.type) return false
+  if (!trig.key) return true
+  const left = event[trig.key]
+  const right = trig.value
+  const op = trig.op || '=='
+  switch (op) {
+    case '==': return left == right
+    case '===': return left === right
+    case '!=': return left != right
+    case '>=': return left >= right
+    case '<=': return left <= right
+    case '>': return left > right
+    case '<': return left < right
+    case 'contains': return Array.isArray(left) ? left.includes(right) : String(left).includes(String(right))
+    default: return false
+  }
+}
+
+export function processEventTrigger(event: any, quests: Quest[]) {
+  if (!event || !event.type) return { quests, accepted: [] }
+  const updated = quests.map(q => ({ ...q }))
+  const accepted: number[] = []
+  const byId = new Map<number, Quest>()
+  for (const q of updated) byId.set(q.id, q)
+
+  for (const q of updated) {
+    if (q.completed) continue
+    if (!Array.isArray(q.triggers) || q.triggers.length === 0) continue
+    for (const t of q.triggers) {
+      if (!evalCondition(event, t)) continue
+      // perform action
+      if (t.action === 'accept') {
+        if (q.state === 'available') { q.state = 'accepted'; accepted.push(q.id) }
+      } else if (t.action === 'increment') {
+        q.progress = (q.progress || 0) + (typeof t.incr === 'number' ? t.incr : 1)
+        if (q.progress && q.requirements && q.requirements.length === 0) q.state = 'in_progress'
+      } else if (t.action === 'complete') {
+        q.state = 'completed'
+        q.completed = true
+      } else {
+        // default: accept
+        if (q.state === 'available') { q.state = 'accepted'; accepted.push(q.id) }
+      }
+    }
+  }
+
+  return { quests: updated, accepted }
 }
 
 // Accept a quest by id

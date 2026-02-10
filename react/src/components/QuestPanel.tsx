@@ -5,7 +5,7 @@ import type { InventoryItem } from '../lib/crafting'
 
 export default function QuestPanel({ quests, setQuests, inventory, setInventory, names, addToast }: { quests: Quest[]; setQuests: (q: Quest[]) => void; inventory: InventoryItem[]; setInventory: (i: InventoryItem[]) => void; names: Record<string,string>, addToast?: (m:string)=>void }) {
   const accept = (id: number) => {
-    setQuests(quests.map(q => q.id === id ? { ...q, accepted: true } : q))
+    setQuests(quests.map(q => q.id === id ? { ...q, state: 'accepted' } : q))
     const q = quests.find(x => x.id === id)
     if (q && addToast) addToast(`Accepted quest: ${q.title}`)
   }
@@ -23,7 +23,7 @@ export default function QuestPanel({ quests, setQuests, inventory, setInventory,
       else newInv.push({ itemId: r.itemId, qty: r.qty })
     }
     setInventory(newInv)
-    setQuests(quests.map(x => x.id === id ? { ...x, completed: true } : x))
+    setQuests(quests.map(x => x.id === id ? { ...x, completed: true, state: 'completed' } : x))
     if (addToast) addToast(`Quest complete: ${q.title}`)
   }
 
@@ -32,7 +32,7 @@ export default function QuestPanel({ quests, setQuests, inventory, setInventory,
       <h3>Quest Board</h3>
       {quests.map(q => (
         <div key={q.id} className="recipe">
-          <div><strong>{q.title}</strong> {q.completed ? '(Completed)' : q.accepted ? '(Accepted)' : ''}</div>
+          <div><strong>{q.title}</strong> {q.state === 'completed' ? '(Completed)' : q.state === 'accepted' ? '(Accepted)' : q.state === 'in_progress' ? '(In Progress)' : ''}</div>
           <div>{q.description}</div>
           <div><strong>Requires:</strong> {q.requirements.map(r => `${names[String(r.itemId)] ?? '#'+r.itemId} x${r.qty}`).join(', ')}</div>
           <div><strong>Rewards:</strong> {q.reward.map(r => `${names[String(r.itemId)] ?? '#'+r.itemId} x${r.qty}`).join(', ')}</div>
@@ -45,15 +45,33 @@ export default function QuestPanel({ quests, setQuests, inventory, setInventory,
                   <label style={{display:'block', marginBottom:6}}>Add Trigger</label>
                   <div style={{display:'flex', gap:8, alignItems:'center'}}>
                     <input placeholder="type (eg. crime)" defaultValue="crime" id={`tr-type-${q.id}`} style={{width:140}} />
+                    <select id={`tr-op-${q.id}`} defaultValue="==">
+                      <option value="==">==</option>
+                      <option value=">=">&gt;=</option>
+                      <option value="<=">&lt;=</option>
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value="contains">contains</option>
+                    </select>
                     <input placeholder="key (optional)" id={`tr-key-${q.id}`} style={{width:120}} />
                     <input placeholder="value (optional)" id={`tr-val-${q.id}`} style={{width:120}} />
+                    <select id={`tr-action-${q.id}`} defaultValue="accept">
+                      <option value="accept">accept</option>
+                      <option value="increment">increment</option>
+                      <option value="complete">complete</option>
+                    </select>
+                    <input placeholder="incr (opt)" id={`tr-incr-${q.id}`} style={{width:80}} />
                     <button className="button" onClick={() => {
                       const t = (document.getElementById(`tr-type-${q.id}`) as HTMLInputElement).value || 'crime'
+                      const op = (document.getElementById(`tr-op-${q.id}`) as HTMLSelectElement).value
                       const k = (document.getElementById(`tr-key-${q.id}`) as HTMLInputElement).value
                       const v = (document.getElementById(`tr-val-${q.id}`) as HTMLInputElement).value
-                      const trig: any = { type: t }
+                      const action = (document.getElementById(`tr-action-${q.id}`) as HTMLSelectElement).value as any
+                      const incrRaw = (document.getElementById(`tr-incr-${q.id}`) as HTMLInputElement).value
+                      const trig: any = { type: t, op, action }
                       if (k) trig.key = k
                       if (v) trig.value = isNaN(Number(v)) ? v : Number(v)
+                      if (incrRaw) trig.incr = Number(incrRaw)
                       const next = quests.map(x => x.id === q.id ? { ...x, triggers: [ ...(x.triggers||[]), trig ] } : x)
                       setQuests(next)
                       if (addToast) addToast('Added trigger')

@@ -30,6 +30,41 @@ export function detectShopItemsFromNpc(npc: NPC): number[] {
   return Array.from(new Set(ids))
 }
 
+// Patrols / schedules helpers
+export function setPatrol(label: string, npcState: Record<string, any>, points: string[]) {
+  const cur = npcState[label] || {}
+  const next = { ...npcState, [label]: { ...cur, patrol: points, patrolIndex: 0, nextPatrolAt: Date.now() + 1000 } }
+  return next
+}
+
+export function advancePatrol(label: string, npcState: Record<string, any>, intervalMs = 1000 * 30) {
+  const cur = npcState[label] || {}
+  const pts: string[] = Array.isArray(cur.patrol) ? cur.patrol : []
+  if (pts.length === 0) return { moved: false, nextState: npcState }
+  const idx = typeof cur.patrolIndex === 'number' ? cur.patrolIndex : 0
+  const nextIdx = (idx + 1) % pts.length
+  const next = { ...npcState, [label]: { ...cur, patrolIndex: nextIdx, nextPatrolAt: Date.now() + intervalMs } }
+  return { moved: true, nextState: next, location: pts[nextIdx] }
+}
+
+export function scheduleDialog(label: string, npcState: Record<string, any>, whenMs: number, text: string) {
+  const cur = npcState[label] || {}
+  const list = Array.isArray(cur.scheduledDialogs) ? [...cur.scheduledDialogs] : []
+  list.push({ at: Date.now() + whenMs, text })
+  const next = { ...npcState, [label]: { ...cur, scheduledDialogs: list } }
+  return next
+}
+
+export function popDueDialogs(label: string, npcState: Record<string, any>) {
+  const cur = npcState[label] || {}
+  const list = Array.isArray(cur.scheduledDialogs) ? [...cur.scheduledDialogs] : []
+  const now = Date.now()
+  const due = list.filter((d:any) => d.at <= now)
+  const remaining = list.filter((d:any) => d.at > now)
+  const next = { ...npcState, [label]: { ...cur, scheduledDialogs: remaining } }
+  return { texts: due.map((d:any)=>d.text), nextState: next }
+}
+
 // Buy/Sell helpers that return updated gold/inventory and npcState
 export function buyItem(label: string, itemId: number, price: number, gold: number | null | undefined, inventory: any[], setNpcState: (s: Record<string, any>) => void, npcState: Record<string, any>) {
   if (gold == null || gold < price) return { ok: false, message: 'Not enough gold', gold, inventory, npcState }

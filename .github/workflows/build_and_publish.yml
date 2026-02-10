@@ -1,0 +1,33 @@
+name: Build and Publish Demo
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Generate assets
+        run: |
+          node react/tools/convert_assets.js
+      - name: Install dependencies
+        run: |
+          cd react
+          npm ci
+      - name: Build and zip demo
+        run: |
+          cd react
+          npm run build:zip
+      - name: Upload demo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: everland-react-demo
+          path: react/everland-react-demo-*.zip

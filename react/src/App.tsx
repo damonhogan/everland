@@ -26,6 +26,7 @@ import { loadLocal, saveLocal, importSave as importSaveManager, getLocalRaw, CUR
 import useNpcScheduler from './lib/npcScheduler'
 import { loadEvents } from './lib/events'
 import { processEventTrigger } from './lib/quests'
+import { processNewEvents } from './lib/guards'
 
 export default function App() {
   const [inventory, setInventory] = useState<InventoryItem[]>([
@@ -66,6 +67,38 @@ export default function App() {
         addToast(`Loaded local save (v${s.version || 1})`)
       }
     } catch (e) {}
+
+    // merge generator defaults (patrolTemplate, defaultPatrolIntervalMs) into npcState for any NPCs missing patrols
+    (async () => {
+      try {
+        const res = await fetch('/bbs/npcs_full.json')
+        if (!res.ok) return
+        const baseNpcs = await res.json()
+        if (!Array.isArray(baseNpcs)) return
+        // build merged npcState with patrol defaults applied where missing
+        setNpcState(cur => {
+          try {
+            const next = { ...(cur || {}) }
+            for (const npc of baseNpcs) {
+              if (!npc || !npc.label) continue
+              const lbl = npc.label
+              const curEntry = next[lbl] || {}
+              // if there's no patrol in state, but generator has a patrolTemplate, apply it
+              if ((!Array.isArray(curEntry.patrol) || curEntry.patrol.length === 0) && Array.isArray(npc.patrolTemplate) && npc.patrolTemplate.length > 0) {
+                next[lbl] = { ...curEntry, patrol: npc.patrolTemplate.slice(), patrolIndex: 0, nextPatrolAt: Date.now() + (npc.defaultPatrolIntervalMs || npc.defaultPatrolIntervalMs === 0 ? Number(npc.defaultPatrolIntervalMs) : 30000) }
+              }
+              // ensure edited defaults exist
+              if (npc.restockDefaultQty && (!curEntry.edited || typeof curEntry.edited.restockDefaultQty === 'undefined')) {
+                next[lbl] = { ...(next[lbl] || curEntry), edited: { ...(curEntry.edited || {}), restockDefaultQty: npc.restockDefaultQty } }
+              }
+            }
+            return next
+          } catch (e) { return cur }
+        })
+      } catch (e) {
+        // ignore
+      }
+    })()
   }, [])
 
   // auto-complete accepted quests when inventory changes
@@ -88,6 +121,10 @@ export default function App() {
   useEffect(() => {
     const id = setInterval(() => {
       try {
+        // first process guard reactions
+        const reports = processNewEvents()
+        if (reports && reports.length > 0) setGuardReports(gr => [...reports, ...gr].slice(0,50))
+
         const evs = loadEvents()
         for (let i = evs.length - 1; i >= 0; i--) {
           const e = evs[i]
