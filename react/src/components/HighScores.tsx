@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { loadHighScores, addHighScore, clearHighScores, HighScore } from '../lib/highscores'
+import { useGameData } from '../context/GameDataContext'
 
 export default function HighScores({ addToast }: { addToast?: (m:string)=>void }) {
+  const gd = useGameData()
   const [list, setList] = useState<HighScore[]>([])
   const [name, setName] = useState('Player')
   const [score, setScore] = useState(0)
@@ -19,7 +21,7 @@ export default function HighScores({ addToast }: { addToast?: (m:string)=>void }
 
   return (
     <div style={{marginTop:12}}>
-      <h3>High Scores</h3>
+      <h3>High Scores {gd.status ? `(${gd.status})` : ''}</h3>
       <div style={{marginBottom:8}}>
         <input value={name} onChange={e=>setName(e.target.value)} style={{width:140}} />
         <input type="number" value={score} onChange={e=>setScore(Number(e.target.value))} style={{width:100, marginLeft:8}} />

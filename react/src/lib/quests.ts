@@ -113,36 +113,6 @@ export function acceptQuestById(quests: Quest[], id: number) {
   return quests.map(q => q.id === id ? { ...q, accepted: true } : q)
 }
 
-// Process a single game event and accept quests whose triggers match the event
-export function processEventTrigger(event: any, quests: Quest[]): { quests: Quest[]; accepted: number[] } {
-  if (!event || !event.type) return { quests, accepted: [] }
-  const accepted: number[] = []
-  const updated = quests.map(q => ({ ...q }))
-  const byId = new Map<number, Quest>()
-  for (const qq of updated) byId.set(qq.id, qq)
-
-  for (const q of updated) {
-    if (q.completed || q.accepted) continue
-    if (!Array.isArray(q.triggers) || q.triggers.length === 0) continue
-    for (const t of q.triggers) {
-      if (t.type !== event.type) continue
-      // basic payload match: if key present, compare event[key] === value
-      if (t.key && typeof t.value !== 'undefined') {
-        if ((event as any)[t.key] === t.value) {
-          // ensure prerequisites satisfied
-          const allDone = Array.isArray(q.prerequisites) ? q.prerequisites.every(pid => byId.get(pid)?.completed) : true
-          if (allDone) { q.accepted = true; accepted.push(q.id); }
-        }
-      } else {
-        const allDone = Array.isArray(q.prerequisites) ? q.prerequisites.every(pid => byId.get(pid)?.completed) : true
-        if (allDone) { q.accepted = true; accepted.push(q.id); }
-      }
-    }
-  }
-
-  return { quests: updated, accepted }
-}
-
 export function canCompleteQuest(q: Quest, inventory: InventoryItem[]) {
   for (const req of q.requirements) {
     const have = inventory.reduce((s, it) => (it.itemId === req.itemId ? s + it.qty : s), 0)

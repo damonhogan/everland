@@ -8,6 +8,21 @@ export default function MessageBoard({ addToast }: { addToast?: (m:string)=>void
 
   useEffect(() => setPosts(loadPosts()), [])
 
+  useEffect(() => {
+    const onRumor = (ev: any) => {
+      try {
+        const d = ev.detail || {}
+        const text = d.text || (typeof ev === 'string' ? ev : '')
+        if (!text) return
+        addPost('GM Rumor', text)
+        setPosts(loadPosts())
+        if (addToast) addToast('New rumor posted to board')
+      } catch (e) {}
+    }
+    window.addEventListener('gm:rumor', onRumor as EventListener)
+    return () => window.removeEventListener('gm:rumor', onRumor as EventListener)
+  }, [])
+
   function submit() {
     if (!body.trim()) { if (addToast) addToast('Empty message'); return }
     addPost(author || 'Anon', body)

@@ -2,6 +2,11 @@ import React from 'react'
 import CraftingBrowser from './components/CraftingBrowser'
 import ManualViewer from './components/ManualViewer'
 import LorePanel from './components/LorePanel'
+import NPCCards from './components/NPCCards'
+import HandoutsPanel from './components/HandoutsPanel'
+import RumorPanel from './components/RumorPanel'
+import AdminPanel from './components/AdminPanel'
+import GMDashboard from './components/GMDashboard'
 import Toasts from './components/Toast'
 import InventoryPanel, { InventoryItem } from './components/InventoryPanel'
 import QuestPanel from './components/QuestPanel'
@@ -53,6 +58,17 @@ export default function App() {
   const [itemNames, setItemNames] = useState<Record<string,string>>({})
 
   useEffect(() => {
+    // listen for GM rumors and show a toast notification
+    const onRumor = (e: any) => {
+      try {
+        const d = e.detail || {}
+        if (d && d.text) addToast(`Rumor: ${d.text}`)
+      } catch (err) {}
+    }
+    window.addEventListener('gm:rumor', onRumor as EventListener)
+    return () => window.removeEventListener('gm:rumor', onRumor as EventListener)
+  }, [])
+
     fetch('/bbs/item_map.json').then(r => r.json()).then(j => setItemNames(j || {})).catch(() => setItemNames({}))
     fetch('/bbs/quests.json').then(r => { if (r.ok) return r.json(); return null }).then(qj => { if (Array.isArray(qj)) setQuests(qj) }).catch(() => {})
     // attempt to auto-load a save on startup
@@ -215,6 +231,11 @@ export default function App() {
         <section className="col">
           <ManualViewer />
           <LorePanel />
+          <GMDashboard />
+          <NPCCards />
+          <HandoutsPanel />
+          <RumorPanel />
+          <AdminPanel />
         </section>
         <section className="col">
           <InventoryPanel inventory={inventory} setInventory={setInventory} />

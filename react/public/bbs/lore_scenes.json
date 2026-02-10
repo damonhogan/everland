@@ -1,0 +1,17 @@
+[
+  {
+    "id": "yt_scene_vid_test",
+    "title": "NPC Candidate",
+    "description": "NPC Candidate",
+    "steps": [
+      {
+        "id": 1,
+        "text": "Say hello"
+      },
+      {
+        "id": 2,
+        "text": "Do a thing"
+      }
+    ]
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "sources": [
+    { "id": "forest_ambience", "url": "https://example.com/forest_ambience_loop.mp3" },
+    { "id": "portal_flicker", "url": "https://example.com/portal_flicker_loop.mp3" }
+  ]
+}

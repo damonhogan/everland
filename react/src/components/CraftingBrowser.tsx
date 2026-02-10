@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { craftExecute, Recipe } from '../lib/crafting'
 import type { InventoryItem } from '../lib/crafting'
 import RecipeDetail from './RecipeDetail'
+import { useGameData } from '../context/GameDataContext'
 
 // Recipe type moved to crafting lib
 
@@ -50,19 +51,11 @@ function parseRecipes(asmText: string): Recipe[] {
 }
 
 export default function CraftingBrowser({ stationId, stationName, inventory, setInventory }: { stationId: number; stationName: string; inventory: InventoryItem[]; setInventory: (i: InventoryItem[]) => void }) {
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [names, setNames] = useState<Record<string,string>>({})
+  const gd = useGameData()
   const [message, setMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/bbs/recipes.json').then(r => r.json()).catch(() => []),
-      fetch('/bbs/item_map.json').then(r => r.json()).catch(() => ({}))
-    ]).then(([recipesJson, itemMap]) => {
-      setRecipes(Array.isArray(recipesJson) ? recipesJson : [])
-      setNames(itemMap || {})
-    }).catch(() => { setRecipes([]); setNames({}) })
-  }, [])
+  const recipes = (gd.data?.recipes ?? []) as Recipe[]
+  const names = (gd.data?.items ?? {}) as Record<string, any>
 
   const stationRecipes = recipes.filter(r => r.station_id === stationId)
   const [selectedId, setSelectedId] = useState<number | null>(null)

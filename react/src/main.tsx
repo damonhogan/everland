@@ -2,9 +2,12 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles.css'
+import { GameDataProvider } from './context/GameDataContext'
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <GameDataProvider>
+      <App />
+    </GameDataProvider>
   </React.StrictMode>
 )

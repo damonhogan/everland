@@ -1,0 +1,217 @@
+[
+  {
+    "id": "yt_vid_test",
+    "name": "NPC Candidate",
+    "role": "Derived",
+    "short_blurb": "NPC Candidate",
+    "voice_lines": [
+      "Say hello",
+      "Do a thing"
+    ],
+    "costume": "Derived from video"
+  },
+  {
+    "id": "yt_vid_test",
+    "name": "NPC Candidate",
+    "role": "Derived",
+    "short_blurb": "NPC Candidate",
+    "voice_lines": [
+      "Say hello",
+      "Do a thing"
+    ],
+    "costume": "Derived from video"
+  },
+  {
+    "id": "yt_vid_test",
+    "name": "NPC Candidate",
+    "role": "Derived",
+    "short_blurb": "NPC Candidate",
+    "voice_lines": [
+      "Say hello",
+      "Do a thing"
+    ],
+    "costume": "Derived from video"
+  },
+  {
+    "id": "mage_damon",
+    "name": "Mage Damon",
+    "role": "Mage / Mentor",
+    "short_blurb": "An inspiring diviner who channels ambient magic and guides lost companions.",
+    "goals": [
+      "Recover lost lore of the black sun and moon crystals",
+      "Protect refugees"
+    ],
+    "secrets": [
+      "The headpiece contains concentrated ambient magic he cannot fully control"
+    ],
+    "voice_lines": [
+      "Stand fast — memory returns with action.",
+      "We must bind the crystal before it consumes us."
+    ],
+    "costume": "Ritual robes with a small spider-themed headpiece; pouch with crystal globe prop.",
+    "props": [
+      "small globe (black crystal)",
+      "tome or scroll"
+    ],
+    "friendly": true
+  },
+  {
+    "id": "knight_damian",
+    "name": "Damian",
+    "role": "Knight / Guide",
+    "short_blurb": "A wise, steady knight who regains memories early and helps others find purpose.",
+    "goals": [
+      "Lead the Order's remnants",
+      "Protect Princess Delphinia"
+    ],
+    "secrets": [
+      "Personal feelings for Delphinia influence his decisions"
+    ],
+    "voice_lines": [
+      "Hold the line!",
+      "When in doubt, remember the oath."
+    ],
+    "costume": "Worn plate or leather, black rose tabard, simple cloak.",
+    "props": [
+      "black rose token",
+      "shield or heraldry badge"
+    ],
+    "friendly": true
+  },
+  {
+    "id": "knight_barnabis",
+    "name": "Barnabis",
+    "role": "Knight / Loyalist",
+    "short_blurb": "Stalwart companion with unwavering loyalty and a blunt approach to problems.",
+    "goals": [
+      "Defend the group",
+      "Avenge fallen order members"
+    ],
+    "secrets": [],
+    "voice_lines": [
+      "By my blade!",
+      "We stand together, always."
+    ],
+    "costume": "Travel-worn armor, simple tabard, heavy boots.",
+    "props": [
+      "spear or foam weapon",
+      "black rose pin"
+    ],
+    "friendly": true
+  },
+  {
+    "id": "princess_delphinia",
+    "name": "Princess Delphinia (Delphi)",
+    "role": "Princess / Enigmatic",
+    "short_blurb": "A royal with a fractured mind; sometimes distant, sometimes vital to rituals.",
+    "goals": [
+      "Recover her true self",
+      "Support Damon and Damian"
+    ],
+    "secrets": [
+      "A spirit influence causes split behavior at times"
+    ],
+    "voice_lines": [
+      "I remember… fragments, like a song.",
+      "Protect them at all costs."
+    ],
+    "costume": "Tattered but noble gown, spider-themed amulet; faintly regal.",
+    "props": [
+      "spider headpiece or brooch",
+      "small crystal amulet"
+    ],
+    "friendly": true
+  },
+  {
+    "id": "kasimere",
+    "name": "Arch Magus Kasimere",
+    "role": "Antagonist / Vampire Lord",
+    "short_blurb": "The cunning vampire arch-magus; manipulative, patient, and dangerous.",
+    "goals": [
+      "Extend vampire influence into Everland",
+      "Claim crystals and portals"
+    ],
+    "secrets": [
+      "Has a psychic tether to certain refugees"
+    ],
+    "voice_lines": [
+      "You will kneel to order, or to me.",
+      "Memories can be reshaped — willingly or not."
+    ],
+    "costume": "Dark elegant attire with sanguine accents; subtle fanged makeup.",
+    "props": [
+      "dark crystal globe",
+      "ornate cloak"
+    ],
+    "friendly": false
+  },
+  {
+    "id": "pumpkin_king",
+    "name": "Pumpkin King",
+    "role": "Mind-Warping Foe / Theatrical",
+    "short_blurb": "A theatrical, chaotic ruler whose influence bends minds and revels in mischief.",
+    "goals": [
+      "Spread chaos",
+      "Dominate minds with carved rites"
+    ],
+    "secrets": [
+      "His physical form is tied to the cursed garden's thorns"
+    ],
+    "voice_lines": [
+      "Bow to the gourd!",
+      "Dance until you remember nothing but joy."
+    ],
+    "costume": "Large pumpkin mask or headpiece, flowing robes, orange LED accents.",
+    "props": [
+      "pumpkin throne prop",
+      "carved lanterns"
+    ],
+    "friendly": false
+  },
+  {
+    "id": "tinker_marla",
+    "name": "Marla the Tinker",
+    "role": "Market Tinker / Merchant",
+    "short_blurb": "A bright-eyed maker who repairs trinkets and knows gossip across the market.",
+    "goals": [
+      "Rebuild her lost automaton",
+      "Trade rare components"
+    ],
+    "secrets": [
+      "Hides a small memory shard inside one of her creations"
+    ],
+    "voice_lines": [
+      "It takes a gentle hand and a stubborn spirit.",
+      "I've seen stranger things in the bazaar!"
+    ],
+    "costume": "Patchwork leather apron, many pockets for bits and gears.",
+    "props": [
+      "small toolkit",
+      "brass automaton piece"
+    ],
+    "friendly": true
+  },
+  {
+    "id": "archivist_lora",
+    "name": "Lora the Archivist",
+    "role": "Archivist / Lorekeeper",
+    "short_blurb": "Quiet and meticulous, she guards fragments of Everland's history in the dust-laden stacks.",
+    "goals": [
+      "Organize scattered fragments",
+      "Protect forbidden tomes"
+    ],
+    "secrets": [
+      "Once belonged to a secret order that rewrote memories"
+    ],
+    "voice_lines": [
+      "Knowledge is a slow river.",
+      "There are pages that should not be opened, and pages that must."
+    ],
+    "costume": "Layered robes with ink stains, small spectacles, satchel of notes.",
+    "props": [
+      "bundle of scrolls",
+      "ink-stained quill"
+    ],
+    "friendly": true
+  }
+]

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { loadFriends, addFriend, removeFriend, clearFriends } from '../lib/friends'
+import { useGameData } from '../context/GameDataContext'
 
 export default function FriendsPanel({ addToast }: { addToast?: (m:string)=>void }){
+  const gd = useGameData()
   const [friends, setFriends] = useState<{name:string}[]>([])
   const [name, setName] = useState('')
   useEffect(()=> setFriends(loadFriends()), [])
@@ -10,7 +12,7 @@ export default function FriendsPanel({ addToast }: { addToast?: (m:string)=>void
   function clearAll(){ clearFriends(); setFriends([]); if (addToast) addToast('Friends cleared') }
   return (
     <div style={{marginTop:12}}>
-      <h3>Friends</h3>
+      <h3>Friends {gd.status ? `(${gd.status})` : ''}</h3>
       <div>
         <input value={name} onChange={e=>setName(e.target.value)} />
         <button className="button" style={{marginLeft:8}} onClick={add}>Add</button>

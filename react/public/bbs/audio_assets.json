@@ -1,0 +1,40 @@
+{
+  "tracks": [
+    {
+      "id": "ca1",
+      "title": "Audio Candidate",
+      "src": "/bbs/music/test.mp3",
+      "description": "Audio Candidate"
+    },
+    {
+      "id": "ca1",
+      "title": "Audio Candidate",
+      "src": "/bbs/music/test.mp3",
+      "description": "Audio Candidate"
+    },
+    {
+      "id": "ca1",
+      "title": "Audio Candidate",
+      "src": "/bbs/music/test.mp3",
+      "description": "Audio Candidate"
+    },
+    {
+      "id": "forest_ambience",
+      "title": "Forest Ambience (Everland)",
+      "src": "/music/forest_ambience_loop.mp3",
+      "description": "Gentle forest sounds with distant chimes."
+    },
+    {
+      "id": "portal_flicker",
+      "title": "Portal Flicker (Everland)",
+      "src": "/music/portal_flicker_loop.mp3",
+      "description": "Bubbling, reversed chords and whooshes for portal scenes."
+    },
+    {
+      "id": "wedding_theme",
+      "title": "Wedding Theme (Everland)",
+      "src": "/music/wedding_theme.mp3",
+      "description": "Soft harp and strings for ceremonies."
+    }
+  ]
+}

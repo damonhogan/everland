@@ -1,0 +1,38 @@
+name: React E2E (mock server)
+
+on:
+  push:
+    paths:
+      - 'react/**'
+  pull_request:
+    paths:
+      - 'react/**'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: |
+          cd react
+          npm ci
+      - name: Start mock server (background, logs)
+        run: |
+          cd react
+          nohup node server.js > build.log 2>&1 &
+          npx wait-on http://localhost:3001/api/quests --timeout 20000
+      - name: Run tests
+        run: |
+          cd react
+          npm test --silent
+      - name: Collect server logs
+        if: failure()
+        run: |
+          ps aux || true
+          echo "--- last server log (if any) ---"
+          tail -n 200 react/build.log || true

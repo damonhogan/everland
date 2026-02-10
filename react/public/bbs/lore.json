@@ -1,0 +1,31 @@
+{
+  "canonical_summary": "Lore was once a prosperous kingdom defended by the Order of the Black Rose. A vampiric invasion and monstrous corruption toppled the order and scattered its champions through a portal into Everland, where memory loss left refugees stranded and vulnerable. Mage Damon, Knights Damian and Barnabis, and Princess Delphinia escaped with the dark sun and moon crystals. In Everland they slowly recovered their memories, united with local defenders, and fought a string of threats: the mind-warping Pumpkin King, Kasimere the arch-magus vampire, and the cursed garden of green-thorn plants. Through oaths, sacrifice, and unity they reclaimed hope: sealing portals, shattering tyrants, and rebuilding their realms. The setting blends high-magic artifacts, ritual oaths (the green-thorn pledge), whimsical Everland characters (pumpkin fae Marmalade, Marigold, Butterscotch), and a persistent threat from vampire corruption.",
+
+  "player_summary": "You are a participant in reconciling two fallen worlds: Lore and Everland. Choose a role (knight, mage, refugee, fae, villager) and pursue quests that reveal lost memories, defend settlements, and confront corrupted leaders. Key places: the cursed garden, the Pumpkin King's throne, Everland Park, and the portal sites. Key threats: vampires led by Kasimere and the Pumpkin King's mind-warping influence. Key hooks: oaths sworn on the green thorn, crystal artifacts (black sun & moon), and the wedding of Damien & Delphinia. Interact with NPCs, perform rituals, and reenact pivotal scenes (battle vs Pumpkin King, confronting Kasimere, village festivals).",
+
+  "gm_notes": {
+    "overview": "This campaign mixes combat, social persuasion, and theatrical beats. Players recover memories via quests; corrupted refugees can be redeemed through roleplay or fought. Use ambient audio and simple props (crystals, a carved pumpkin throne, black rose tokens) to heighten immersion.",
+    "scenes": [
+      {
+        "id": "pumpkin_battle",
+        "title": "The Pumpkin Throne",
+        "setup": "The group reaches the cursed garden. Thorn props and subdued orange lighting; distant laughter and carnival music warped into minor key.",
+        "beats": [
+          "Entrance: knights push through thorned curtains; fae whisper mischief.",
+          "Mid: Pumpkin King taunts the party; people enthralled by a charm — require a ritual or simultaneous roleplay to break.",
+          "Climax: coordinated attack (knights + magic + spear strike). A sacrifice or clever staged move breaks the King and frees the garden."
+        ],
+        "ambience": { "music": "pumpkin_theme.mp3", "sfx": ["thorns_rustle.wav","crowd_gasp.wav"] },
+        "props": ["pumpkin throne", "green thorn (prop)", "black rose token"]
+      },
+      {
+        "id": "kasimere_influence",
+        "title": "Whispers of Kasimere",
+        "setup": "Low light, whisper audio; staged scenes where NPCs receive private whispers from Kasimere. Provide secret briefings to corrupted NPCs.",
+        "beats": ["Incursion: refugees act oddly; hints of bribes and fear.", "Reveal: players regain a memory or find a crystal link; they can attempt to redeem or expose the corrupted.", "Resolution: either cleanse via ritual or fight a miniboss lieutenant."]
+      }
+    ],
+    "safety": "Establish consent gestures (safe word/hand-signal), limit physical contact to props, and assign marshals for crowd and escalation control.",
+    "props_guide": "Use foam weapons and symbolic crystals. Avoid sharp items; mark safe zones for stunts. Print oaths on scrolls for players to recite."
+  }
+}

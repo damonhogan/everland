@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import loadNpcs, { NPC } from '../lib/npcs'
+import { useGameData } from '../context/GameDataContext'
 import { talkToNpc, getPriceForItem, buyItem, sellItem, enqueueDialog, popDialog, ensureRestock, scheduleDialog } from '../lib/npcService'
 
 type Props = {
@@ -14,7 +14,8 @@ type Props = {
 }
 
 export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGold, inventory, setInventory, addToast }: Props) {
-  const [npcs, setNpcs] = useState<NPC[]>([])
+  const gd = useGameData()
+  const [npcs, setNpcs] = useState<any[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [lastDialog, setLastDialog] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
@@ -41,7 +42,9 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
     }).catch(() => {})
   }, [])
 
-  useEffect(() => { loadNpcs().then(setNpcs) }, [])
+  useEffect(() => {
+    if (gd.status === 'ready' && Array.isArray(gd.data?.npcs)) setNpcs(gd.data!.npcs as any[])
+  }, [gd.status, gd.data])
 
   // when selecting an NPC, load any existing patrol points/interval from npcState[selected].edited.patrol
   useEffect(() => {
@@ -316,7 +319,7 @@ export default function NPCPanel({ npcState, setNpcState, itemNames, gold, setGo
                         <h5>Shop</h5>
                         <ul style={{paddingLeft:12}}>
                           {shopIds.map(id => {
-                            const name = (itemNames && (itemNames[id] || itemNames[String(id)])) || (typeof id === 'number' ? `Item ${id}` : String(id))
+                            const name = ((gd.data && gd.data.items) && ((gd.data.items as any)[id] || (gd.data.items as any)[String(id)])) || (typeof id === 'number' ? `Item ${id}` : String(id))
                             const price = getPriceForItem(id, shopPrices, state)
                             const stock = state && state.stock ? Number(state.stock[String(id)] || 0) : undefined
                             return (

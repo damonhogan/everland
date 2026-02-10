@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "videoId": "vid_test",
+      "title": "Test Video",
+      "candidates": [
+        {
+          "id": "ca1",
+          "type": "audio",
+          "title": "Audio Candidate",
+          "src": "/bbs/music/test.mp3"
+        }
+      ]
+    }
+  ]
+}

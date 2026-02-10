@@ -1,0 +1,5 @@
+@media print {
+  body { font-family: 'Times New Roman', serif; }
+  .handout { page-break-inside: avoid; border: 1px solid #333; padding: 12px; margin: 8px; }
+  .handout .title { font-weight: bold; font-size: 18px; margin-bottom: 8px }
+}

@@ -26,4 +26,26 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: react-build
-          path: react/dist || react/build || react/.output
+          path: react/dist
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Build site
+        working-directory: react
+        run: |
+          npm ci
+          npm run build
+      - name: Upload artifact for Pages
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: react/dist
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
