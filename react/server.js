@@ -278,7 +278,7 @@ app.post('/api/admin/approve', (req, res) => {
     const provided = req.headers['x-admin-secret'] || ''
     if (!provided || String(provided) !== ADMIN_SECRET) return res.status(403).json({ ok: false, error: 'admin secret required' })
   }
-  const { videoId, candidateId, publishTo } = req.body || {}
+  const { videoId, candidateId, publishTo, metadata } = req.body || {}
   if (!videoId || !candidateId || !publishTo) return res.status(400).json({ ok:false, error:'videoId, candidateId and publishTo required' })
   const pendingPath = path.join(__dirname, 'public', 'bbs', 'pending_assets.json')
   if (!require('fs').existsSync(pendingPath)) return res.status(404).json({ ok:false, error:'no pending file' })
@@ -312,12 +312,12 @@ app.post('/api/admin/approve', (req, res) => {
       // build a richer scene template using suggestedLines as steps and optional metadata
       const scene = {
         id: 'yt_scene_' + videoId,
-        title: candidate.title,
-        description: candidate.description || candidate.title,
-        location: candidate.location || 'Unknown',
-        npc_refs: candidate.npc_refs || candidate.npcIds || [],
-        tags: candidate.tags || [],
-        steps: (candidate.suggestedLines || []).map((t, i) => ({ id: i+1, text: t }))
+        title: (metadata && metadata.title) || candidate.title,
+        description: (metadata && metadata.description) || candidate.description || candidate.title,
+        location: (metadata && metadata.location) || candidate.location || 'Unknown',
+        npc_refs: (metadata && metadata.npc_refs) || candidate.npc_refs || candidate.npcIds || [],
+        tags: (metadata && metadata.tags) || candidate.tags || [],
+        steps: (metadata && metadata.steps) || (candidate.suggestedLines || []).map((t, i) => ({ id: i+1, text: t }))
       }
       scenes.unshift(scene)
       require('fs').writeFileSync(scenesPath, JSON.stringify(scenes, null, 2))

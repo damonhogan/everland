@@ -1,11 +1,11 @@
 {
   "items": [
     {
-      "videoId": "vid_test",
+      "videoId": "vid123",
       "title": "Test Video",
       "candidates": [
         {
-          "id": "ca1",
+          "id": "c1",
           "type": "audio",
           "title": "Audio Candidate",
           "src": "/bbs/music/test.mp3"

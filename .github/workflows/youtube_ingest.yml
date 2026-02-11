@@ -1,0 +1,33 @@
+name: Scheduled YouTube Ingest
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # daily at 02:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: |
+          cd react
+          npm ci
+      - name: Run youtube ingest
+        env:
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          CARTOONIZE_API_KEY: ${{ secrets.CARTOONIZE_API_KEY }}
+        run: |
+          cd react
+          node tools/youtube_ingest.js || echo "youtube_ingest failed (check logs)"
+      - name: Upload pending assets artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pending-assets
+          path: react/public/bbs/pending_assets.json

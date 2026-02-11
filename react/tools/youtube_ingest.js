@@ -43,6 +43,19 @@ async function listVideos() {
   }
 }
 
+function listVideosWithYtdlp(channelUrl) {
+  try {
+    // use yt-dlp to list videos for the channel/handle URL
+    const args = ['--flat-playlist', '-J', channelUrl]
+    console.log('yt-dlp list', args.join(' '))
+    const res = spawnSync('yt-dlp', args, { encoding: 'utf8' })
+    if (res.status !== 0) { console.warn('yt-dlp list failed'); return [] }
+    const j = JSON.parse(res.stdout)
+    const entries = j && j.entries ? j.entries : []
+    return entries.map(en => ({ id: en.id, title: en.title || en.id, desc: '', publishedAt: en.upload_date || '' }))
+  } catch (e) { console.warn('yt-dlp list error', e && e.message); return [] }
+}
+
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     const f = fs.createWriteStream(dest)
@@ -84,7 +97,12 @@ function downloadAudio(videoId) {
 
 async function run() {
   console.log('Listing videos for channel', channelId)
-  const vids = await listVideos()
+  let vids = await listVideos()
+  if ((!vids || vids.length === 0) && channelId) {
+    // channelId may be a URL/handle — attempt yt-dlp listing
+    const fallback = listVideosWithYtdlp(channelId)
+    if (fallback && fallback.length) vids = fallback
+  }
   console.log('Found', vids.length, 'videos')
   const index = { generatedAt: Date.now(), channelId, videos: [] }
   for (const v of vids) {
